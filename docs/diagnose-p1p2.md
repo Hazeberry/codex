@@ -103,7 +103,9 @@ Verfahren (`auswertung/diagnose/p2-kandidaten.js`, `auswertung/diagnose/wurzel-r
 
 - **Auswahl der Partien:** je Archiv 40 Partien: Von den geeigneten Partien (nach Nr. sortiert)
   werden die mit `nr % floor(n/40) = 0` genommen, die ersten 40 (also Nr. 12, 24, 36 … bzw. 24, 48,
-  72 … bei 960 Partien). Keine Auswahl nach Ergebnis.
+  72 … bei 960 Partien). Keine Auswahl nach Ergebnis. **Auswahlfehler, erst nach dem Lauf bemerkt:** Die
+  Regel trifft nur gerade Nummern, und in den Archiven spielt die KI bei geraden Nummern Schwarz. Alle
+  160 P2-Partien haben die KI also als Schwarz; Partien mit der KI als Weiß fehlen (siehe §10, Punkt 5).
 - **Auswahl der Stellungen:** je Partie jeder zweite KI-Zug im Fenster mc 80 bis 199 (Zug 81 bis 200),
   beginnend mit dem ersten, das sind 30 Stellungen je Partie.
 - **Rekonstruktion:** Nachspielen der Partie wie im Harness (gleicher Seed, `adaptiveBudgetEnabled`
@@ -257,6 +259,11 @@ untersucht. Einzelheiten: `docs/daten/diagnose-p1p2/rohdaten/fehlgeschlagen-p1.m
 
 ### P2: Kandidatenabdeckung gegenüber GNU Go (160 Partien, 4754 Stellungen)
 
+> **Einschränkung (nach dem Lauf bemerkt):** In **allen** 160 Partien spielt die KI **Schwarz**. Alle
+> Zahlen dieses Abschnitts gelten nur für Stellungen, in denen die KI Schwarz ist. Aussagen über Weiß
+> liefert P2 nicht. Die technischen Gültigkeitsprüfungen haben diesen Auswahlfehler nicht erkannt (§10,
+> Punkt 5). P1 ist nicht betroffen: Es nimmt alle geeigneten Partien, beide Farben.
+
 - **GNU Gos Zug unter den 16 Wurzelkindern:** 38,9 % [36,1; 41,6] (Mittel je Partie; gepoolt 38,8 %).
   Je Archiv 31,6 % (`muster-ohne-vorgabe-f-D`) bis 43,0 % (`muster-ohne-vorgabe-g-D`).
 - **Ohne das Endspiel-Netz** (Liste vor dem Netz): 34,2 % [31,3; 37,2]. **Nur durch das Netz**
@@ -320,6 +327,14 @@ Hier stehen sie in der Fassung, die die Daten tragen.
    die Gesamtwirkung des Netzes (N0 −71 gegen GNU Go, −68 gegen Fuego, `komponenten.md`) sagt
    nichts über den Weg.
 
-**Bisher nicht erklärt, geplant:** Eine kleine Auswertung der vorhandenen P2-Rohdaten (Rang vor und
-nach dem Netz, nach Archiv und Spielphase) soll klären, welche der Unterschiede in Punkt 1 sich mit
-diesen Daten überhaupt prüfen lassen. Sie ist noch nicht vorbereitet.
+5. **P2 enthält nur Partien mit der KI als Schwarz.** Die Auswahlregel (`nr % 12 = 0` bzw. `nr % 24
+   = 0`) trifft nur gerade Nummern; gerade Nummern sind in den Archiven die Partien, in denen die KI
+   Schwarz spielt (240/240 und 480/480 nachgezählt). Alle 160 Partien und alle 4754 gültigen Stellungen
+   haben die KI als Schwarz. Weiß fehlt ganz. Was das für die Aussagen in §9 heißt: Sie gelten für
+   Stellungen mit der KI als Schwarz; ob sie für Weiß gelten, ist offen. Die **technischen
+   Gültigkeitsprüfungen** von P2 (Reproduktion, Antworten von GNU Go, Wiederholung, Netz) haben den
+   Auswahlfehler nicht erkannt, weil sie die Farbverteilung nicht prüfen. Der Fehler liegt bei meiner
+   Auswahlregel, nicht in den Daten.
+
+**Auswertung der Rohdaten nach Rang:** Sie ist gelaufen (`docs/diagnose-p2-rang.md` §8). Die früheren
+70 % erreicht keine untersuchte Untergruppe; die Farbe war dort nicht prüfbar (aus demselben Grund).

@@ -141,8 +141,8 @@ Mittel je Partie, Intervalle 95 %.
 **Schwarz** (Tabelle „Nach Farbe“: Weiß 0 Stellungen). Die Farbe wechselt mit der Partienummer (gerade
 Nr. = KI Schwarz, ungerade = Weiß; in beiden Archiven nachgezählt: 240/240 und 480/480), und die
 Auswahlregel von P2 (`nr % 12 = 0` bzw. `nr % 24 = 0`) trifft nur gerade Nummern. Das gilt für **P2
-insgesamt** (auch für die Zahlen in `diagnose-p1p2.md` §9), nicht nur für diese Auswertung. Meine
-Kontrollen haben es nicht gefunden, und die Zeile „Farbe der KI – prüfbar: ja“ im Abgleich war falsch:
+insgesamt** (auch für die Zahlen in `diagnose-p1p2.md` §9, dort jetzt deutlich nachgetragen), nicht nur
+für diese Auswertung. Die technischen Gültigkeitsprüfungen haben es nicht erkannt, und die Zeile „Farbe der KI – prüfbar: ja“ im Abgleich war falsch:
 Die Farbe ist mit diesen Daten **nicht** prüfbar.
 
 **Rang von GNU Gos Zug, Liste vor dem Netz** (alle Archive und Phasen, N_gültig 4754):
@@ -171,15 +171,15 @@ Rang ≤ 16: 34,2 % [31,3; 37,2], Median 29 (Quartile 9 und 63). **Nach dem Netz
 Median 7, n = 1354, Liste vor der Suche, ohne Netz). Jetzt, Liste vor dem Netz: Rang 1 = 7,7 %,
 Rang ≤ 16 = 34,2 %, Median 29. Die ganze Verteilung liegt anders, nicht nur die Schwelle bei 16. Die
 Spanne der prüfbaren Faktoren (Archiv × Phase, Rang ≤ 16 vor dem Netz) reicht von 22,0 % bis 45,5 %;
-die 70 % liegen **oberhalb der gesamten Spanne**. Nach der einseitigen Lesart aus Abschnitt 5 heißt
-das nur: **Spielphase innerhalb Zug 81–200 und Gegner (soweit die vier Archive ihn abdecken) erklären
-den Unterschied nicht.** Das Netz erklärt ihn nicht (früher gab es keins; verglichen ist die Liste
-davor). Die Farbe ist nicht prüfbar (siehe oben). **Offen und mit diesen Daten nicht prüfbar:** Vorgabe
+die 70 % liegen **oberhalb der gesamten Spanne**. Beschreibend: **Keine untersuchte Untergruppe
+(Archiv, Spielphase, Archiv × Phase; Liste vor dem Netz) erreicht die früheren 70 %.** Die höchste
+Zelle liegt bei 45,5 %. Das ist ein Befund über diese Zellen, keine Erklärung des alten Unterschieds.
+Verglichen ist die Liste vor dem Netz (früher gab es keins). Die Farbe ist nicht untersucht (siehe oben). **Offen und mit diesen Daten nicht prüfbar:** Vorgabe
 (neun Steine früher), Referenzart (`top_moves` gegen `reg_genmove`), Zufall der Liste (früher auf 0,
 jetzt der echte Strom) und der Engine-Stand. Welcher davon die Lücke trägt, ist nicht entschieden.
 
 **Was daraus folgt:**
-- Die Kandidatenliste ist vor dem Netz kein enger Filter um GNU Gos Zug: Er steht im Median auf Rang 29.
+- Im Median steht GNU Gos Zug vor dem Netz auf Rang 29, also weit hinter den 16 Wurzelkindern.
 - Eine Erweiterung von 16 auf 24 oder 32 Kinder würde den Anteil von 34,2 % (vor dem Netz) auf rund
   44 % beziehungsweise 53 % heben (Summe der Rangklassen, gleiche Daten); rund 47 % lägen weiter dahinter.
   Ob das dem Spiel nützt, sagt diese Auswertung nicht.

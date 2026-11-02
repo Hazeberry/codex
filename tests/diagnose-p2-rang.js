@@ -164,6 +164,7 @@ test('Ergebnis im Repo (Lauf 41538801704): gültig, 4754 gültige Stellungen; al
   pruefeGleich(j.farben.S.gueltig, 4754, 'Schwarz'); pruefeGleich(j.farben.W.gueltig, 0, 'Weiß: keine Stellung');
   pruefe(/41538801704/.test(doc) && /\*\*Schwarz\*\*/.test(doc) && /nicht\*\* prüfbar/.test(doc), 'Doc nennt Lauf und die Einschränkung zur Farbe');
   pruefe(/Folgeentscheidung:\*\* keine/.test(doc), 'keine Folgeentscheidung');
+  pruefe(/Keine untersuchte Untergruppe/.test(doc) && !/erklären\s+den Unterschied nicht/.test(doc.replace(/\n/g, ' ').replace(/Diese Faktoren allein erklären/g, '')), 'beschreibende Aussage statt „erklären den Unterschied nicht“');
 });
 
 test('Workflow: nur von Hand, schreibt auf einen neuen Ergebnisbranch (nie main, nie Force), kein GNU Go, Upload mit always()', () => {
