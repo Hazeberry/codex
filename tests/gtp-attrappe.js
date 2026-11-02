@@ -110,6 +110,11 @@ rl.on('line', zeile => {
       const i = waehle(farbe(a[0]));
       return antwort(true, i < 0 ? 'pass' : zuGtp(i));
     }
+    case 'reg_genmove': {   /* wie GNU Go: nennt einen Zug, legt ihn aber nicht (Kandidaten-Orakel) */
+      const kopie = board.slice(), i = waehle(farbe(a[0]));
+      board = kopie;
+      return antwort(true, i < 0 ? 'pass' : zuGtp(i));
+    }
     case 'list_stones': return antwort(true, liste(/^b/i.test(a[0]) ? 1 : 2));
     case 'final_score': case 'estimate_score': return antwort(true, stand());
     case 'quit': antwort(true); return process.exit(0);

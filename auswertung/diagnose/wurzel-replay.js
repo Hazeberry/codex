@@ -53,7 +53,7 @@ function ladeEngine(htmlPfad) {
   globalThis.localStorage = {getItem: () => null, setItem() {}, removeItem() {}};
   globalThis.document = {getElementById: () => null};
   (0, eval)(ex('shared-go-logic') + '\n' + w
-    + ';globalThis.__D={PARAMS,getAIMove,computeZobrist,removeDeadGroups,floodFill,BOARD_SIZE,setzeKrisenDauer,'
+    + ';globalThis.__D={PARAMS,getAIMove,computeZobrist,removeDeadGroups,floodFill,BOARD_SIZE,setzeKrisenDauer,kandidatenProtokoll:typeof leseKandidatenOrakel==="function"?leseKandidatenOrakel:null,'
     + 'neuePartie(){_mctsSavedRoot=null;_hopelessStreak=0;_allDeadStreak=0;_lastMsPerSim=null;},'
     + 'wurzel:typeof leseWurzelWaechter==="function"?leseWurzelWaechter:null};');
   const E = globalThis.__D;
@@ -84,10 +84,11 @@ function replay(E, p, opt = {}) {
     if (f === wir && !abweichung) {
       Object.assign(E.PARAMS, E.STANDARD, {adaptiveBudgetEnabled: 0, vorgabeSteine: 0}, p.ki);
       globalThis.__DIAG = null;
-      const r = E.getAIMove(board, f, Array.from(hist), {...caps}, mc, 'hard', 1, ko, last);
+      const extra = typeof opt.extra === 'function' ? opt.extra(mc, {board, f}) : undefined;   /* nur für Tests (Kandidaten-Orakel) */
+      const r = E.getAIMove(board, f, Array.from(hist), {...caps}, mc, 'hard', 1, ko, last, extra);
       const gewaehlt = r.type === 'stone' ? r.y * 19 + r.x : r.type === 'resign' ? -2 : -1;
       const d = globalThis.__DIAG || null;
-      zuege.push({mc, gespielt: archiv, gewaehlt, gleich: gewaehlt === archiv, info: r.info || null, vor: d && d.vor, nach: d && d.nach, netz: d ? d.netz : null, kids: d && d.kids});
+      zuege.push({mc, gespielt: archiv, gewaehlt, gleich: gewaehlt === archiv, info: r.info || null, vor: d && d.vor, nach: d && d.nach, netz: d ? d.netz : null, kids: d && d.kids, prot: E.kandidatenProtokoll ? E.kandidatenProtokoll() : null});
       if (gewaehlt !== archiv) abweichung = {mc, gespielt: z, gewaehlt: gewaehlt < 0 ? 'pass' : zuGtp(gewaehlt)};
     }
     if (archiv < 0) ko = null;

@@ -4402,6 +4402,117 @@ function _mctsKids(list, K) {
   return kids;
 }
 
+/* Kandidaten-Orakel (docs/kandidaten-orakel.md): MESSMITTEL, nie in der Oberfläche und nie im
+   Browser gesetzt. Nur über getAIMove(..., extra) mit extra.kandidatenOrakel = {arm, g}:
+   g ist der Zug des Orakels (Index, -1 = Pass), arm 'A' (nur Protokoll, kein Eingriff), 'S'
+   (Orakelzug als Wurzelkind mit Spitzenprior) oder 'ZS' (Kontrolle: Rang-Nachbar statt Orakelzug).
+   Ohne extra ändert sich nichts: _kandOrakel bleibt null, die Wurzel entsteht wie bisher. */
+let _kandOrakel = null, _kandProt = null;
+function leseKandidatenOrakel() { return _kandProt; }
+
+/* Prior der Wurzelkinder wie _mctsKids (Softmax über die Spannweite, Temperatur aus den ersten K
+   Kindern, danach Netz-Anteil), optional mit einem Zusatzeintrag am Ende, dessen Gewicht mit
+   hi, lo und T der Basiskinder gerechnet wird. null = die Default-Rechnung fiele auf den Rang-Prior
+   zurück (kein Eingriff). Ohne Zusatz ergibt das Bit für Bit die Priors von _mctsKids. */
+function _kandSoftmax(list, K, zusatz) {
+  const n = Math.min(K, list.length), sharp = PARAMS.mctsPriorSharp;
+  if (!(sharp > 0 && n > 1)) return null;
+  let hi = -Infinity, lo = Infinity;
+  for (let r = 0; r < n; r++) {
+    const v = list[r].score;
+    if (!Number.isFinite(v)) continue;
+    if (v > hi) hi = v;
+    if (v < lo) lo = v;
+  }
+  if (!(hi > -Infinity)) return null;
+  const T = Math.max(1e-6, (hi - lo) / sharp);
+  const e = zusatz ? list.slice(0, n).concat([zusatz]) : list.slice(0, n);
+  const w = new Array(e.length); let Z = 0;
+  for (let r = 0; r < e.length; r++) {
+    const v = Number.isFinite(e[r].score) ? e[r].score : lo;
+    w[r] = Math.exp((v - hi) / T); Z += w[r];
+  }
+  if (!(Number.isFinite(Z) && Z > 0)) return null;
+  const P = new Array(e.length);
+  for (let r = 0; r < e.length; r++) P[r] = w[r] / Z;
+  if (list.__pNetz && list.__lambda > 0) {
+    let z = 0; const q = new Array(e.length);
+    for (let r = 0; r < e.length; r++) { q[r] = list.__pNetz[e[r].m.idx] || 0; z += q[r]; }
+    if (z > 0) for (let r = 0; r < e.length; r++) P[r] = (1 - list.__lambda) * P[r] + list.__lambda * q[r] / z;
+  }
+  return P;
+}
+/* Größter Prior der anderen Kinder; ok = der Prior von c liegt darunter (Anhebung möglich) */
+function _kandMax(P, c) {
+  let M = -Infinity;
+  for (let j = 0; j < P.length; j++) if (j !== c && P[j] > M) M = P[j];
+  return {M, ok: P[c] < M};
+}
+/* Spitzenprior: P[c] auf den größten anderen Prior setzen und auf Summe 1 normieren */
+function _kandAnheben(P, c) {
+  const {M} = _kandMax(P, c);
+  const Q = P.slice(); Q[c] = M;
+  let S = 0; for (let j = 0; j < Q.length; j++) S += Q[j];
+  for (let j = 0; j < Q.length; j++) Q[j] /= S;
+  return Q;
+}
+function _kandKind(e, P) { return {idx: e.m.idx, x: e.m.x, y: e.m.y, P, N: 0, W: 0, kids: null}; }
+
+/* Wurzelkinder mit Eingriff. Fälle: a Pass, x keine Antwort, b nicht in der Liste, e entartete
+   Prior-Rechnung, c0/d0 kein zulässiger Nachbar, c Spitzenprior für ein vorhandenes Kind, c1 schon
+   größter Prior (g oder Nachbar), d Aufnahme als Kind K+1 mit Spitzenprior, d1 Aufnahme ohne
+   Anhebung (g oder Nachbar hätte schon mit natürlichem Prior den größten). Arm A greift nie ein. */
+function _mctsKidsOrakel(list, K, o) {
+  const basis = _mctsKids(list, K), n = basis.length;
+  const arm = o.arm === 'S' || o.arm === 'ZS' ? o.arm : 'A';
+  const g = Number.isInteger(o.g) ? o.g : null;
+  const prot = _kandProt = {arm, g, fall: null, r: 0, rn: 0, nIdx: -1, pG: null, pN: null, aufgenommen: false, angehoben: false, kinder: n, besuche: null};
+  if (g === null) { prot.fall = 'x'; return basis; }
+  if (g < 0) { prot.fall = 'a'; return basis; }
+  const r = list.findIndex(s => s.m.idx === g) + 1;
+  prot.r = r;
+  if (r === 0) { prot.fall = 'b'; return basis; }
+  const P0 = _kandSoftmax(list, K, null);
+  if (!P0 || n < 2) { prot.fall = 'e'; return basis; }
+  if (r <= n) {                                     /* (c): g ist schon Kind */
+    const rn = r < n ? r + 1 : r - 1;
+    if (rn < 1) { prot.fall = 'c0'; return basis; }
+    prot.rn = rn; prot.nIdx = list[rn - 1].m.idx; prot.pG = P0[r - 1]; prot.pN = P0[rn - 1];
+    if (!_kandMax(P0, r - 1).ok || !_kandMax(P0, rn - 1).ok) { prot.fall = 'c1'; return basis; }
+    prot.fall = 'c';
+    if (arm === 'A') return basis;
+    const Q = _kandAnheben(P0, arm === 'S' ? r - 1 : rn - 1);
+    for (let i = 0; i < n; i++) basis[i].P = Q[i];
+    prot.angehoben = true;
+    return basis;
+  }
+  const rn = r < list.length ? r + 1 : r - 1;       /* (d): g steht hinter den Kindern */
+  if (rn <= n) { prot.fall = 'd0'; return basis; }
+  prot.rn = rn; prot.nIdx = list[rn - 1].m.idx;
+  const eg = list[r - 1], en = list[rn - 1];
+  const Pg = _kandSoftmax(list, K, eg), Pn = _kandSoftmax(list, K, en);
+  if (!Pg || !Pn) { prot.fall = 'e'; return basis; }
+  prot.pG = Pg[n]; prot.pN = Pn[n];
+  const d1 = !_kandMax(Pg, n).ok || !_kandMax(Pn, n).ok;
+  prot.fall = d1 ? 'd1' : 'd';
+  if (arm === 'A') return basis;
+  const e = arm === 'S' ? eg : en;
+  let P = arm === 'S' ? Pg : Pn;
+  if (!d1) { P = _kandAnheben(P, n); prot.angehoben = true; }
+  const kids = new Array(n + 1);
+  for (let i = 0; i < n; i++) { basis[i].P = P[i]; kids[i] = basis[i]; }
+  kids[n] = _kandKind(e, P[n]);
+  prot.aufgenommen = true; prot.kinder = n + 1;
+  return kids;
+}
+function _mctsWurzelKinder(list) {
+  return _kandOrakel ? _mctsKidsOrakel(list, PARAMS.mctsRootChildren, _kandOrakel) : _mctsKids(list, PARAMS.mctsRootChildren);
+}
+function _kandBesuche(root, bm) {
+  const p = _kandProt, N = i => { const k = root.kids.find(k => k.idx === i); return k ? k.N : null; };
+  p.besuche = {g: p.g !== null && p.g >= 0 ? N(p.g) : null, n: p.nIdx >= 0 ? N(p.nIdx) : null, bm: bm.idx, bmN: bm.N};
+}
+
 /* Modul-Zustand für Tree-Reuse. Lebt im Worker zwischen Zügen (Worker-Pool
    macht das möglich) und verschwindet automatisch bei resetGame, weil der
    gepoolte Worker dann terminiert und beim nächsten Hard-Zug neu gebaut wird —
@@ -4423,7 +4534,7 @@ function leseWurzelWaechter(reset) {
 /* Wurzel neu aus der Kandidatenliste bilden und die Statistik gleicher Zuege
    aus dem uebernommenen Teilbaum mitnehmen. Siehe PARAMS.wurzelFrisch. */
 function _frischeWurzel(alt, rootScored) {
-  const kids = _mctsKids(rootScored, PARAMS.mctsRootChildren);
+  const kids = _mctsWurzelKinder(rootScored);
   const vorher = new Map(alt.kids.map(k => [k.idx, k]));
   let N = 0, W = 0;
   for (const k of kids) {
@@ -4518,7 +4629,7 @@ function mctsPUCT(board, aiColor, captures, rootScored, koPoint) {
     _wurzelWieder++;
     if (PARAMS.wurzelFrisch >= 1) root = _frischeWurzel(root, rootScored);
   }
-  if (!root) root = {N: 0, W: 0, kids: _mctsKids(rootScored, PARAMS.mctsRootChildren)};
+  if (!root) root = {N: 0, W: 0, kids: _mctsWurzelKinder(rootScored)};
   if (!root.kids.length) return null;
 
   let sims = 0;
@@ -4627,6 +4738,7 @@ function mctsPUCT(board, aiColor, captures, rootScored, koPoint) {
   }
   let bm = root.kids[0], bn = -1;
   for (const k of root.kids) if (k.N > bn) { bn = k.N; bm = k; }
+  if (_kandProt) _kandBesuche(root, bm);
 
   /* Feedback für den nächsten Zug: tatsächliche ms/Sim messen, unabhängig
      davon was die Kosten verursacht hat (Randkampf, große Gruppen, egal). */
@@ -5101,6 +5213,8 @@ function getAIMove(board, aiColor, histHashes, captures, mc, diff, reqId, koPoin
   const _t0 = Date.now();
   _zeit.t0 = _t0; _zeit.simStart = 0; _zeit.simEnd = 0; _zeit.netzMs = 0;
   const vp = diff === 'hard' ? passNachGegnerpassPruefung(board, aiColor, captures, extra) : null;
+  _kandProt = null;
+  _kandOrakel = (diff === 'hard' && extra && extra.kandidatenOrakel) ? extra.kandidatenOrakel : null;   /* Messmittel, docs/kandidaten-orakel.md */
   if (vp && vp.pass) {
     r = {type: 'pass', requestId: reqId,
          info: `Pass — Gegner hat gepasst, Vorsprung ${vp.mit.toFixed(1)}/${vp.nur.toFixed(1)} (Versuchsregel)`};
@@ -5108,6 +5222,7 @@ function getAIMove(board, aiColor, histHashes, captures, mc, diff, reqId, koPoin
     r = _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove);
   }
   if (vp) r.versuch = vp;
+  _kandOrakel = null;
   _zeit.tEnde = Date.now();
   endspielNetzMerke(aiColor, r && r.type === 'stone' ? r.y * 19 + r.x : -1, mc);
   return r;

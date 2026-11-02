@@ -60,7 +60,11 @@ case "$gegner" in
 esac
 mkdir -p "$(dirname "$roh")"
 rm -f "$roh"
-node "$here/../../gnugo-duell.js" "${wer[@]}" --gnugo "${GNUGO:-/usr/games/gnugo}" \
+# DUELL_ZUSATZ: weitere Optionen für gnugo-duell.js, durch Leerzeichen getrennt (leer = keine;
+# docs/kandidaten-orakel.md: --kandidaten-orakel S)
+# shellcheck disable=SC2206
+zusatz=(${DUELL_ZUSATZ:-})
+node "$here/../../gnugo-duell.js" "${wer[@]}" "${zusatz[@]}" --gnugo "${GNUGO:-/usr/games/gnugo}" \
   --partien "$anzahl" --von "$von" --seed "$seed" --stufe 1 --vorgabe "$vorgabe" \
   --maxzuege 600 --schaetzung "$schaetzung" --gnugo-aufgabe 0 \
   --ki "$ki" --roh "$roh"
