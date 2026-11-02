@@ -14,7 +14,7 @@ ein Ergebnis gültig ist. Ergebnisse kommen als Nachtrag in dieses Dokument, Roh
 Zwei Fragen an Partien, die schon im Archiv liegen (Standard ohne Vorgabe):
 
 - **P1 – Buchung:** Wohin gehen die Punkte, die die KI zwischen Zug 100 und Zug 200 gegenüber
-  GNU Go verliert oder gewinnt? Gebucht in **Punkten über alle geeigneten Partien**, ohne Auswahl
+  dem Gegner verliert oder gewinnt? Gebucht in **Punkten über alle geeigneten Partien**, ohne Auswahl
   nach Abstieg und ohne Anteile.
 - **P2 – Kandidatenabdeckung:** Steht der Zug, den GNU Go in der Stellung wählt, unter den
   16 Wurzelkindern, mit denen die Suche der KI tatsächlich lief? Das ist eine Aussage über die
@@ -80,9 +80,10 @@ Verfahren (`auswertung/diagnose/p1-buchung.js`, baut auf `auswertung/besitz-verl
   würden die Vergleichbarkeit stören.
 - Jeder Brettpunkt bekommt eine Art: KI-Stein, KI-Gebiet, GG-tot, neutral, GG-Stein, GG-Gebiet,
   KI-tot. Besitz: KI-Stein, KI-Gebiet, GG-tot = +1; neutral = 0; GG-Stein, GG-Gebiet, KI-tot = −1.
+  „GG“ heißt Gegner (in den Fuego-Archiven also Fuego); GNU Go ist dort nur Schiedsrichter.
 - Wechselt ein Punkt die Art, wird er einem von **sieben Posten** zugeordnet (siehe `POSTEN` im
-  Code): eigene Steine sterben, eigenes Gebiet verloren, neutral an GNU Go, neutral an die KI,
-  von GNU Go zurückgewonnen, eigene tote Steine leben wieder, tote GNU-Go-Steine leben wieder.
+  Code): eigene Steine sterben, eigenes Gebiet verloren, neutral an den Gegner, neutral an die KI,
+  vom Gegner zurückgewonnen, eigene tote Steine leben wieder, tote Gegner-Steine leben wieder.
   Alles in Punkten.
 - **Kontrolle je Partie (Identität):** Σ der sieben Posten = Veränderung derselben Zählung
   (Besitz × Punkte der Arten) zwischen Zug 100 und 200. Weicht eine Partie ab, ist der Teil P1
@@ -134,9 +135,9 @@ mit Grund im Bericht, und der Lauf wird rot. Ein Ergebnis wird nicht nachträgli
 ## 6. Grenzen
 
 - **Der Lehrer ist die Referenz.** GNU Go ist zugleich Lehrer des Endspiel-Netzes und der
-  Muster (siehe README). Die Abdeckung wird dadurch nach oben verzerrt, besonders ab Zug 81, wo das
-  Netz zusätzliche Kandidaten einbringt. Das Ergebnis misst „bildet die Liste GNU Gos Wahl ab“,
-  nicht „sind die Kandidaten gut“.
+  Muster (siehe README). Die Abdeckung könnte dadurch begünstigt sein, besonders ab Zug 81, wo das
+  Netz zusätzliche Kandidaten einbringt (**Hypothese**, nicht gemessen). Das Ergebnis misst „bildet
+  die Liste GNU Gos Wahl ab“, nicht „sind die Kandidaten gut“.
 - **Fehlt GNU Gos Zug, fehlt nicht automatisch ein guter Zug.**
 - **Stichprobe:** 40 Partien × 30 Stellungen je Archiv, Stellungen innerhalb einer Partie sind
   nicht unabhängig; deshalb zählt die Partie als Einheit.
@@ -189,7 +190,15 @@ wurde**:
    (`tests/diagnose-p1p2.js`). Auf GitHub belegt das erst die Probe
    `.github/workflows/diagnose-timeout-probe.yml` (rund drei Minuten, kein GNU Go, keine Partien): Der
    Schritt läuft absichtlich ab, der Job „Prüfung“ ist nur grün, wenn der Teilinhalt im Artefakt
-   angekommen ist. **Die Probe ist noch nicht gelaufen.**
+   angekommen ist.
+   **Nachtrag (Probe gelaufen, Actions-Lauf 41521966719, 2. November 2026, Kopf
+   `e8df7b4677b315bfbef029171e4c5fee1a150e40`):** Der Schritt mit Zeitlimit wurde nach 73 Sekunden
+   (Limit 1 Minute) abgebrochen und als `failure` markiert, der Upload mit `if: always()` lief danach
+   und war erfolgreich, der Job „Prüfung“ war grün: 4 von 7 Zeilen im Artefakt (Teilinhalt, nicht
+   vollständig). Der Gesamtlauf der Probe steht deshalb auf `failure`; das ist der erwartete Ausgang,
+   nicht ein Fehler (grün wäre er nur, wenn der Schritt nicht abgelaufen wäre). **Belegt** ist das für
+   das Zeitlimit eines Schritts. Das Zeitlimit des ganzen Jobs ist nicht geprüft; der Workflow verlässt
+   sich nicht darauf, weil das Schritt-Limit (150 Minuten) vor dem Job-Limit (200 Minuten) greift.
 6. **Wiederverwendung.** Die drei fertigen Archive des ersten Laufs (Artefakte `diagnose-<name>`)
    werden mit `vorlauf=41480291668` und `neu=fuego-siege-D` übernommen und nicht neu gerechnet. Sie
    stammen aus unveränderter Rechenlogik (gleiche Buchung und Kandidatenrekonstruktion, nur anders
@@ -197,3 +206,71 @@ wurde**:
 
 Die Änderungen betreffen Ablauf und Prüfregeln, nicht Auswahl, Kennzahlen oder Schwellen. Sie wurden
 vor dem Lesen irgendeines Ergebnisses festgelegt.
+
+## 9. Ergebnis (Nachtrag, 2. November 2026)
+
+Actions-Lauf 41480291668 (Kopf `8271c92cf86633f32b01afa2706475edea0d3a9a`), alle vier Archive in
+**einem** Lauf gerechnet, nichts übernommen oder neu gerechnet; das Verfahren in §8 (Pakete,
+Fortsetzen, Wiederverwendung) kam nicht zum Einsatz. Berichtsjob 125542111191: `p1=0 p2=0`, beide
+Teile **gültig**. Die Berichte stehen unverändert in `docs/daten/diagnose-p1p2/p1.md` und `p2.md`.
+Die Rohdaten (Artefakte `diagnose-<archiv>`) liegen im Lauf und sind dort bis zum 31. Januar 2027
+abrufbar; sie sind noch **nicht** im Repo, der Download aus dem Container wurde abgewiesen.
+**Sicherung (vorbereitet, nicht gelaufen):** Der Workflow `.github/workflows/diagnose-sichern.yml`
+lädt die vier Artefakte des Laufs, legt die Ergebniszeilen verlustfrei komprimiert unter
+`docs/daten/diagnose-p1p2/rohdaten/<archiv>/` ab (`p1.jsonl.gz`, `p2.jsonl.gz`), schreibt ein
+`manifest.json` (Artefakt-ID und -Digest, Zeilenzahlen, Prüfsummen) und `fehlgeschlagen-p1.md` mit
+den Partien ohne Buchung (Nr., Seed, Zugzahl, Fehlermeldung) auf einen neuen Zweig
+`claude/diagnose-rohdaten-<lauf>`. Er rechnet nichts neu und startet erst nach ausdrücklichem „Go“.
+
+Die Berichtsjobs dieses Laufs prüften noch mit der Fassung vor §8 (ein ganz fehlendes Archiv wäre
+nicht aufgefallen). Hier waren alle vier Archive vorhanden: 40 von 40 Partien je Archiv in P2, in
+P1 958 von 960 (`fuego-siege-D`, 99,8 %) und 480 von 480 in den übrigen drei. Warum zwei Partien aus
+`fuego-siege-D` nicht gebucht wurden, ist **noch nicht bekannt**: Es steht im Feld `fehler` der
+Rohdaten, die ich bisher nicht lesen konnte; `fehlgeschlagen-p1.md` der Sicherung dokumentiert
+Nr., Seed, Zugzahl und Fehlermeldung. Bis dahin gilt nur: 958 von 960 ist 99,8 % und erfüllt die
+Schwelle von 98 %. Ob die zwei Partien die Aussage ändern würden, ist nicht untersucht.
+
+### P1: Buchung zwischen Zug 100 und 200 (Punkte je Partie, Sicht der KI; 2398 Partien)
+
+- **Summe:** `fuego-siege-D` +13,8 [10,3; 17,3], `muster-ohne-vorgabe-f-D` −5,7 [−10,0; −1,3],
+  `leeres-brett-g-D` −33,5 [−37,3; −29,7], `muster-ohne-vorgabe-g-D` −36,8 [−40,4; −33,2]; alle Archive
+  −9,7 [−11,8; −7,5]. Anteil der Partien mit negativer Summe: 40,4 / 56,0 / 79,2 / 83,3 %
+  (alle 59,9 %).
+- **Posten (alle Archive, Mittel je Partie):** eigene Steine sterben −8,2; eigenes Gebiet geht
+  verloren −31,1; neutrales Gebiet an den Gegner −48,4; neutrales Gebiet an die KI +42,2; vom Gegner
+  zurückgewonnen +34,0; eigene tote Steine leben wieder +6,0; tote Gegner-Steine leben wieder −4,2.
+  Die Summe der Posten ist je Partie die Veränderung der Zählung (Kontrolle bestanden, sonst wäre
+  der Teil ungültig).
+- **Lesart (nur Beschreibung):** Zwischen Zug 100 und 200 wechseln viele Punkte in beide Richtungen;
+  die Nettosumme ist ein kleiner Rest großer gegenläufiger Posten. Der größte negative Einzelposten
+  ist „neutrales Gebiet an den Gegner“, der größte positive „neutrales Gebiet an die KI“. In den
+  Archiven gegen GNU Go ist die Summe negativer (rund −34 bis −37) als in denen gegen Fuego
+  (−5,7 und +13,8); das ist eine Beobachtung, kein Befund über den Gegner.
+- **Nicht ausgewertet:** Ursachen der Posten und Aussagen über Zugqualität. Vergleiche der Archive
+  untereinander sind **nur beschreibend, nicht kausal**: Gegner, Seed und Engine-Stand unterscheiden
+  sich, und die Archive wurden nicht gepaart gegeneinander gemessen. Auch der Unterschied zwischen
+  den Archiven gegen GNU Go und denen gegen Fuego ist deshalb nur eine Beobachtung.
+
+### P2: Kandidatenabdeckung gegenüber GNU Go (160 Partien, 4754 Stellungen)
+
+- **GNU Gos Zug unter den 16 Wurzelkindern:** 38,9 % [36,1; 41,6] (Mittel je Partie; gepoolt 38,8 %).
+  Je Archiv 31,6 % (`muster-ohne-vorgabe-f-D`) bis 43,0 % (`muster-ohne-vorgabe-g-D`).
+- **Ohne das Endspiel-Netz** (Liste vor dem Netz): 34,2 % [31,3; 37,2]. **Nur durch das Netz**
+  hineingekommen: 6,6 %; **durch das Netz hinausgedrängt**: 2,0 %. Das Netz änderte die
+  Wurzelkinder in 84,5 % der Stellungen (die Netzkontrolle hat Zusatzkandidaten festgestellt).
+- **In der Liste überhaupt** (nach dem Netz, beliebiger Rang): 99,4 %. Dass GNU Gos Zug in
+  rund 61 % der Stellungen nicht unter den ersten 16 steht, liegt also an der Begrenzung auf 16,
+  nicht daran, dass er gar nicht in der Liste wäre. Auf welchem Rang er dort steht, ist in diesem
+  Bericht nicht ausgewiesen.
+- **Die KI spielte denselben Zug wie GNU Go** in 12,7 % der Stellungen.
+- 46 Stellungen, in denen GNU Go passt, sind nicht gezählt. Ausgeschlossen wegen Nicht-Reproduktion: 0.
+  Stellungen ohne Antwort von GNU Go: 0.
+
+**Grenzen (wie in §6):** Abdeckung ist keine Zugqualität: Fehlt GNU Gos Zug unter den Kindern,
+fehlt nicht automatisch ein guter Zug. **Hypothese, nicht gemessen:** Weil GNU Go zugleich Lehrer
+von Netz und Mustern ist, könnten der Anteil „nur durch das Netz“ und die Abdeckung insgesamt
+dadurch begünstigt sein. Die Diagnose enthält keine Messung, die das prüft (etwa eine Referenz, die
+nicht Lehrer ist); die Richtung und Größe einer solchen Begünstigung sind unbekannt.
+
+**Folgeentscheidung:** keine. Ob und wie sich daraus ein Versuch zu Breite, Suche oder Netz ableitet,
+entscheidet Hazeberry; dieses Dokument legt dafür keine Regel fest.
