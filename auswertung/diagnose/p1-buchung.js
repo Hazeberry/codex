@@ -5,7 +5,7 @@
    Aus archivierten Partien: GNU Go (Stufe 1, wie besitz-verlauf.js) beurteilt die
    Stellung nach Zug 100 und nach Zug 200 (final_status_list); jeder Brettpunkt
    bekommt eine Art (KI-Stein, KI-Gebiet, GG-tot, neutral, GG-Stein, GG-Gebiet,
-   KI-tot), jede Art einen Besitz (+1 KI, 0 neutral, −1 GNU Go). Die Punkte, die
+   KI-tot), jede Art einen Besitz (+1 KI, 0 neutral, −1 Gegner; GG = Gegner, in den Fuego-Archiven also Fuego). Die Punkte, die
    zwischen den beiden Stellungen die Art wechseln, werden auf sieben Posten
    gebucht (nur Wechsel, die Punkte ändern). Gebucht wird **in Punkten, über alle
    geeigneten Partien**; es gibt keine Auswahl nach Abstieg und keine Anteile.
@@ -26,12 +26,12 @@ const GUELTIG = {ausgewertet: 0.98, wiederholung: 5};
 const BESITZ = {'KI-Stein': 1, 'KI-Gebiet': 1, 'GG-tot': 1, 'neutral': 0, 'GG-Stein': -1, 'GG-Gebiet': -1, 'KI-tot': -1};
 const POSTEN = [
   ['eigeneSteineSterben', 'eigene Steine sterben (KI-Stein → weniger)', (a, b) => a === 'KI-Stein' && BESITZ[b] < 1],
-  ['eigenesGebietVerloren', 'eigenes Gebiet geht verloren (KI-Gebiet → GNU Go oder neutral)', (a, b) => a === 'KI-Gebiet' && BESITZ[b] < 1],
-  ['neutralAnGG', 'neutrales Gebiet an GNU Go', (a, b) => a === 'neutral' && BESITZ[b] < 0],
+  ['eigenesGebietVerloren', 'eigenes Gebiet geht verloren (KI-Gebiet → Gegner oder neutral)', (a, b) => a === 'KI-Gebiet' && BESITZ[b] < 1],
+  ['neutralAnGG', 'neutrales Gebiet an den Gegner', (a, b) => a === 'neutral' && BESITZ[b] < 0],
   ['neutralAnKI', 'neutrales Gebiet an die KI', (a, b) => a === 'neutral' && BESITZ[b] > 0],
-  ['vonGGZurueck', 'von GNU Go zurückgewonnen (GG-Stein, GG-Gebiet → KI oder neutral)', (a, b) => (a === 'GG-Stein' || a === 'GG-Gebiet') && BESITZ[b] > BESITZ[a]],
+  ['vonGGZurueck', 'vom Gegner zurückgewonnen (GG-Stein, GG-Gebiet → KI oder neutral)', (a, b) => (a === 'GG-Stein' || a === 'GG-Gebiet') && BESITZ[b] > BESITZ[a]],
   ['eigeneTotLebend', 'eigene tote Steine leben wieder (KI-tot → KI oder neutral)', (a, b) => a === 'KI-tot' && BESITZ[b] > BESITZ[a]],
-  ['ggTotLebend', 'tote GNU-Go-Steine leben wieder (GG-tot → GNU Go oder neutral)', (a, b) => a === 'GG-tot' && BESITZ[b] < 1],
+  ['ggTotLebend', 'tote Gegner-Steine leben wieder (GG-tot → Gegner oder neutral)', (a, b) => a === 'GG-tot' && BESITZ[b] < 1],
 ];
 
 /* Eine Partie buchen. r = Ausgabe von besitz-verlauf.analysiere (Marken 100 und 200) */
@@ -108,7 +108,7 @@ function bericht(partien, geeignetJeArchiv, erwartet = []) {
   z.push('| **Veränderung der Zählung (Summe)** | ' + aus.map(a => zelle(a, x => x.delta)).join(' | ') + ' |');
   for (const [k, titel] of POSTEN.map(p => [p[0], p[1]])) z.push(`| ${titel} | ` + aus.map(a => zelle(a, x => x.posten[k])).join(' | ') + ' |');
   z.push('| Anteil der Partien mit Abstieg (Summe < 0) | ' + aus.map(a => a ? (100 * a.anteilAbstieg).toFixed(1) + ' %' : '–').join(' | ') + ' |');
-  z.push('', 'Die sieben Posten teilen alle Wechsel, die Punkte ändern; ihre Summe ist je Partie exakt die Veränderung der Zählung zwischen Zug 100 und Zug 200 (Kontrolle). Ein Wechsel KI → GNU Go kostet 2 Punkte, KI → neutral 1.');
+  z.push('', 'Die sieben Posten teilen alle Wechsel, die Punkte ändern; ihre Summe ist je Partie exakt die Veränderung der Zählung zwischen Zug 100 und Zug 200 (Kontrolle). Ein Wechsel KI → Gegner kostet 2 Punkte, KI → neutral 1.');
   return {text: z.join('\n'), gueltig: g.gueltig, gruende: g.gruende};
 }
 

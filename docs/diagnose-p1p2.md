@@ -14,7 +14,7 @@ ein Ergebnis gültig ist. Ergebnisse kommen als Nachtrag in dieses Dokument, Roh
 Zwei Fragen an Partien, die schon im Archiv liegen (Standard ohne Vorgabe):
 
 - **P1 – Buchung:** Wohin gehen die Punkte, die die KI zwischen Zug 100 und Zug 200 gegenüber
-  GNU Go verliert oder gewinnt? Gebucht in **Punkten über alle geeigneten Partien**, ohne Auswahl
+  dem Gegner verliert oder gewinnt? Gebucht in **Punkten über alle geeigneten Partien**, ohne Auswahl
   nach Abstieg und ohne Anteile.
 - **P2 – Kandidatenabdeckung:** Steht der Zug, den GNU Go in der Stellung wählt, unter den
   16 Wurzelkindern, mit denen die Suche der KI tatsächlich lief? Das ist eine Aussage über die
@@ -80,9 +80,10 @@ Verfahren (`auswertung/diagnose/p1-buchung.js`, baut auf `auswertung/besitz-verl
   würden die Vergleichbarkeit stören.
 - Jeder Brettpunkt bekommt eine Art: KI-Stein, KI-Gebiet, GG-tot, neutral, GG-Stein, GG-Gebiet,
   KI-tot. Besitz: KI-Stein, KI-Gebiet, GG-tot = +1; neutral = 0; GG-Stein, GG-Gebiet, KI-tot = −1.
+  „GG“ heißt Gegner (in den Fuego-Archiven also Fuego); GNU Go ist dort nur Schiedsrichter.
 - Wechselt ein Punkt die Art, wird er einem von **sieben Posten** zugeordnet (siehe `POSTEN` im
-  Code): eigene Steine sterben, eigenes Gebiet verloren, neutral an GNU Go, neutral an die KI,
-  von GNU Go zurückgewonnen, eigene tote Steine leben wieder, tote GNU-Go-Steine leben wieder.
+  Code): eigene Steine sterben, eigenes Gebiet verloren, neutral an den Gegner, neutral an die KI,
+  vom Gegner zurückgewonnen, eigene tote Steine leben wieder, tote Gegner-Steine leben wieder.
   Alles in Punkten.
 - **Kontrolle je Partie (Identität):** Σ der sieben Posten = Veränderung derselben Zählung
   (Besitz × Punkte der Arten) zwischen Zug 100 und 200. Weicht eine Partie ab, ist der Teil P1
@@ -236,13 +237,13 @@ Schwelle von 98 %. Ob die zwei Partien die Aussage ändern würden, ist nicht un
   −9,7 [−11,8; −7,5]. Anteil der Partien mit negativer Summe: 40,4 / 56,0 / 79,2 / 83,3 %
   (alle 59,9 %).
 - **Posten (alle Archive, Mittel je Partie):** eigene Steine sterben −8,2; eigenes Gebiet geht
-  verloren −31,1; neutrales Gebiet an GNU Go −48,4; neutrales Gebiet an die KI +42,2; von GNU Go
-  zurückgewonnen +34,0; eigene tote Steine leben wieder +6,0; tote GNU-Go-Steine leben wieder −4,2.
+  verloren −31,1; neutrales Gebiet an den Gegner −48,4; neutrales Gebiet an die KI +42,2; vom Gegner
+  zurückgewonnen +34,0; eigene tote Steine leben wieder +6,0; tote Gegner-Steine leben wieder −4,2.
   Die Summe der Posten ist je Partie die Veränderung der Zählung (Kontrolle bestanden, sonst wäre
   der Teil ungültig).
 - **Lesart (nur Beschreibung):** Zwischen Zug 100 und 200 wechseln viele Punkte in beide Richtungen;
   die Nettosumme ist ein kleiner Rest großer gegenläufiger Posten. Der größte negative Einzelposten
-  ist „neutrales Gebiet an GNU Go“, der größte positive „neutrales Gebiet an die KI“. In den
+  ist „neutrales Gebiet an den Gegner“, der größte positive „neutrales Gebiet an die KI“. In den
   Archiven gegen GNU Go ist die Summe negativer (rund −34 bis −37) als in denen gegen Fuego
   (−5,7 und +13,8); das ist eine Beobachtung, kein Befund über den Gegner.
 - **Nicht ausgewertet:** Ursachen der Posten und Aussagen über Zugqualität. Vergleiche der Archive

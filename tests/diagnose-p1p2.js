@@ -312,6 +312,15 @@ test('Sicherungs-Workflow: nur von Hand, schreibt nur auf neuen Zweig claude/, n
   for (const f of ['diagnose-p1p2.yml', 'diagnose-timeout-probe.yml']) pruefe(!/contents: write/.test(fs.readFileSync(path.join(wurzel, '.github/workflows', f), 'utf8')), f + ' ohne Schreibrecht');
 });
 
+test('P1-Posten heißen „Gegner“, nicht „GNU Go“ (gilt auch für die Fuego-Archive); P2 behält GNU Go als Referenz', () => {
+  for (const [k, titel] of P1.POSTEN.map(p => [p[0], p[1]])) pruefe(!/GNU/.test(titel), 'Posten ' + k + ': ' + titel);
+  const md = fs.readFileSync(path.join(wurzel, 'docs/daten/diagnose-p1p2/p1.md'), 'utf8'), doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8');
+  const p1Doc = doc.slice(doc.indexOf('### P1: Buchung zwischen Zug 100 und 200'), doc.indexOf('### P2: Kandidatenabdeckung'));
+  pruefe(!/GNU-Go-Steine|an GNU Go −|von GNU Go zurück/.test(p1Doc + md.split('Quelle:')[0]), 'P1-Posten in Doc und Bericht ohne GNU Go');
+  pruefe(/an den Gegner/.test(md) && /vom Gegner zurückgewonnen/.test(md) && /tote Gegner-Steine/.test(md), 'Gegner-Bezeichnungen im Bericht');
+  pruefe(/GNU Go Stufe 10, `reg_genmove`/.test(doc), 'P2-Referenz bleibt GNU Go');
+});
+
 test('Doc: Vergleiche nur beschreibend, Begünstigung durch GNU Go als Hypothese gekennzeichnet', () => {
   const doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8');
   pruefe(/nur beschreibend, nicht kausal/.test(doc), 'nur beschreibend, nicht kausal');
