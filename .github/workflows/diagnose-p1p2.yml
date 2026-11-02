@@ -1,0 +1,119 @@
+name: Diagnose P1/P2
+
+# Manueller Lauf aus docs/diagnose-p1p2.md: Diagnose an vorhandenen Archivpartien
+# des Defaults ohne Vorgabe. Keine neuen Partien, kein Arm mit Zeitbudget, keine
+# Änderung am Spiel, keine automatische Folgeentscheidung.
+#
+#   P1  Buchung der Punkte zwischen Zug 100 und Zug 200 (GNU Go beurteilt beide
+#       Stellungen), in Punkten über alle geeigneten Partien
+#   P2  Kandidatenabdeckung: Steht GNU Gos Zug (Stufe 10) unter den 16
+#       Wurzelkindern, mit denen die Suche lief? Die Kinder kommen aus einem
+#       exakten Nachspielen der Partie (gleicher Zufall); Partien, die sich nicht
+#       exakt reproduzieren lassen, zählen nicht.
+#
+# Ablauf:
+#   archiv     je Archiv (4 Jobs): P1, dann P2
+#   ergebnis   beide Berichte; rot, wenn ein Teil ungültig ist („kein Urteil“)
+#
+# Keine Eingaben: Archive, Auswahl und Schwellen stehen im Dokument.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: diagnose-p1p2
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  archiv:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: leeres-brett-g-D, datei: docs/daten/leeres-brett/lauf1/g-D.jsonl.gz}
+          - {name: muster-ohne-vorgabe-g-D, datei: docs/daten/muster-ohne-vorgabe/lauf1/g-D.jsonl.gz}
+          - {name: muster-ohne-vorgabe-f-D, datei: docs/daten/muster-ohne-vorgabe/lauf1/f-D.jsonl.gz}
+          - {name: fuego-siege-D, datei: docs/daten/fuego-siege/lauf1/D.jsonl.gz}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: GNU Go installieren
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+          /usr/games/gnugo --version | head -1
+
+      - name: P1 Buchung Zug 100 bis 200
+        run: |
+          set -euo pipefail
+          mkdir -p ergebnisse
+          node auswertung/diagnose/p1-buchung.js --archiv "${{ matrix.name }}=${{ matrix.datei }}" --aus "ergebnisse/p1-${{ matrix.name }}.jsonl"
+
+      - name: P2 Kandidatenabdeckung
+        run: |
+          set -euo pipefail
+          node auswertung/diagnose/p2-kandidaten.js --archiv "${{ matrix.name }}=${{ matrix.datei }}" --aus "ergebnisse/p2-${{ matrix.name }}.jsonl" --partien 40 --wiederhole 3
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: diagnose-${{ matrix.name }}
+          path: ergebnisse/
+          retention-days: 90
+          if-no-files-found: error
+
+  ergebnis:
+    name: Berichte
+    needs: archiv
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: diagnose-*
+          path: roh
+          merge-multiple: true
+
+      - name: Berichte
+        run: |
+          set -uo pipefail
+          mkdir -p bericht
+          status=0
+          node auswertung/diagnose/p1-buchung.js --bericht roh/p1-*.jsonl > bericht/p1.md || status=$?
+          p1=$status; status=0
+          node auswertung/diagnose/p2-kandidaten.js --bericht roh/p2-*.jsonl > bericht/p2.md || status=$?
+          p2=$status
+          cat bericht/p1.md bericht/p2.md | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "p1=$p1 p2=$p2" > bericht/status.txt
+          cat bericht/status.txt
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: diagnose-bericht
+          path: bericht/
+          retention-days: 90
+
+      - name: Gültigkeit
+        run: |
+          set -uo pipefail
+          cat bericht/status.txt
+          grep -q "p1=0 p2=0" bericht/status.txt || { echo "Ein Teil ist ungültig: kein Urteil. Gründe stehen im Bericht."; exit 1; }
