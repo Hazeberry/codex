@@ -7,7 +7,7 @@ Statusmeldungen kurz. Lizenz: PolyForm Noncommercial 1.0.0.
 ## Arbeitsweise (vom Eigentümer so festgelegt)
 
 - **Messungen laufen in GitHub Actions, nicht im Container.** Lokal nur leichte Arbeit:
-  Code, Tests, Trockenläufe auf Archivdaten, einzelne Züge. Ein Messlauf startet **erst nach
+  Code, Tests, Trockenläufe auf Archivdaten, einzelne Züge. Ein Messlauf startet Vor jeder umfangreichen Reproduktion oder Diagnose zuerst nennen: Was läuft, wo läuft es und welches Go gilt dafür. Solche Läufe gehören ausschließlich in GitHub Actions. „Vorbereitung“ ist keine Ausnahme. Lokal bleiben kurze Funktionstests und einzelne Stellungen. **erst nach
   ausdrücklichem „Go“**; reine Rechnungen auf Archivdaten ebenfalls auf sein Wort.
 - **Keine Änderung am Spiel ohne eigene Vorabfestlegung und Go.** Schalter mit Standard „aus“ sind
   der übliche Weg; bei Schalter aus muss das Verhalten bitgleich bleiben (Test).
