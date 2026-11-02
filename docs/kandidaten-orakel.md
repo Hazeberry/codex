@@ -90,6 +90,25 @@ P′ = (0,6964; 0,2562; 0,0347; 0,0128). Spitzenprior für den aufgenommenen Zug
 R″ = (0,6964; 0,2562; 0,0347; 0,6964), Summe 1,6836, R‴ = (0,4136; 0,1522; 0,0206; 0,4136). Der Test in §8
 rechnet dieses Beispiel nach.
 
+**Randfälle, ausdrücklich festgelegt.**
+
+- **Gleiche Scores in *B*.** Ist hi = lo, dann *T* = 10⁻⁶ und w(m) = 1 für alle Basiskinder: Der Default-Prior
+  ist gleichverteilt (1/16 ohne Netz-Anteil). Beim aufgenommenen Zug gilt dieselbe Formel ohne Sonderfall:
+  w(a) = exp((ṽ(a) − hi) / 10⁻⁶) ist 0 (Unterlauf), wenn ṽ(a) < hi, und 1, wenn ṽ(a) = hi. Der natürliche
+  Prior eines schlechteren Zusatzzuges ist dann 0 (plus sein Netz-Anteil); der Prior der 16 Basiskinder bleibt
+  dann exakt der Default-Prior. Das Protokoll hält w(a) = 0 fest.
+- **Gleicher Rang bei gleichem Score.** Der Rang ist die **Position in *L***, so wie `mctsPUCT` die Liste
+  bekommt; Gleichstände sind dort vom Motor schon entschieden (einschließlich seines Gleichstandsbrechers).
+  Der Eingriff sortiert nicht neu. Der Nachbar ist die Position r ± 1, auch bei gleichem Score.
+- **Gleicher Prior beim Vergleich.** Die Bedingung R(c) ≥ M gilt auch bei Gleichheit: Ein Kind, das mit dem
+  größten anderen Prior gleichauf liegt, wird **nicht** angehoben. Verglichen wird exakt in
+  Gleitkommazahlen, ohne Toleranz.
+- **Zusatzkind schon mit dem höchsten Prior (d1).** Das ist möglich, wenn der Netz-Anteil λ · q(a) / Σ q den
+  natürlichen Prior über den größten der 16 hebt. Dann bleibt die Aufnahme, die Anhebung entfällt. Damit die
+  Priorbehandlung in S und ZS gleich bleibt, entfällt sie in **beiden** Armen, wenn sie für *g* **oder** für
+  *n* entfiele (die Entscheidung nutzt beide Vektoren, P′ mit *g* und P′ mit *n*); das Protokoll nennt Fall (d1)
+  und beide natürlichen Priors.
+
 **Entartete Fälle.** Fällt die Default-Rechnung auf den Rang-Prior zurück (σ = 0, nur ein Kind, Z_B nicht
 endlich oder ≤ 0), gibt es in diesem Zug **keinen Eingriff** in keinem Arm; die Stellung wird gezählt.
 
@@ -105,7 +124,8 @@ Stellung abgefragt), *r* sein Rang in *L*.
 | (b) | *g* steht nicht in *L* (r = 0; auch z. B. für die KI verbotener Ko-Zug) | kein Eingriff in **keinem** Arm |
 | (c) | 1 ≤ r ≤ 16, *g* ist schon Kind | Aufnahme gibt es nichts zu tun; Gewicht kann angehoben werden |
 | (c1) | *g* hat schon den größten Prior (oder, für die Kontrollen, der Nachbar *n*): R(c) ≥ M | in keinem Arm ein Eingriff in diesem Fall |
-| (d) | r > 16, *g* steht in *L* | Aufnahme als 17. Kind möglich |
+| (d) | r > 16, *g* steht in *L* | Aufnahme als 17. Kind; Anhebung auf den Spitzenprior nur, wenn (d1) nicht vorliegt |
+| (d1) | im Fall (d) hat der aufgenommene Zug **schon mit seinem natürlichen Prior** den größten Prior (R(c) ≥ M), für *g* **oder** für den Nachbarn *n* | Aufnahme **ohne** Anhebung, in S **und** ZS |
 
 Nach P2 (nur Schwarz, andere Bedingungen, **keine Prognose**) wäre zu erwarten: (c) rund 39 %, (d) rund
 60 %, (b) unter 1 %, (a) rund 1 %. Die Probe misst die tatsächlichen Anteile, beide Farben getrennt.
@@ -117,11 +137,14 @@ Eingriffsarm **nur** im gewählten Zug: statt *g* wird der **Rang-Nachbar** *n* 
 
 **Rang-Nachbar:** In (d): *n* = *L*[r+1] (der nächst schlechtere Zug), ist *g* der letzte Eintrag, dann
 *L*[r−1]; liegt *n* dabei unter den ersten 16, gibt es keinen zulässigen Nachbarn. In (c): *n* = *L*[r+1],
-bei r = 16 *L*[15]. *n* ist immer ein anderer Zug als *g*. Der Nachbar hat einen ähnlichen natürlichen
-Prior wie *g*, ist aber nicht der Orakelzug. Gibt es keinen zulässigen Nachbarn, oder hat im Fall (c) *g* oder *n* schon den größten Prior, macht
-**auch der Eingriffsarm nichts** (so bleibt der Auslöser gleich) und die Stellung wird gezählt.
+bei r = 16 *L*[15]. *n* ist immer ein anderer Zug als *g*. Über eine **Ähnlichkeit** des Nachbarn mit dem
+Orakelzug (im Prior, im Score oder in der Lage) wird **nichts vorausgesetzt**; das Protokoll hält beide
+natürlichen Priors fest, damit die Abweichung nachträglich beschrieben werden kann. Gibt es keinen zulässigen
+Nachbarn, oder hat im Fall (c) *g* oder *n* schon den größten Prior, macht **auch der Eingriffsarm nichts**
+(so bleibt der Auslöser gleich) und die Stellung wird gezählt. Im Fall (d1) wird in beiden Armen aufgenommen
+und in keinem angehoben.
 
-| Arm | Fall (d), r > 16 | Fall (c), 1 ≤ r ≤ 16, weder *g* noch *n* hat den größten Prior | (a), (b), (c1) |
+| Arm | Fall (d), r > 16 (ohne (d1)) | Fall (c), 1 ≤ r ≤ 16, weder *g* noch *n* hat den größten Prior | (a), (b), (c1); bei (d1) nur Aufnahme |
 |---|---|---|---|
 | **A** (Default) | nichts | nichts | nichts |
 | **N** (Aufnahme) | *g* als 17. Kind, natürlicher Prior | nichts | nichts |
@@ -168,7 +191,8 @@ Seeds (bisher in keinem Dokument genannt): **230** (Probe), **231** (Hauptversuc
 und ändert deren Zufallsstrom nicht.
 
 **Protokoll je KI-Zug ab Zug 81** (kompakt, keine ganzen Listen): `mc`, Farbe der KI, *g*, Fall, *r* (Rang
-in *L*), ob *g* schon Kind war, gewählter Nachbar *n* und sein Rang, aufgenommen ja/nein, gespielter Zug,
+in *L*), ob *g* schon Kind war, gewählter Nachbar *n* und sein Rang, die natürlichen Priors von *g* und *n*
+(bei Aufnahme P′, sonst P), ob angehoben wurde, aufgenommen ja/nein, gespielter Zug,
 Rang des gespielten Zugs in *L*, ob der gespielte Zug *g* ist, Visiten von *g* beziehungsweise *n* (und des
 besten Kindes), Antwort des Orakels ja/nein. Je Partie dazu: Endstand, Zugzahl, Neustarts von GNU Go.
 
@@ -290,7 +314,11 @@ Start und eine Meldung mit Grund):
   getrennte Workflows für Probe und Hauptversuch.
 - **Tests:** Schalter aus bitgleich; Rang-Nachbar und alle Fälle der Tabelle in §3 mit gebauten Listen;
   Prior-Rechnung gegen das Rechenbeispiel aus §2 und gegen die Default-Berechnung (ohne Eingriff identisch);
-Eingriffe verändern nur die vorgesehenen Priors (Summe 1, Temperatur der ersten 16); Kontrolle und
+Eingriffe verändern nur die vorgesehenen Priors (Summe 1, Temperatur der ersten 16); **die Randfälle aus §2
+(gleiche Scores, gleicher Rang, gleicher Prior, Zusatzkind schon mit höchstem Prior (d1)) werden bei der
+Umsetzung ausdrücklich gegen das Default-Verhalten geprüft**: ohne Eingriff, im Fall (a), (b), (c1) und
+bei entarteter Rechnung ist jede Priorität und jedes Kind **bitgleich** wie im Default; bei Aufnahme sind die
+Priors der 16 Basiskinder genau die Default-Priors, umgerechnet mit der Normierung über 17; Kontrolle und
   Eingriff lösen in denselben Stellungen aus; Pässe, nicht gelistete Züge und fehlende Nachbarn ändern
   nichts; Protokollfelder vollständig; Workflows nur von Hand.
 
