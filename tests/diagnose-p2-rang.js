@@ -157,6 +157,15 @@ test('Form der echten Rohdaten (nur die ersten zwei Zeilen, keine Auswertung)', 
   }
 });
 
+test('Ergebnis im Repo (Lauf 41538801704): gültig, 4754 gültige Stellungen; alle Partien haben die KI als Schwarz, im Doc benannt', () => {
+  const dir = path.join(wurzel, 'docs/daten/diagnose-p2-rang'), j = JSON.parse(fs.readFileSync(path.join(dir, 'p2-rang.json'), 'utf8')), doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p2-rang.md'), 'utf8');
+  pruefe(j.gueltig === true && j.gruende.length === 0, 'Lauf gültig');
+  pruefeGleich(j.zellen['alle|alle'].gueltig, 4754, 'N_gültig'); pruefeGleich(j.zellen['alle|alle'].paesse, 46, 'Pässe'); pruefeGleich(j.zellen['alle|alle'].fehlend, 0, 'fehlend');
+  pruefeGleich(j.farben.S.gueltig, 4754, 'Schwarz'); pruefeGleich(j.farben.W.gueltig, 0, 'Weiß: keine Stellung');
+  pruefe(/41538801704/.test(doc) && /\*\*Schwarz\*\*/.test(doc) && /nicht\*\* prüfbar/.test(doc), 'Doc nennt Lauf und die Einschränkung zur Farbe');
+  pruefe(/Folgeentscheidung:\*\* keine/.test(doc), 'keine Folgeentscheidung');
+});
+
 test('Workflow: nur von Hand, schreibt auf einen neuen Ergebnisbranch (nie main, nie Force), kein GNU Go, Upload mit always()', () => {
   const y = fs.readFileSync(path.join(wurzel, '.github/workflows/diagnose-p2-rang.yml'), 'utf8');
   pruefe(/^on:\n  workflow_dispatch:\n/m.test(y) && !/^\s*(push|pull_request|schedule):/m.test(y) && !/inputs:/.test(y), 'nur workflow_dispatch, ohne Eingaben');
@@ -173,7 +182,7 @@ test('Doc: Vorabfestlegung nennt Nenner, Rangklassen, Kontrollen und den Abgleic
   const d = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p2-rang.md'), 'utf8');
   for (const s of ['N_gültig', 'Pässe', 'fehlend', '> 32', 'nicht gelistet', 'KEIN URTEIL', 'Kontrolle', '70 %', 'Vorgabe', 'top_moves', 'Go']) pruefe(d.includes(s), 'Doc enthält: ' + s);
   pruefe(/keine (automatische )?Folgeentscheidung/i.test(d), 'keine Folgeentscheidung');
-  pruefe(/noch nicht gelaufen/i.test(d), 'Status: noch nicht gelaufen');
+  pruefe(/Stand: (gelaufen|vorbereitet, noch nicht gelaufen)/.test(d), 'Status genannt');
   pruefe(/Die Lage der 70 % zur Spanne erklärt den alten Unterschied nicht/.test(d) && /\*\*nichts\*\* erklärt|nichts\*\* erklärt|\*\*nichts erklärt\*\*/.test(d), 'Doc: Lage der 70 % ist keine Erklärung');
 });
 

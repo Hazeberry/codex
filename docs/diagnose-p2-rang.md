@@ -4,8 +4,8 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 -->
 # P2-Rang: Rangverteilung von GNU Gos Zug in den gesicherten Rohdaten (Vorabfestlegung)
 
-**Stand: vorbereitet, noch nicht gelaufen.** Der Lauf startet erst nach ausdrücklichem „Go“ von
-Hazeberry. Das Ergebnis kommt als Nachtrag in dieses Dokument, die Rohausgabe auf einen neuen
+**Stand: gelaufen** (Actions-Lauf 41538801704, 2. November 2026, Ergebnis in Abschnitt 8). Der Lauf
+startete erst nach ausdrücklichem „Go“ von Hazeberry. Die Rohausgabe liegt auf einem neuen
 Ergebnisbranch (Abschnitt 7). **Es gibt keine automatische Folgeentscheidung.**
 
 ## 1. Anlass und Frage
@@ -127,3 +127,63 @@ Pull Request geöffnet. Dafür hat der Workflow das Schreibrecht `contents: writ
 freigegeben). Zusätzlich liegt die Ausgabe als Artefakt `p2-rang`.
 
 **Start erst nach ausdrücklichem „Go“ von Hazeberry.**
+
+## 8. Ergebnis (Nachtrag, 2. November 2026)
+
+Actions-Lauf 41538801704, Kopf `a33e32dcb59240421490866276ec52c9ad1efff9`, Job 125597373108, rund
+10 Sekunden. **Gültig:** Alle Kontrollen aus Abschnitt 4 bestanden (Nenner, Rangklassen, Wurzelkinder =
+erste 16 nach dem Netz in jeder Stellung, Übereinstimmung mit dem P2-Bericht). Bericht und Zahlen
+unverändert in `docs/daten/diagnose-p2-rang/p2-rang.md` und `p2-rang.json`. Alle Zahlen: 160 Partien,
+4800 Stellungen, davon 46 Pässe von GNU Go (nicht gezählt), 0 fehlende Referenzzüge, N_gültig 4754.
+Mittel je Partie, Intervalle 95 %.
+
+**Eine Einschränkung vorweg, die ich erst am Ergebnis bemerkt habe:** In allen 160 Partien spielt die KI
+**Schwarz** (Tabelle „Nach Farbe“: Weiß 0 Stellungen). Die Farbe wechselt mit der Partienummer (gerade
+Nr. = KI Schwarz, ungerade = Weiß; in beiden Archiven nachgezählt: 240/240 und 480/480), und die
+Auswahlregel von P2 (`nr % 12 = 0` bzw. `nr % 24 = 0`) trifft nur gerade Nummern. Das gilt für **P2
+insgesamt** (auch für die Zahlen in `diagnose-p1p2.md` §9), nicht nur für diese Auswertung. Meine
+Kontrollen haben es nicht gefunden, und die Zeile „Farbe der KI – prüfbar: ja“ im Abgleich war falsch:
+Die Farbe ist mit diesen Daten **nicht** prüfbar.
+
+**Rang von GNU Gos Zug, Liste vor dem Netz** (alle Archive und Phasen, N_gültig 4754):
+
+| Rang | 1 | 2–4 | 5–8 | 9–16 | 17–24 | 25–32 | > 32 | nicht gelistet |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Anteil | 7,7 % | 9,9 % | 6,2 % | 10,4 % | 9,7 % | 8,9 % | 46,6 % | 0,6 % |
+
+Rang ≤ 16: 34,2 % [31,3; 37,2], Median 29 (Quartile 9 und 63). **Nach dem Netz:** Rang ≤ 16 38,9 %
+[36,1; 41,6], Median 23 (9 und 47), Rang > 32 noch 37,6 %.
+
+- **Spielphase:** Rang ≤ 16 vor dem Netz 33,6 / 33,9 / 35,3 % (Zug 81–120 / 121–160 / 161–200), nach dem
+  Netz 38,1 / 38,1 / 41,4 %. Kaum Unterschied.
+- **Archiv** (Rang ≤ 16 vor dem Netz): `muster-ohne-vorgabe-f-D` 26,4 %, `leeres-brett-g-D` 34,6 %,
+  `fuego-siege-D` 37,6 %, `muster-ohne-vorgabe-g-D` 38,4 %. Das ist beschreibend, nicht kausal (Gegner,
+  Seed und Engine-Stand verschieden).
+- **Wirkung des Netzes** auf den Rang von GNU Gos Zug: besser 39,6 %, gleich 41,6 %, schlechter 18,7 %.
+  Nur durch das Netz unter die 16 Kinder: 6,4 %, durch das Netz herausgefallen: 2,0 %. Der Anteil
+  „hinein“ ist am kleinsten in `fuego-siege-D` (2,9 %) und am größten in `leeres-brett-g-D` (9,3 %).
+- **Rang des gespielten Zugs** der KI in der Liste nach dem Netz (Nenner 4800): Rang 1 30,0 %, Rang 2–4
+  25,9 %, 5–8 9,5 %, 9–16 34,6 %; nie über 16 (die Wurzelkinder sind die ersten 16). Die KI spielt GNU
+  Gos Zug in 12,5 % der Stellungen; im P2-Bericht sind es 12,7 %, dort mit Nenner 4754 ohne die
+  GNU-Go-Pässe (gleiche Zählung, anderer Nenner).
+
+**Abgleich mit den früheren 70 %** (`punktverlust-muster.md` §5: Rang 1 = 20 %, Rang ≤ 16 = 70 %,
+Median 7, n = 1354, Liste vor der Suche, ohne Netz). Jetzt, Liste vor dem Netz: Rang 1 = 7,7 %,
+Rang ≤ 16 = 34,2 %, Median 29. Die ganze Verteilung liegt anders, nicht nur die Schwelle bei 16. Die
+Spanne der prüfbaren Faktoren (Archiv × Phase, Rang ≤ 16 vor dem Netz) reicht von 22,0 % bis 45,5 %;
+die 70 % liegen **oberhalb der gesamten Spanne**. Nach der einseitigen Lesart aus Abschnitt 5 heißt
+das nur: **Spielphase innerhalb Zug 81–200 und Gegner (soweit die vier Archive ihn abdecken) erklären
+den Unterschied nicht.** Das Netz erklärt ihn nicht (früher gab es keins; verglichen ist die Liste
+davor). Die Farbe ist nicht prüfbar (siehe oben). **Offen und mit diesen Daten nicht prüfbar:** Vorgabe
+(neun Steine früher), Referenzart (`top_moves` gegen `reg_genmove`), Zufall der Liste (früher auf 0,
+jetzt der echte Strom) und der Engine-Stand. Welcher davon die Lücke trägt, ist nicht entschieden.
+
+**Was daraus folgt:**
+- Die Kandidatenliste ist vor dem Netz kein enger Filter um GNU Gos Zug: Er steht im Median auf Rang 29.
+- Eine Erweiterung von 16 auf 24 oder 32 Kinder würde den Anteil von 34,2 % (vor dem Netz) auf rund
+  44 % beziehungsweise 53 % heben (Summe der Rangklassen, gleiche Daten); rund 47 % lägen weiter dahinter.
+  Ob das dem Spiel nützt, sagt diese Auswertung nicht.
+- Die Aussage „die 70 % von früher gelten heute nicht mehr“ ist **nicht** belegt: Die Unterschiede in
+  den Messungen sind zu groß.
+
+**Folgeentscheidung:** keine. Weitere Versuche sind nicht gestartet.
