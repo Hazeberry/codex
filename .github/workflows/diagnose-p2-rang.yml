@@ -1,0 +1,71 @@
+name: Diagnose P2-Rang
+
+# Auswertung der gesicherten P2-Rohdaten (docs/diagnose-p2-rang.md): Rang von GNU Gos Zug in der Liste
+# vor und nach dem Endspiel-Netz, getrennt nach Archiv und Spielphase, Rang des gespielten Zugs,
+# methodischer Abgleich mit den früheren 70 %. Keine neuen Partien, kein GNU Go, kein Replay: Es wird
+# nur gerechnet, was in docs/daten/diagnose-p1p2/rohdaten/ liegt (rund zwei Minuten).
+#
+# Das Ergebnis geht dauerhaft auf einen NEUEN Ergebnisbranch claude/diagnose-p2-rang-ergebnis-<lauf>,
+# nie auf main und nie mit Force. Daraus öffnet der Bearbeiter einen Pull Request. Ist ein Teil
+# ungültig („KEIN URTEIL“), steht das im Bericht, wird trotzdem gesichert, und der Lauf wird rot.
+# Von Hand zu starten, nur nach ausdrücklichem „Go“.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: diagnose-p2-rang
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  auswerten:
+    name: Auswerten
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Rang auswerten
+        run: |
+          set -uo pipefail
+          status=0
+          node auswertung/diagnose/p2-rang.js --roh docs/daten/diagnose-p1p2/rohdaten --aus docs/daten/diagnose-p2-rang | tee auswertung.log || status=$?
+          echo "status=$status" >> "$GITHUB_ENV"
+          cat docs/daten/diagnose-p2-rang/p2-rang.md >> "$GITHUB_STEP_SUMMARY" || true
+          exit 0
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: p2-rang
+          path: |
+            docs/daten/diagnose-p2-rang/
+            auswertung.log
+          retention-days: 90
+
+      - name: Auf neuen Ergebnisbranch schieben
+        run: |
+          set -euo pipefail
+          zweig="claude/diagnose-p2-rang-ergebnis-$GITHUB_RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$zweig"
+          git add docs/daten/diagnose-p2-rang
+          git commit -m "Diagnose P2-Rang: Ergebnis des Actions-Laufs $GITHUB_RUN_ID (Status $status, keine neuen Partien)"
+          git push origin "HEAD:refs/heads/$zweig"
+          echo "Ergebnisbranch: $zweig" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gültigkeit
+        run: |
+          if [ "${status:-1}" != "0" ]; then
+            echo "Ungültig: kein Urteil. Gründe stehen im Bericht (p2-rang.md)."
+            exit 1
+          fi
+          echo "gültig"
