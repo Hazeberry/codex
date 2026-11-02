@@ -14,11 +14,12 @@
 
    Aufruf (ein Archiv):
      node auswertung/diagnose/p2-kandidaten.js --archiv NAME=datei.jsonl.gz --aus p2-NAME.jsonl
-          [--partien 40] [--wiederhole 3] [--gnugo /usr/games/gnugo] [--stufe 10]
+          [--partien 40] [--wiederhole 3] [--gnugo /usr/games/gnugo] [--stufe 10] [--fortsetzen]
      node auswertung/diagnose/p2-kandidaten.js --bericht p2-*.jsonl */
 'use strict';
 const fs = require('fs'), path = require('path'), {spawn} = require('child_process');
 const R = require('./wurzel-replay.js');
+const EW = require('./erwartet.js');
 
 const VON = 80, BIS = 199, KINDER = 16;      /* mc der KI-Züge: Zug 81 bis 200; 16 = mctsRootChildren */
 const GUELTIG = {reproduktion: 0.95, gnugoAntworten: 0.98, partienJeArchiv: 36};
@@ -82,8 +83,9 @@ function auswerten(partien) {
   return aus;
 }
 
-function gueltigkeit(partien, archive) {
+function gueltigkeit(partien, archive, erwartet = []) {
   const gruende = [];
+  for (const n of erwartet) if (!archive[n]) gruende.push(`${n}: Archiv fehlt vollständig (keine Ergebnisse)`);
   for (const [name, ps] of Object.entries(archive)) {
     const rep = ps.filter(p => p.reproduziert).length;
     if (ps.length < GUELTIG.partienJeArchiv) gruende.push(`${name}: nur ${ps.length} Partien ausgewählt (mindestens ${GUELTIG.partienJeArchiv})`);
@@ -101,10 +103,10 @@ function gueltigkeit(partien, archive) {
 
 const pc = x => x === null || x === undefined ? '–' : (100 * x).toFixed(1) + ' %';
 const pci = x => x ? `[${(100 * x[0]).toFixed(1)}; ${(100 * x[1]).toFixed(1)}]` : '–';
-function bericht(partien) {
+function bericht(partien, erwartet = []) {
   const archive = {};
   for (const p of partien) (archive[p.archiv] = archive[p.archiv] || []).push(p);
-  const g = gueltigkeit(partien, archive), z = [];
+  const g = gueltigkeit(partien, archive, erwartet), z = [];
   z.push('# P2: Kandidatenabdeckung gegenüber GNU Go (Stufe 10)', '');
   if (!g.gueltig) z.push('**KEIN URTEIL (ungültig).** Grund: ' + g.gruende.join('; '), '', 'Die folgenden Zahlen sind **vorläufig**.', '');
   else z.push('Lauf gültig (alle vorab festgelegten technischen Bedingungen erfüllt).', '');
@@ -130,9 +132,16 @@ module.exports = {VON, BIS, KINDER, GUELTIG, waehleSpiele, waehleStellungen, ste
 /* ── Lauf ─────────────────────────────────────────────────────────────── */
 async function lauf(name, datei, opt) {
   const E = R.ladeEngine(opt.html), rows = R.lies(datei), ausgewaehlt = waehleSpiele(rows, opt.partien);
-  const aus = opt.aus; if (aus) fs.writeFileSync(aus, '');
-  const ergebnis = [];
+  const aus = opt.aus, log = opt.log || (t => console.log(t));
+  /* Fortsetzen: vollständig erfasste Partien (ohne Fehler) bleiben stehen und werden nicht neu gerechnet */
+  const fertig = new Map();
+  if (aus && opt.fortsetzen && fs.existsSync(aus))
+    for (const l of fs.readFileSync(aus, 'utf8').split('\n').filter(Boolean)) { try { const r = JSON.parse(l); if (!r.fehler && r.reproduziert !== undefined) fertig.set(r.nr, r); } catch (e) { /* halbe Zeile nach Abbruch */ } }
+  if (aus) fs.writeFileSync(aus, [...fertig.values()].map(r => JSON.stringify(r) + '\n').join(''));
+  const ergebnis = [...fertig.values()];
+  log(`P2 ${name}: ${ausgewaehlt.length} Partien ausgewählt, davon ${fertig.size} schon erfasst`);
   for (const [index, p] of ausgewaehlt.entries()) {
+    if (fertig.has(p.nr)) continue;
     const bis = opt.bis || BIS;
     const mcs = waehleStellungen(p).filter(mc => mc <= bis), mcSet = new Set(mcs);
     const r = R.replay(E, p, {bis: bis + 1});
@@ -159,6 +168,7 @@ async function lauf(name, datei, opt) {
     if (!rec.reproduziert) rec.stellungen = [];
     ergebnis.push(rec);
     if (aus) fs.appendFileSync(aus, JSON.stringify(rec) + '\n');
+    log(`Fortschritt P2 ${name}: ${ergebnis.length} von ${ausgewaehlt.length} Partien erledigt, ${ausgewaehlt.length - ergebnis.length} verbleibend`);
   }
   return ergebnis;
 }
@@ -168,11 +178,11 @@ if (require.main === module) {
   if (a.includes('--bericht')) {
     const dateien = a.filter(x => !x.startsWith('--') && x !== opt('--bericht'));
     const ps = [opt('--bericht'), ...dateien].filter(Boolean).flatMap(f => fs.readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)));
-    const b = bericht(ps); console.log(b.text); process.exit(b.gueltig ? 0 : 1);
+    const b = bericht(EW.entdoppeln(ps), opt('--erwartet') ? opt('--erwartet').split(',') : EW.NAMEN); console.log(b.text); process.exit(b.gueltig ? 0 : 1);
   }
   const ar = opt('--archiv'); if (!ar || !ar.includes('=')) { console.error('--archiv NAME=datei erwartet'); process.exit(2); }
   const name = ar.slice(0, ar.indexOf('=')), datei = ar.slice(ar.indexOf('=') + 1);
-  lauf(name, datei, {html: opt('--html') || path.join(__dirname, '..', '..', 'index.html'), aus: opt('--aus'), partien: +(opt('--partien') || 40), wiederhole: +(opt('--wiederhole') || 3),
+  lauf(name, datei, {html: opt('--html') || path.join(__dirname, '..', '..', 'index.html'), aus: opt('--aus'), partien: +(opt('--partien') || 40), wiederhole: +(opt('--wiederhole') || 3), fortsetzen: a.includes('--fortsetzen'),
     gnugo: opt('--gnugo') || '/usr/games/gnugo', stufe: +(opt('--stufe') || 10)}).then(e => console.log(`${name}: ${e.length} Partien, ${e.filter(p => p.reproduziert).length} reproduziert`))
     .catch(err => { console.error(err.stack || err.message); process.exit(1); });
 }

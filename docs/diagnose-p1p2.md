@@ -147,10 +147,53 @@ mit Grund im Bericht, und der Lauf wird rot. Ein Ergebnis wird nicht nachträgli
 
 ## 7. Ausführung
 
-Workflow `.github/workflows/diagnose-p1p2.yml`, nur `workflow_dispatch`, ohne Eingaben. Je Archiv ein
-Job (P1, dann P2), danach der Job „Berichte“ mit `bericht/p1.md`, `bericht/p2.md`, `status.txt` als
-Artefakt und Zusammenfassung. Ungültig in einem Teil macht den Lauf rot.
-Lokal getestet wird nur mit Stubs und kurzen Partieausschnitten (`tests/diagnose-p1p2.js`), nicht mit
-GNU Go.
+Workflow `.github/workflows/diagnose-p1p2.yml`, nur `workflow_dispatch`. Eingaben: `neu` (Archive,
+die gerechnet werden; Standard `alle`), `vorlauf` (früherer Lauf, aus dem die nicht neu gerechneten
+Archive übernommen werden) und `fortsetzen_aus` (früherer Lauf, aus dem fertige oder angefangene
+Pakete fortgesetzt werden; leer = `vorlauf`). Ablauf: Plan → P1-Pakete (je ein Job) und P2 (je Archiv
+ein Job) → Job „Berichte“ mit `bericht/p1.md`, `bericht/p2.md`, `status.txt` als Artefakt und
+Zusammenfassung. Ungültig in einem Teil macht den Lauf rot.
+
+Lokal wird nur mit Stubs und kurzen Partieausschnitten getestet (`tests/diagnose-p1p2.js`), nicht mit
+GNU Go und nicht mit ganzen Archiven.
 
 **Start erst nach ausdrücklichem „Go“ von Hazeberry.**
+
+## 8. Änderungen am Ablauf nach dem ersten Start (2. November 2026)
+
+Der erste Lauf (Actions-Lauf 41480291668, Kopf `8271c92cf86633f32b01afa2706475edea0d3a9a`) rechnete
+P1 je Archiv in einem Job. Die drei Archive mit 480 Partien waren nach 91, 93 und 126 Minuten mit P1
+fertig; das Archiv `fuego-siege-D` mit 960 Partien lag nach über vier Stunden noch in P1, das
+Zeitlimit von 300 Minuten je Job schien zu knapp. Deshalb, **bevor irgendein Ergebnis gelesen
+wurde**:
+
+1. **Vollständigkeit.** Der Bericht prüft gegen die vier erwarteten Archive
+   (`auswertung/diagnose/erwartet.js`). Fehlt ein Archiv ganz („Archiv fehlt vollständig“) oder
+   zum Teil (unter 98 % der geeigneten Partien in P1, unter 36 Partien in P2), ist der Teil ungültig:
+   „KEIN URTEIL“, der Lauf wird rot. Vorher hätte ein ganz fehlendes Archiv die Prüfung nicht
+   ausgelöst. Doppelte Einträge (gleiches Archiv, gleiche Nr.) zählen einmal, ein brauchbarer Eintrag
+   geht vor einem fehlgeschlagenen.
+2. **P1 in Paketen.** Die geeigneten Partien (nach Nr. sortiert) werden in Pakete zu je 120 Partien
+   zerlegt (`--paket K`; 480 Partien = 4 Pakete, 960 = 8). Jedes Paket ist ein eigener Job mit eigenem
+   Artefakt `p1-<archiv>-NN`. An den Messgrößen ändert das nichts: Jede Partie wird einzeln gebucht, die
+   Wiederholungskontrolle gilt weiter für die ersten 5 Partien des Archivs (also Paket 1).
+3. **Fortsetzen.** `--fortsetzen` überspringt Partien, die in der Ausgabedatei schon gebucht sind
+   (P2: schon erfasst), und wiederholt fehlgeschlagene; eine halbe letzte Zeile nach einem Abbruch wird
+   ignoriert. Jede Partie wird sofort angehängt, ein Abbruch verliert höchstens die laufende.
+   Fertige oder angefangene Pakete früherer Läufe holt der Workflow über `fortsetzen_aus`.
+4. **Fortschritt.** P1 und P2 melden „N von M Partien erledigt, K verbleibend“ (P1 alle 5 Partien).
+5. **Sicherung bei Zeitlimit.** Der Rechenschritt hat ein eigenes Zeitlimit (150 Minuten), kürzer als
+   das des Jobs (200 Minuten). Läuft er ab, ist nur dieser Schritt rot; der Upload mit `if: always()`
+   läuft danach. **`always()` allein ist kein Nachweis.** Lokal belegt: Wird ein Paket mit SIGKILL
+   abgebrochen, bleibt der Teilstand erhalten und das Fortsetzen rechnet nur den Rest
+   (`tests/diagnose-p1p2.js`). Auf GitHub belegt das erst die Probe
+   `.github/workflows/diagnose-timeout-probe.yml` (rund drei Minuten, kein GNU Go, keine Partien): Der
+   Schritt läuft absichtlich ab, der Job „Prüfung“ ist nur grün, wenn der Teilinhalt im Artefakt
+   angekommen ist. **Die Probe ist noch nicht gelaufen.**
+6. **Wiederverwendung.** Die drei fertigen Archive des ersten Laufs (Artefakte `diagnose-<name>`)
+   werden mit `vorlauf=41480291668` und `neu=fuego-siege-D` übernommen und nicht neu gerechnet. Sie
+   stammen aus unveränderter Rechenlogik (gleiche Buchung und Kandidatenrekonstruktion, nur anders
+   zerlegt), aber aus einem anderen Lauf als `fuego-siege-D`; das gehört in die Aussage.
+
+Die Änderungen betreffen Ablauf und Prüfregeln, nicht Auswahl, Kennzahlen oder Schwellen. Sie wurden
+vor dem Lesen irgendeines Ergebnisses festgelegt.

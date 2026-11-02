@@ -16,6 +16,8 @@ const {test, pruefe, pruefeGleich, laufeTests} = require('./rahmen');
 const R = require('../auswertung/diagnose/wurzel-replay.js');
 const P2 = require('../auswertung/diagnose/p2-kandidaten.js');
 const P1 = require('../auswertung/diagnose/p1-buchung.js');
+const EW = require('../auswertung/diagnose/erwartet.js');
+const {plan} = require('../auswertung/diagnose/plan.js');
 const wurzel = path.join(__dirname, '..');
 const HTML = path.join(wurzel, 'index.html');
 const ARCH = 'docs/daten/leeres-brett/lauf1/g-D.jsonl.gz';
@@ -143,28 +145,127 @@ test('P1-Gültigkeit: Identität, sonstige Wechsel, unvollständige Zählung, Au
 test('Ende-zu-Ende lauf mit GTP-Ersatz bis Zug 100: Stellungen, Wiederholung, Passantwort getrennt', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gtp-')), stub = path.join(tmp, 'gnugo');
   fs.writeFileSync(stub, '#!/usr/bin/env node\nlet n=0;process.stdin.on("data",d=>{for(const z of d.toString().split("\\n").filter(Boolean)){if(z==="quit")process.exit(0);let a="=";if(z.startsWith("reg_genmove"))a="= "+(++n%5===0?"PASS":"D4");process.stdout.write(a+"\\n\\n");}});\n', {mode: 0o755});
-  const erg = await P2.lauf('test', path.join(wurzel, ARCH), {html: HTML, partien: 1, wiederhole: 1, gnugo: stub, stufe: 10, bis: 100, aus: path.join(tmp, 'p2.jsonl')});
+  const meld = [];
+  const erg = await P2.lauf('test', path.join(wurzel, ARCH), {html: HTML, partien: 1, wiederhole: 1, gnugo: stub, stufe: 10, bis: 100, aus: path.join(tmp, 'p2.jsonl'), log: t => meld.push(t)});
+  pruefe(meld.some(t => /Fortschritt P2 test: 1 von 1 Partien erledigt, 0 verbleibend/.test(t)), 'Fortschrittszeile P2: ' + meld.join(' | '));
   pruefeGleich(erg.length, 1, 'Partien'); const p = erg[0];
   pruefe(p.reproduziert, 'reproduziert'); pruefeGleich(p.wiederholung, 'gleich', 'Wiederholung');
   pruefe(p.stellungen.length >= 4 && p.stellungen.every(s => s.mc >= 80 && s.mc <= 100), 'Stellungen im Fenster bis Zug 100: ' + p.stellungen.length);
   pruefe(p.stellungen.some(s => s.g === R.vonGtp('D4')) && p.stellungen.some(s => s.g === -1), 'Antworten durchgereicht, Pass erkennbar');
   pruefeGleich(fs.readFileSync(path.join(tmp, 'p2.jsonl'), 'utf8').trim().split('\n').length, 1, 'JSONL-Zeilen');
+  /* Fortsetzen: die erfasste Partie wird nicht noch einmal nachgespielt */
+  const t0 = Date.now(), meld2 = [];
+  const erg2 = await P2.lauf('test', path.join(wurzel, ARCH), {html: HTML, partien: 1, wiederhole: 1, gnugo: '/gibt/es/nicht', stufe: 10, bis: 100, aus: path.join(tmp, 'p2.jsonl'), fortsetzen: true, log: t => meld2.push(t)});
+  pruefeGleich(erg2.length, 1, 'Fortsetzen: eine Partie'); pruefe(meld2[0].includes('1 schon erfasst'), 'Fortsetzen meldet schon erfasst'); pruefe(Date.now() - t0 < 4000, 'nicht neu gerechnet');
+  pruefeGleich(fs.readFileSync(path.join(tmp, 'p2.jsonl'), 'utf8').trim().split('\n').length, 1, 'JSONL-Zeilen nach Fortsetzen');
 });
 
-test('Workflow: nur von Hand, Matrix = Dokument, ohne Eingaben, ubuntu-24.04', () => {
+test('Workflow: nur von Hand, Eingaben neu/vorlauf/fortsetzen_aus, Schritt-Zeitlimit kürzer als Job, Upload mit always()', () => {
   const y = fs.readFileSync(path.join(wurzel, '.github/workflows/diagnose-p1p2.yml'), 'utf8');
-  const doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8');
   pruefe(/^on:\n  workflow_dispatch:\n/m.test(y), 'nur workflow_dispatch');
   pruefe(!/^\s*(push|pull_request|schedule):/m.test(y), 'kein Auslöser außer von Hand');
-  pruefe(!/inputs:/.test(y), 'keine Eingaben');
+  for (const e of ['neu', 'vorlauf', 'fortsetzen_aus']) pruefe(new RegExp('^      ' + e + ':', 'm').test(y), 'Eingabe ' + e);
   pruefe(!/ubuntu-latest/.test(y) && /ubuntu-24\.04/.test(y), 'Runner ubuntu-24.04');
-  const namen = [...y.matchAll(/\{name: ([\w-]+), datei: ([^}]+)\}/g)];
-  pruefeGleich(namen.length, 4, 'vier Archive');
-  for (const [, n, d] of namen) {
-    pruefe(doc.includes('`' + n + '`') && doc.includes(d.trim()), 'Doc nennt ' + n);
-    pruefe(fs.existsSync(path.join(wurzel, d.trim())), 'Archiv vorhanden: ' + d);
+  pruefe(/actions: read/.test(y), 'actions: read für den Abruf früherer Läufe');
+  /* Rechenschritte: eigenes Zeitlimit, kürzer als das des Jobs; danach Upload mit always() */
+  for (const job of ['p1', 'p2']) {
+    const kopf = new RegExp('^  ' + job + ':\\n([\\s\\S]*?)(?=^  \\w+:\\n|$(?![\\s\\S]))', 'm').exec(y)[1];
+    const jobMin = +/^    timeout-minutes: (\d+)/m.exec(kopf)[1], schrittMin = +/^        timeout-minutes: (\d+)/m.exec(kopf)[1];
+    pruefe(schrittMin < jobMin, `${job}: Schritt-Zeitlimit ${schrittMin} < Job-Zeitlimit ${jobMin}`);
+    pruefe(/upload-artifact@v7\n        if: always\(\)/.test(kopf), job + ': Upload mit always()');
+    pruefe(kopf.indexOf('timeout-minutes: ' + schrittMin) < kopf.indexOf('upload-artifact'), job + ': Upload nach dem Rechenschritt');
+    pruefe(/--fortsetzen/.test(kopf), job + ': Rechenschritt mit --fortsetzen');
   }
   pruefe(/--partien 40 --wiederhole 3/.test(y), 'P2-Umfang wie im Dokument');
+  const probe = fs.readFileSync(path.join(wurzel, '.github/workflows/diagnose-timeout-probe.yml'), 'utf8');
+  pruefe(/^on:\n  workflow_dispatch:\n/m.test(probe) && /timeout-minutes: 1\n/.test(probe) && /if: always\(\)/.test(probe), 'Probe: von Hand, Schritt mit Zeitlimit, Upload always()');
+});
+
+test('Erwartete Archive: vier, Doc nennt Namen und Pfade, Dateien vorhanden', () => {
+  const doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8');
+  pruefeGleich(EW.ARCHIVE.length, 4, 'vier Archive');
+  for (const a of EW.ARCHIVE) {
+    pruefe(doc.includes('`' + a.name + '`') && doc.includes(a.datei), 'Doc nennt ' + a.name);
+    pruefe(fs.existsSync(path.join(wurzel, a.datei)), 'Archiv vorhanden: ' + a.datei);
+  }
+});
+
+const zeilen = n => Array.from({length: n}, (_, i) => ({nr: i, zuege: new Array(200).fill('D4'), wirFarbe: 'S'}));
+test('Plan: Pakete zu 120 Partien (480 → 4, 960 → 8), neu/alt getrennt, unbekanntes Archiv bricht ab', () => {
+  const lies = d => zeilen(/fuego-siege/.test(d) ? 960 : 480);
+  const p = plan('fuego-siege-D', 120, lies);
+  pruefeGleich(p.p1.length, 8, 'Pakete fuego-siege-D'); pruefeGleich(p.p2.length, 1, 'P2-Jobs');
+  pruefeGleich(p.p1[7].dateiname, 'p1-fuego-siege-D-08', 'Name des letzten Pakets'); pruefeGleich(p.alt.join(), 'leeres-brett-g-D,muster-ohne-vorgabe-g-D,muster-ohne-vorgabe-f-D', 'übernommen');
+  const alle = plan('alle', 120, lies);
+  pruefeGleich(alle.p1.length, 4 * 3 + 8, 'alle Pakete'); pruefeGleich(alle.alt.length, 0, 'nichts übernommen'); pruefeGleich(alle.p2.length, 4, 'vier P2-Jobs');
+  let fehler = null; try { plan('gibts-nicht', 120, lies); } catch (e) { fehler = e.message; }
+  pruefe(fehler && /Unbekanntes Archiv/.test(fehler), 'unbekanntes Archiv');
+});
+
+test('Doppelte Einträge: ein brauchbarer geht vor einem fehlgeschlagenen', () => {
+  const r = EW.entdoppeln([{archiv: 'A', nr: 1, fehler: 'x'}, {archiv: 'A', nr: 1, buchung: {}}, {archiv: 'A', nr: 2, buchung: {}}, {archiv: 'A', nr: 2, buchung: {}}, {archiv: 'B', nr: 1, buchung: {}}]);
+  pruefeGleich(r.length, 3, 'drei verschiedene Partien'); pruefe(!!r.find(x => x.archiv === 'A' && x.nr === 1).buchung, 'brauchbarer Eintrag bleibt');
+});
+
+const einfach = () => art({'KI-Stein': 10, 'GG-Stein': 351}, {'KI-Stein': 10, 'GG-Stein': 351}, {'KI-Stein>KI-Stein': 10});
+test('P1-Pakete und Fortsetzen: nur das eigene Paket, Fortschrittszeilen, Fortsetzen überspringt Gebuchtes und wiederholt Fehler', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'p1-')), datei = path.join(tmp, 'a.jsonl'), aus = path.join(tmp, 'p1.jsonl');
+  fs.writeFileSync(datei, zeilen(5).map(r => JSON.stringify(r)).join('\n') + '\n');
+  const meldungen = [], aufrufe = []; const log = t => meldungen.push(t);
+  const analysiere = async p => { aufrufe.push(p.nr); return einfach(); };
+  const e1 = await P1.lauf('T', datei, {aus, paket: 2, groesse: 2, analysiere, log});
+  pruefeGleich(e1.partien, 2, 'Paket 2 hat 2 Partien'); pruefeGleich(aufrufe.filter((n, i, a) => a.indexOf(n) === i).sort().join(), '2,3', 'nur Partien 2 und 3');
+  pruefe(meldungen.some(t => /Fortschritt P1 T, Paket 2 von 3: 2 von 2 Partien erledigt, 0 verbleibend/.test(t)), 'Fortschrittszeile: ' + meldungen.join(' | '));
+  pruefe(meldungen[0].includes('Archiv: 5 geeignet'), 'Kopfzeile nennt das Archiv');
+  /* Abbruch: halbe letzte Zeile und ein fehlgeschlagener Eintrag, dann Fortsetzen */
+  const recs = fs.readFileSync(aus, 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  fs.writeFileSync(aus, JSON.stringify(recs[0]) + '\n' + JSON.stringify({archiv: 'T', nr: 3, geeignet: 5, fehler: 'abgebrochen'}) + '\n{"archiv":"T","nr":');
+  aufrufe.length = 0;
+  const e2 = await P1.lauf('T', datei, {aus, paket: 2, groesse: 2, analysiere, fortsetzen: true, log});
+  pruefe(aufrufe.every(n => n === 3) && aufrufe.length >= 1, 'nur Partie 3 neu gerechnet: ' + aufrufe);
+  pruefeGleich(e2.gebucht, 2, 'beide gebucht'); const zeilen2 = fs.readFileSync(aus, 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  pruefeGleich(zeilen2.length, 2, 'zwei Zeilen, keine doppelten'); pruefe(zeilen2.every(r => r.buchung), 'alle mit Buchung');
+  /* Ohne --fortsetzen wird neu geschrieben */
+  const e3 = await P1.lauf('T', datei, {aus, paket: 3, groesse: 2, analysiere, log}); pruefeGleich(e3.partien, 1, 'Paket 3 hat 1 Partie');
+});
+
+test('P1: Abbruch mit SIGKILL mitten im Paket verliert höchstens die laufende Partie, Fortsetzen rechnet den Rest', async () => {
+  const {spawn} = require('child_process');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'p1k-')), datei = path.join(tmp, 'a.jsonl'), aus = path.join(tmp, 'p1.jsonl');
+  fs.writeFileSync(datei, zeilen(8).map(r => JSON.stringify(r)).join('\n') + '\n');
+  const skript = path.join(tmp, 'kind.js');
+  fs.writeFileSync(skript, `const P1=require(${JSON.stringify(path.join(wurzel, 'auswertung/diagnose/p1-buchung.js'))});
+const e={uebergaenge:{'100-200':{'KI-Stein>KI-Stein':10}},stand:{100:{arten:{'KI-Stein':10,'GG-Stein':351},zaehlung:0},200:{arten:{'KI-Stein':10,'GG-Stein':351},zaehlung:0}}};
+P1.lauf('T',${JSON.stringify(datei)},{aus:${JSON.stringify(aus)},fortsetzen:true,log:()=>{},analysiere:()=>new Promise(r=>setTimeout(()=>r(e),150))});`);
+  const kind = spawn(process.execPath, [skript], {stdio: 'ignore'});
+  await new Promise(r => setTimeout(r, 1100)); kind.kill('SIGKILL'); await new Promise(r => kind.on('exit', r));
+  const vorher = fs.readFileSync(aus, 'utf8').split('\n').filter(Boolean);
+  pruefe(vorher.length >= 2 && vorher.length < 8, 'Teilstand gesichert: ' + vorher.length + ' von 8');
+  const aufrufe = new Set();
+  await P1.lauf('T', datei, {aus, fortsetzen: true, log: () => {}, analysiere: async p => { aufrufe.add(p.nr); return einfach(); }});
+  const nachher = fs.readFileSync(aus, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l));
+  pruefeGleich(nachher.filter(r => r.buchung).length, 8, 'alle 8 gebucht'); pruefeGleich(aufrufe.size, 8 - vorher.length, 'nur der Rest neu gerechnet');
+});
+
+test('Vollständigkeit P1/P2: fehlendes Archiv oder fehlendes Paket macht den Bericht ungültig (Exit 1), vollständig ist gültig (Exit 0)', () => {
+  const {spawnSync} = require('child_process');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'voll-'));
+  const p1rec = (a, nr) => ({archiv: a, nr, geeignet: 10, buchung: {posten: {}, sonstige: 0, summe: 0, delta: 0, felder100: 361, felder200: 361}});
+  const schreib = (f, recs) => { fs.writeFileSync(f, recs.map(r => JSON.stringify(r)).join('\n') + '\n'); return f; };
+  const lauf = (skript, ...a) => spawnSync(process.execPath, [path.join(wurzel, 'auswertung/diagnose', skript), '--bericht', ...a], {encoding: 'utf8'});
+  const alle1 = EW.NAMEN.flatMap(a => Array.from({length: 10}, (_, i) => p1rec(a, i)));
+  let r = lauf('p1-buchung.js', schreib(path.join(tmp, 'a.jsonl'), alle1), schreib(path.join(tmp, 'a2.jsonl'), alle1));   /* doppelte Zeilen: werden entdoppelt */
+  pruefeGleich(r.status, 0, 'P1 vollständig: ' + r.stdout.slice(0, 300));
+  r = lauf('p1-buchung.js', schreib(path.join(tmp, 'b.jsonl'), alle1.filter(x => x.archiv !== 'fuego-siege-D')));
+  pruefe(r.status === 1 && /fuego-siege-D: Archiv fehlt vollständig/.test(r.stdout) && /KEIN URTEIL/.test(r.stdout), 'P1 ohne ein Archiv ungültig');
+  r = lauf('p1-buchung.js', schreib(path.join(tmp, 'c.jsonl'), alle1.filter(x => !(x.archiv === 'fuego-siege-D' && x.nr >= 5))));
+  pruefe(r.status === 1 && /nur 5 von 10 geeigneten Partien/.test(r.stdout), 'P1 mit fehlendem Teil ungültig');
+  const alle2 = EW.NAMEN.flatMap(a => archivMit(a, 40));
+  r = lauf('p2-kandidaten.js', schreib(path.join(tmp, 'd.jsonl'), alle2));
+  pruefeGleich(r.status, 0, 'P2 vollständig: ' + r.stdout.slice(0, 300));
+  r = lauf('p2-kandidaten.js', schreib(path.join(tmp, 'e.jsonl'), alle2.filter(x => x.archiv !== 'muster-ohne-vorgabe-f-D')));
+  pruefe(r.status === 1 && /muster-ohne-vorgabe-f-D: Archiv fehlt vollständig/.test(r.stdout), 'P2 ohne ein Archiv ungültig');
+  pruefe(!P2.gueltigkeit(archivMit('A', 40), {A: archivMit('A', 40)}, ['A', 'B']).gueltig, 'gueltigkeit() mit erwartet');
 });
 
 test('Belege im Repo: Abgleich nennt die drei Commits; Reproduktion vollständig und ohne Abweichung', () => {
