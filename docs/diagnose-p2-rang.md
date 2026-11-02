@@ -97,8 +97,15 @@ dem Netz gegenüber und führt je Unterschied auf, ob die Rohdaten ihn prüfen k
 
 Dazu der Bericht: die **Spanne** von „Rang ≤ 16 vor dem Netz“ über die prüfbaren Faktoren (Archiv ×
 Phase und Farbe, Zellen mit N_gültig ≥ 100) und ob die früheren 70 % innerhalb oder außerhalb liegen.
-Liegen sie außerhalb, erklären die prüfbaren Faktoren die Lücke nicht, und Vorgabe, Referenzart,
-Zufall der Liste und Engine-Stand bleiben als mögliche, **hier nicht entscheidbare** Ursachen.
+**Die Lage der 70 % zur Spanne erklärt den alten Unterschied nicht.** Die Lesart ist einseitig:
+- **Außerhalb** der Spanne: Kein gewichteter Mittelwert über Archiv, Phase und Farbe kann die 70 %
+  erreichen (er liegt zwischen dem kleinsten und größten Zellwert). Diese Faktoren allein erklären den
+  Unterschied dann nicht.
+- **Innerhalb** der Spanne: Damit ist **nichts erklärt**. Die Spanne beschreibt nur, wie weit die
+  jetzigen Werte streuen; wie sich die alte Stichprobe auf diese Faktoren verteilte, ist nicht bekannt.
+
+In beiden Fällen bleiben Vorgabe, Referenzart, Zufall der Liste und Engine-Stand als mögliche, **hier
+nicht entscheidbare** Ursachen.
 
 ## 6. Grenzen
 

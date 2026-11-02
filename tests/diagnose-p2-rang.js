@@ -132,6 +132,7 @@ test('Bericht: getrennte Nenner, alle Rangklassen, beide Listen, Abgleich mit de
   for (const s of ['Vorgabe', 'Referenz', 'Zufall der Liste', 'Engine-Stand']) pruefe(new RegExp('\\| ' + s + '[^\\n]*\\*\\*nein\\*\\*').test(text), s + ' als nicht prüfbar');
   for (const s of ['Spielphase', 'Gegner', 'Farbe der KI', 'Netz (früher keins)']) pruefe(text.includes('| ' + s), s + ' als Zeile');
   pruefe(!/Code- und Parameterliste|engine-abgleich/.test(text), 'keine Liste der Standardwerte');
+  pruefe(/Lesart, einseitig/.test(text) && /\*\*nichts erklärt\*\*/.test(text) && /\*\*außerhalb\*\*/.test(text), 'Lage der 70 % ist keine Erklärung');
   for (const ph of ['Zug 81–120', 'Zug 121–160', 'Zug 161–200']) pruefe(text.includes('| ' + ph + ' |'), 'Phase ' + ph);
 });
 
@@ -173,6 +174,7 @@ test('Doc: Vorabfestlegung nennt Nenner, Rangklassen, Kontrollen und den Abgleic
   for (const s of ['N_gültig', 'Pässe', 'fehlend', '> 32', 'nicht gelistet', 'KEIN URTEIL', 'Kontrolle', '70 %', 'Vorgabe', 'top_moves', 'Go']) pruefe(d.includes(s), 'Doc enthält: ' + s);
   pruefe(/keine (automatische )?Folgeentscheidung/i.test(d), 'keine Folgeentscheidung');
   pruefe(/noch nicht gelaufen/i.test(d), 'Status: noch nicht gelaufen');
+  pruefe(/Die Lage der 70 % zur Spanne erklärt den alten Unterschied nicht/.test(d) && /\*\*nichts\*\* erklärt|nichts\*\* erklärt|\*\*nichts erklärt\*\*/.test(d), 'Doc: Lage der 70 % ist keine Erklärung');
 });
 
 laufeTests('Diagnose P2-Rang').then(ok => process.exit(ok ? 0 : 1));

@@ -175,7 +175,7 @@ function bericht(erg, ktr) {
   z.push(`Früher: Rang 1 = ${ALT.rang1} %, Rang ≤ 16 = ${ALT.bis16} % (95 %-Wilson [${(100 * ab[0]).toFixed(1)}; ${(100 * ab[1]).toFixed(1)}] bei n = ${ALT.stellungen}), Median ${ALT.median}; Liste vor der Suche, ohne Netz.`);
   z.push(`Jetzt, Liste VOR dem Netz, alle Archive und Phasen: Rang 1 = ${pz(a['1'])}, Rang ≤ 16 = ${pz(a.bis16)} ${pci(a.bis16Ci)}, Median ${f1(a.median)}.`, '');
   if (mn === null) z.push('**Spanne der prüfbaren Faktoren:** keine Zelle mit N_gültig ≥ 100.', '');
-  else z.push(`**Spanne der mit den Rohdaten prüfbaren Faktoren** (Rang ≤ 16 vor dem Netz, Mittel je Partie, Zellen mit N_gültig ≥ 100: Archiv × Phase, Farbe): ${pz(mn)} bis ${pz(mx)}. Die früheren ${ALT.bis16} % liegen **${ALT.bis16 / 100 > mx ? 'oberhalb der gesamten Spanne' : (ALT.bis16 / 100 < mn ? 'unterhalb der gesamten Spanne' : 'innerhalb der Spanne')}**.`, '');
+  else z.push(`**Spanne der mit den Rohdaten prüfbaren Faktoren** (Rang ≤ 16 vor dem Netz, Mittel je Partie, Zellen mit N_gültig ≥ 100: Archiv × Phase, Farbe): ${pz(mn)} bis ${pz(mx)}. Die früheren ${ALT.bis16} % liegen **${ALT.bis16 / 100 > mx ? 'oberhalb der gesamten Spanne' : (ALT.bis16 / 100 < mn ? 'unterhalb der gesamten Spanne' : 'innerhalb der Spanne')}** (das ist eine Lage, noch keine Erklärung, siehe Lesart unten).`, '');
   z.push('| Unterschied zwischen früher und jetzt | prüfbar mit den Rohdaten? | Befund |', '|---|---|---|');
   const sp = (lo, hi) => (lo === Infinity || hi === -Infinity) ? '–' : `${pz(lo)} bis ${pz(hi)}`;
   const phW = PHASEN.map(p => erg.zellen['alle|' + p[0]].je.vor.bis16).filter(x => x !== null), gegn = erg.namen.map(n => erg.zellen[n + '|alle'].je.vor.bis16).filter(x => x !== null);
@@ -188,7 +188,7 @@ function bericht(erg, ktr) {
   z.push('| Zufall der Liste (früher auf 0, jetzt der echte Zufallsstrom mit Gleichständen im Endspiel) | **nein**: die Rohdaten haben nur Rangfolgen, keine Werte und keine zufallsfreie Liste | offen |');
   z.push('| Engine-Stand (Muster, Netz, frische Wurzel u. a. seit der alten Diagnose) | **nein**: nicht Teil dieser Auswertung | offen |');
   z.push(`| Stichprobe (früher ${ALT.stellungen} Stellungen aus 40 Partien, jetzt ${erg.zellen['alle|alle'].gueltig} aus 160) | nicht als Erklärung prüfbar | beide Stichproben sind groß genug, dass Zufallsstreuung allein keinen Abstand von der Größe erklärt (Intervalle oben) |`);
-  z.push('', 'Lesart (nur Beschreibung): Erklären die prüfbaren Faktoren die Spanne zu den 70 % nicht, bleiben Vorgabe, Referenzart, Zufall der Liste und Engine-Stand als mögliche Ursachen; welche davon trägt, ist mit diesen Daten nicht entscheidbar.');
+  z.push('', '**Lesart, einseitig:** Liegen die früheren 70 % **außerhalb** der Spanne, kann keine Gewichtung von Archiv, Phase und Farbe sie erreichen (jeder gewichtete Mittelwert liegt zwischen dem kleinsten und größten Zellwert); diese Faktoren allein erklären den Unterschied dann nicht. Liegen sie **innerhalb**, ist damit **nichts erklärt**: Die Spanne beschreibt nur, wie weit die jetzigen Werte streuen. Wie sich die alte Stichprobe auf diese Faktoren verteilte, ist nicht bekannt, und der Rest der Unterschiede (Vorgabe, Referenzart, Zufall der Liste, Engine-Stand) ist mit diesen Daten nicht prüfbar. Welche Ursache trägt, ist hier nicht entscheidbar.');
   return z.join('\n') + '\n';
 }
 
