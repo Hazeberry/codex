@@ -189,7 +189,15 @@ wurde**:
    (`tests/diagnose-p1p2.js`). Auf GitHub belegt das erst die Probe
    `.github/workflows/diagnose-timeout-probe.yml` (rund drei Minuten, kein GNU Go, keine Partien): Der
    Schritt läuft absichtlich ab, der Job „Prüfung“ ist nur grün, wenn der Teilinhalt im Artefakt
-   angekommen ist. **Die Probe ist noch nicht gelaufen.**
+   angekommen ist.
+   **Nachtrag (Probe gelaufen, Actions-Lauf 41521966719, 2. November 2026, Kopf
+   `e8df7b4677b315bfbef029171e4c5fee1a150e40`):** Der Schritt mit Zeitlimit wurde nach 73 Sekunden
+   (Limit 1 Minute) abgebrochen und als `failure` markiert, der Upload mit `if: always()` lief danach
+   und war erfolgreich, der Job „Prüfung“ war grün: 4 von 7 Zeilen im Artefakt (Teilinhalt, nicht
+   vollständig). Der Gesamtlauf der Probe steht deshalb auf `failure`; das ist der erwartete Ausgang,
+   nicht ein Fehler (grün wäre er nur, wenn der Schritt nicht abgelaufen wäre). **Belegt** ist das für
+   das Zeitlimit eines Schritts. Das Zeitlimit des ganzen Jobs ist nicht geprüft; der Workflow verlässt
+   sich nicht darauf, weil das Schritt-Limit (150 Minuten) vor dem Job-Limit (200 Minuten) greift.
 6. **Wiederverwendung.** Die drei fertigen Archive des ersten Laufs (Artefakte `diagnose-<name>`)
    werden mit `vorlauf=41480291668` und `neu=fuego-siege-D` übernommen und nicht neu gerechnet. Sie
    stammen aus unveränderter Rechenlogik (gleiche Buchung und Kandidatenrekonstruktion, nur anders
