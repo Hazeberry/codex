@@ -4,13 +4,12 @@ Ein vollständiges Go-Spiel in einer einzigen HTML-Datei. Keine Abhängigkeiten,
 kein Build, kein Server: `index.html` im Browser öffnen und spielen. Die KI
 läuft als Monte-Carlo-Baumsuche in einem Web Worker.
 
-Der zweite Teil des Projekts ist ein Messrahmen. Jede Aussage über die
-Spielstärke in diesem README stammt aus Selbstspiel-Läufen oder Partien gegen
-GNU Go, jeweils mit Signifikanztest, nicht aus dem Eindruck beim Spielen.
-Seit der GNU-Go-Brücke ist GNU Go in den vorab festgelegten Messungen dabei,
-als Gegner oder als Schiedsrichter. Eine Änderung, die im Selbstspiel gewinnt,
-gegen GNU Go aber verliert, wird nicht Default (so geschehen bei
-`leseRettung`).
+Der zweite Teil des Projekts ist ein Messrahmen: Selbstspiel, Partien gegen
+GNU Go und gegen Fuego, dazu Diagnosen an archivierten Partien. Die jeweiligen
+Versuchsprotokolle unterscheiden vorab festgelegte Stärkemessungen von
+explorativen Befunden und nennen Bedingungen, Unsicherheit und Entscheidung.
+GNU Go dient auch als Schiedsrichter. Ein Gewinn im Selbstspiel allein
+begründet keinen neuen Default.
 https://hazeberry.github.io/Go-html-Game-MoE/
 
 ## Spielen
@@ -21,11 +20,21 @@ nichts zu installieren.
 - 19×19, Komi 7.5, Superko-Regel
 - Drei Schwierigkeitsgrade: Leicht, Mittel, Schwer
 - Wertung wahlweise **Area** (chinesisch) oder **Territory** (japanisch)
+- Zählvorschau mit und ohne Annahmen zu toten Steinen, für Area und Territory
 - SGF-Export, Zug-Log, Bug-Report-Export als JSON
 - Parameter-Dashboard: alle KI-Parameter live verstellbar, speicherbar im
   `localStorage`
 
 ## Stand: was funktioniert, was offen ist
+
+**Dokumentationsstand: 02.11.2026.** Die Übersicht unten fasst die Ergebnisse
+bis 31.10. zusammen. Die spätere Versuchschronik enthält ältere Engine-Stände
+und damalige Hypothesen. „Default“ bezeichnet dort den Default des jeweiligen
+Laufs, nicht automatisch den heutigen.
+
+Vor einer neuen Untersuchung die verlinkten Ergebnisnachträge lesen:
+Eine bereits gemessene Frage ist nicht wieder offen, nur weil ein älterer
+Abschnitt sie noch als nächsten Schritt nennt.
 
 **Funktioniert und ist gemessen:**
 
@@ -33,25 +42,30 @@ nichts zu installieren.
 - Bensons Algorithmus für bedingungslos lebende Gruppen — bewiesen, nicht
   geschätzt, und damit die einzige Schicht, die nicht heuristisch ist
 - Muster aus GNU-Go-Zügen in der Zugbewertung (`musterGewicht`): gegen GNU
-  Go mit neun Vorgabesteinen +103 Punkte im Endstand, die KI gewinnt dort
-  jetzt 156 von 240 Partien statt 13
+  Go mit neun Vorgabesteinen im damaligen Einführungsversuch +103 Punkte
+  im Endstand, 156 von 240 Siege statt 13. Für den neueren Default ohne
+  Vorgabe siehe die getrennten Ergebnisse gegen GNU Go und Fuego unten.
 - Endspiel-Netz an der Wurzel ab Zug 81 (`endspielNetz` 0,8): ein kleines
   Faltungsnetz, gelernt an Zügen von GNU Go Stufe 10. Gegen GNU Go +46,9
-  Punkte (λ 0,5 gegen aus) und weitere +15,5 (λ 0,8 gegen 0,5); mehr Gewicht
-  bringt nichts mehr. Auf dem heutigen Default kostet es abgeschaltet 71
+  Punkte (λ 0,5 gegen aus) und weitere +15,5 (λ 0,8 gegen 0,5);
+  für 0,9 und 1 ist kein weiterer Gewinn belegt. Auf dem heutigen Default
+  kostet es abgeschaltet 71
   Punkte gegen GNU Go und 68 gegen Fuego (sechs Vorgabesteine, je 480 Paare,
   `docs/komponenten.md` §9). Es ist damit der größte der bisher einzeln
-  abgeschalteten Teile. Es kostet 41 ms je Zug und keine Suchzeit (gemessen in
-  Node auf einem Rechner von GitHub Actions, nicht im Browser;
-  `docs/endspiel-netz.md`, `docs/netz-dosis.md`, `docs/netz-hoch.md`).
+  abgeschalteten Teile unter diesen Bedingungen. Es liefert Zugwahrscheinlichkeiten
+  und Wurzelkandidaten, keinen Stellungswert für `evaluateBoard`.
+  Die gemessenen 41 ms je Zug stammen aus Node auf einem Actions-Rechner:
+  Das Netz läuft vor dem Suchbudget und verlängert die gesamte Zugdauer.
+  Gerätemessungen und die A17-Auflösung stehen unten und in
+  [`docs/zeitbudget.md`](docs/zeitbudget.md) §5.
   Nicht zu verwechseln mit dem Policy-Netz hinter `netMaxBlend`, das nicht
-  hilft und auf 0 steht (unten unter „Offen“)
+  in bisherigen Stärkemessungen keinen Vorteil brachte und auf 0 steht.
 - Aufgabe bei aussichtsloser Stellung, sowohl über Q als auch strukturell
   („alle legalen Züge wären todgeboren")
 - Worker-Fallback-Kette `data:` → `blob:` → Hauptthread, damit die KI auch
   unter `file://` läuft, wo der Origin `null` ist
 
-**Bekannte Grenzen, gemessen statt vermutet:**
+**Befunde, Grenzen und offene Ursachen:**
 
 - **Der Suchmechanismus ist nur teilweise verstanden.** `mctsValueScale` ist
   im Selbstspiel belegt der wichtigste Parameter, *warum* er wirkt, ist offen
@@ -63,54 +77,60 @@ nichts zu installieren.
   Entscheidungsspanne. Am nominellen 50/50-Punkt trägt es bereits 81 % der
   Varianz. Ob das schädlich ist, ist offen — ein Normierungsversuch hat nicht
   geholfen.
-- **Nur ein fremder Gegner.** Alle Stärkemessungen laufen gegen GNU Go, und
-  GNU Go ist auch Lehrer der Muster und des Endspiel-Netzes. Ein Teil des
-  Gewinns kann daher kommen, dass die KI GNU Gos Züge vorwegnimmt. Das
-  Selbstspiel prüft das nur gegen die eigene KI. Seit dem 20.10. wird mit
-  sechs statt neun Vorgabesteinen gemessen (`docs/teststaerke.md` §9). Als
-  zweiter Gegner lässt sich seit dem 28.10. Fuego einsetzen
-  (`gnugo-duell.js --gegner fuego`, `docs/fuego.md`). Der Prüfstand gegen
-  Fuego wählte sechs Steine und 100 Spiele je Zug für Fuego (53 % Siege der
-  KI, §12). Stufe A der Komponentenmessung (`docs/komponenten.md` §9) hat
-  denselben Default gegen beide Gegner zerlegt: Netz und Muster bringen gegen
-  Fuego fast genauso viel wie gegen GNU Go (Unterschied +2,4 und +1,5 Punkte,
-  Obergrenzen rund +14). Stufe B (`docs/komponenten-b.md` §9) hat die sieben
-  übrigen Zusätze auf dem vollen Default abgeschaltet: Zusammen bringen sie
-  dort gegen keinen der beiden Gegner etwas Messbares (−4,7 und −2,0), und
-  kein Teil wirkt gegen GNU Go messbar anders als gegen Fuego. Ein Hinweis
-  auf eine Spezialisierung des Defaults auf GNU Go bleibt nicht übrig, soweit
-  die Auflösung reicht (rund 14 bis 17 Punkte). Die Muster erst ab Zug 40
-  oder 80 einzusetzen (`musterAb`, `docs/muster-eroeffnung.md` §9) bringt
-  gegen keinen der beiden Gegner etwas und verliert im Selbstspiel (44 % und
-  28 %); `musterAb` bleibt 0. Die Baum-Übernahme abzuschalten
-  (`docs/baum-uebernahme.md` §9) kostet bei 120 Simulationen gegen keinen der
-  beiden Gegner etwas Messbares (−2,9 und −0,2 bei je 960 Paaren). Bei 600
-  Simulationen liegt es gegen GNU Go mit −5,8 knapp unter der vorab
-  festgelegten Schwelle −5; `mctsTreeReuse` bleibt deshalb 1. Alle diese
-  Messungen liefen mit Vorgabe. **Ohne Vorgabe** (`docs/leeres-brett.md` §9,
-  gegen GNU Go) trägt das Netz weiter (ohne Netz −46,9), aber die Muster
-  **schaden**: Ohne sie steht die KI um 14,3 Punkte besser, mit ihnen erst ab
-  Zug 80 um 17,1, vor allem als Weiß. Mit sechs Steinen brachten sie nichts
-  Messbares, im Selbstspiel helfen sie. Kein Default ist geändert, eine
-  eigene Vorabfestlegung steht aus. Gegen die ältere Fassung aus der PWA
-  (`docs/pwa-vergleich.md` §9, ohne Vorgabe, ohne Endspiel-Netz) gewinnt die
-  aktuelle Engine 84,7 % bei 120 Simulationen und 71,7 % bei 1,8 s je Zug;
-  gegen sich selbst über denselben Aufbau 51,7 %. Ob die Muster ohne Vorgabe
-  schwächer zählen sollen (`docs/muster-ohne-vorgabe.md` §9): Gegen GNU Go
-  kosten sie auch mit neuem Seed rund 18 Punkte, gegen Fuego nichts (+0,6),
-  und im Selbstspiel helfen sie. Der Schaden hängt an GNU Go;
-  `musterOhneVorgabe` bleibt 1. Nachträglich und explorativ (§10): Gegen
-  Fuego gewinnt die KI mit Mustern deutlich öfter (73 gegen 42 von 480).
-  Vorab festgelegt ist eine Messung mit der Siegquote als Endpunkt, gegen ein
-  Fuego, gegen das der Default ohne Vorgabe 40 bis 50 % gewinnt
-  (`docs/muster-fuego-siege.md`). Der Prüfstand (Stufe 1) ergab: Fuego mit 50
-  Spielen je Zug, der Default gewinnt dort 50,8 % (10 Spiele: 100 %, 70
-  Spiele: 28,3 %). Stufe 2 (D, M0, M50 mit je 960 Paaren, Seed 228; ungültige Läufe
-  liefern „kein Urteil“ und werden rot) ist gelaufen und gültig: D gewinnt
-  48,0 %, ohne Muster 35,2 %, mit halbem Gewicht 39,5 %; D gewinnt öfter als
-  beide (p 2,4 · 10⁻⁸ und 0,0002). `musterOhneVorgabe` bleibt 1. Der Gegner ist
-  ein Fuego mit sehr schwacher Suche (50 Spiele je Zug); das Ergebnis gilt nur
-  für ihn.
+- **Zwei externe Gegner, unterschiedliche Bedingungen.** GNU Go ist Lehrer
+  der Muster und des Endspiel-Netzes; Fuego ist der zweite Gegner.
+  Mit sechs Vorgabesteinen übertragen sich die Beiträge von Netz und
+  Netz plus Mustern auf Fuego (100 Spiele je Zug), innerhalb der Auflösung
+  von rund 14 Punkten ([`komponenten.md`](docs/komponenten.md) §9).
+  Das ist kein allgemeiner Nachweis gegen eine Spezialisierung:
+  Ohne Vorgabe wirken die Muster gegen GNU Go und Fuego unterschiedlich.
+  Auch die Ergebnisse gegen Fuego gelten nur für die getestete, sehr
+  schwache Suche, nicht für Fuego bei normaler Stärke oder für Menschen.
+
+  | Vergleich ohne Vorgabe | Ergebnis | Stand |
+  |---|---|---|
+  | GNU Go Stufe 1, 120 Simulationen, Seed 222 | D verliert 472 von 480; ohne Netz −46,9 Punkte, ohne Muster +14,3 | [Leeres Brett §9](docs/leeres-brett.md): Netz trägt, Muster kosten gegen diesen Gegner Punkte |
+  | GNU Go und Fuego (100 Spiele), neuer Seed 226 | ohne Muster +18,1 Punkte gegen GNU Go, +0,6 gegen Fuego; Selbstspiel ohne Muster 26,9 % | [Muster ohne Vorgabe §§9–10](docs/muster-ohne-vorgabe.md): keine Verbesserung gegen beide Gegner; die Entscheidung hing **nicht am Selbstspiel-Veto** |
+  | Fuego, 50 Spiele je Zug, Seed 228, je 960 Partien | volle Muster 48,0 % Siege, ohne 35,2 %, halb 39,5 % | [Siegquotenmessung §10](docs/muster-fuego-siege.md): abgeschlossen, volle Muster gewinnen häufiger (p 2,4 · 10⁻⁸ und 0,0002); Default bleibt 1 |
+  | ältere PWA-Fassung ohne Endspiel-Netz | aktuelle Engine gewinnt 84,7 % bei 120 Simulationen, 71,7 % bei 1,8 s | [PWA-Vergleich §9](docs/pwa-vergleich.md): abgeschlossen; Gleichstandsprobe 51,7 % |
+
+  Der Gegensatz zwischen Selbstspiel und GNU Go ist damit nicht allein durch
+  Vorgabe und Farbe erklärt: Er besteht auch ohne Vorgabe mit wechselnden
+  Farben. Fuego und Selbstspiel sprechen für die Muster. Mittlerer Endstand
+  und Siegquote sind verschiedene Endpunkte und dürfen nicht gleichgesetzt werden.
+- **Suchskalierung ist gemessen, der heutige Engpass nicht.** Am 03.10. auf
+  Commit `94b59d0` gewann 240 gegen 120 Simulationen 60,6 % und 480 gegen 240
+  57,8 % (je 360 Partien; +75 [38–112] und +55 [19–92] Elo).
+  Der Unterschied der Steigungen ist nicht gesichert. Die 30–50 Elo bei
+  höheren Simulationszahlen sind eine Hochrechnung, keine Messung des
+  heutigen Defaults mit Netz und Mustern. Auch 0/8 gegen 0/17 Siege im
+  damaligen GNU-Go-Pilot isolieren keinen Bewertungsengpass.
+  [`skalierung.md`](docs/skalierung.md) §5 dokumentiert die Zahlen; seine
+  abschließende Diagnose „Bewertung statt Suche“ geht über das hinaus,
+  was diese Vergleiche allein belegen.
+- **Komponenten und Baum-Übernahme sind bereits nachgemessen.** Die sieben
+  übrigen Zusätze zusammen ergeben auf dem vollen Default mit sechs Steinen
+  keinen messbaren Beitrag (Abschalten −4,7 / −2,0 Punkte gegen GNU Go /
+  Fuego); das beweist nicht, dass jeder Teil einzeln entbehrlich ist.
+  Ohne frische Wurzel bei weiter aktiver Baum-Übernahme verliert die Engine
+  −34,7 / −29,6 Punkte ([`komponenten-b.md`](docs/komponenten-b.md) §9).
+  Baum-Übernahme ganz aus wurde separat bei 120 und 600 Simulationen
+  getestet. Der Default bleibt 1 nach der vorab festgelegten Regel;
+  ein Vorteil bei 600 ist nicht gesichert, die Browser-Laufzeit war kein
+  Endpunkt ([`baum-uebernahme.md`](docs/baum-uebernahme.md) §9).
+- **Komi: Kalibrierung samt Gegenproben abgeschlossen, Eingriff offen.**
+  In der Fuego-Siegquotenmessung gewinnt D als Weiß 60,6 %, als Schwarz
+  35,4 %. Dass fehlendes Komi-Bewusstsein die Ursache ist, ist eine Hypothese.
+  An 2 399 vorhandenen Partien wurde `evaluateBoard` bei Zug 200/240/280
+  mit dem späteren Endstand verglichen. Mit eigener Zählung: R²
+  0,33 / 0,31 / 0,34; die Stabilität des Umrechnungsfaktors scheiterte.
+  Gegen GNU Gos `final_score`: R² 0,05 / 0,12 / 0,28; auch mit identischen
+  Partien an allen Zugzahlen kein stabiler Faktor.
+  Kein k ist eingefroren, Stufen 2 und 3 bleiben zurückgestellt.
+  Das misst Vorhersage des späteren Endstands, nicht direkt die Qualität
+  einzelner Zugentscheidungen; weder ein Komi-Effekt noch die Notwendigkeit
+  eines anderen Bewerters ist damit bewiesen.
+  [`komi-bewusstsein.md`](docs/komi-bewusstsein.md) §§5–7.
 - **Lange Partien.** Ohne Aufgabelogik laufen Selbstspiel-Partien regelmäßig
   auf 400+ Züge, der erste Pass fällt im Mittel um Zug 390.
 - **Die Zeitsteuerung ist Wall-Clock.** Auf langsamer Hardware sinkt die Zahl
@@ -132,56 +152,75 @@ nichts zu installieren.
   gemeinsame Eröffnung weiter mit `PARAMS_DEFAULT` und Zeitbudget; dort laufen
   zwei Läufe trotz gleichem Seed auseinander — gemessen: drei Läufe, drei
   verschiedene Ergebnisse.
-- **Das Policy-Netz lernt, aber zu wenig, um zu helfen.** Gemeint ist das
-  Policy-Netz hinter `netMaxBlend`, nicht das Endspiel-Netz (`endspielNetz`,
-  oben unter „Funktioniert“), das deutlich gewinnt. Es sind zwei verschiedene
-  Netze. Ein kleines Dense-Netz (3971→128→361) kann Wurzelzüge mitgewichten. Bis August 2026 war
-  es doppelt tot: im Messrahmen gar nicht vorhanden, und im Spiel in einem
-  geschlossenen Kreis gefangen, der `gamesPlayed` nie über 0 kommen ließ — es
-  hat also nie gelernt, bei niemandem. Beides ist behoben. Danach gemessen:
-  Distillation auf den Suchzug verbessert den mittleren Rang repliziert über
-  vier Initialisierungen (111,7 → 90,3 bei Zufallserwartung 101,3), aber die
-  Trefferquote im Kopf der Verteilung bleibt auf Zufallsniveau — der Suchzug
-  landet nie auf Rang 1. Für PUCT zählt nur der Kopf. `netMaxBlend` steht
-  deshalb auf 0: das Netz lernt mit, steuert aber nicht.
+- **Zwei unterschiedliche Netze.** Das Endspiel-Netz ist aktiv
+  (`endspielNetz` 0,8). Das separate Dense-Policy-Netz (`netMaxBlend`)
+  bleibt auf 0: Die bisherigen Lern- und Distillationsversuche haben keinen
+  Spielstärkegewinn belegt. Mehr Daten verbesserten dort die Offline-Trefferrate;
+  eine Übertragung auf die Spielstärke ist nicht gemessen.
+  Die historische Versuchsreihe steht unten, die Trainingskette in
+  [`distillation/`](distillation/).
 
-  Der Nachfolgeversuch, überwacht aus KataGo-Partien zu lernen
-  ([`distillation/`](distillation/)), hebt den Kopf erstmals **über**
-  Zufallsniveau — Top-1 1,2 %, Top-10 7,8 % gegen 0,28 % / 2,77 % bei Zufall —
-  und gewinnt trotzdem in keinem A/B: 35,0 % über 120 gepaarte Partien bei
-  `netScoreScale` 5000 (p = 0,003). Diese Skala ist **gemessen** kommensurabel
-  — der Netzterm liegt bei 0,4× bis 5,6× der Entscheidungsspanne von
-  `evaluateMove`, die spannenkalibrierten Werte streuen um Median 3841. Ein
-  Gegentest mit 800 kam auf 41,7 %, schaltete das Netz dabei aber weitgehend ab
-  (0,06×–0,35×) und belegt daher keine Neutralität. `netMaxBlend` bleibt 0.
+### Bereits untersucht: Punktverluste und Kandidatenauswahl
 
-  Kalibrierung ist als Erklärung **erschöpft**. Über eine 250-fache
-  Skalenspanne ergibt sich eine monotone Dosis-Wirkungs-Kurve, die von unten
-  gegen 50 % läuft: 35,0 % (Skala 5000), 41,7 % (800), 46,7 % (20, ab Zug 250
-  auf 1000). Wäre die Skala nur falsch eingestellt, müsste eine Zwischendosis
-  über 50 % schießen — keine tut es, und das beste Ergebnis ist dasjenige, bei
-  dem das Netz fast nichts tut. Der Engpass ist die Kopfgüte: der Abstand
-  zwischen bestem und zweitbestem Heuristikzug ist in Eröffnung und Mittelspiel
-  praktisch null (Gap 0,0–0,5 bei einer Spanne von 45–236), dort entscheidet
-  der Prior bei jeder Skala — und ein Netz mit Top-1 1,2 % bringt dort fast
-  Zufall ein.
+Die Diagnose beginnt nicht bei null. Die folgenden Befunde gelten für die
+jeweiligen damaligen Stände, beide mit neun Vorgabesteinen gegen GNU Go:
 
-  Und die Kopfgüte hängt an der **Datenmenge**, nicht an Kapazität oder
-  Merkmalsform: 554 985 Parameter auf 56 363 Beispiele waren 9,8×
-  überparametrisiert. Eine Datenmengen-Kurve bei identischem Testsatz steigt
-  monoton und ohne Plateau — Top-1 0,37 % → 0,99 % und Top-10 3,77 % → 8,24 %
-  (Mittel über die letzten zehn Epochen, Endpunkte rund 4 SD getrennt)
-  über 15 k bis 120 k Zeilen, wobei der Trainingsverlust dabei von 2,43 auf
-  4,21 *steigt*: das Netz verlässt den Memorierbereich. Benutzt wurden bisher
-  vier `val/`-Shards mit zusammen 61 363 Zeilen; verfügbar sind **8160
-  `train/`-Shards**, und die sind 22,7× größer (348 571 nutzbare Zeilen gegen
-  15 388) — hochgerechnet von einem gemessenen train-Shard rund 2,8 Milliarden
-  Stellungen, von denen der Referenzlauf **0,002 %** gesehen hat. Die höchste
-  Hebelwirkung liegt damit in der Datenpipeline, und dort im **Durchsatz**,
-  nicht in der Verfügbarkeit: dicht gespeichert wären das 45 TB, sparse noch
-  7–13 TB. Streaming ist der einzige Weg für den vollen Bestand, sparse das
-  RAM-Format für den Arbeitsausschnitt. Ob all das der Spielstärke hilft, ist
-  **nicht** gemessen.
+| Untersuchung | Befund | Was danach geprüft wurde |
+|---|---|---|
+| [Punktverlust vor den Mustern](docs/punktverlust.md), 11.10., 120 Partien | Zwischen Zug 100 und 200 −94,5 Punkte; größter Posten Gebiet. Bei nicht geretteten Gruppen lag GNU Gos Rettungspunkt in 61 % außerhalb der ersten 16 Kandidaten. | `leseRettung` nachgemessen (§8): gegen GNU Go −6,3 Punkte, nicht signifikant; direkte Rettung hilft längerfristig kaum. Kein Default. |
+| [Punktverlust mit Mustern](docs/punktverlust-muster.md), 12.10., Commit `2816458`, 240 Partien | Vorsprung bis Zug 80 gehalten, danach rund 85 Punkte verloren; sterbende eigene Steine nur noch rund 7 Punkte. In 30 % der untersuchten Stellungen lag GNU Gos bester Zug außerhalb der Top 16. | An 340 Stellungen führten 120/480/1000 Simulationen in 16,5/14,4/14,4 % zu GNU Gos bestem Zug (§6). Das ist Zugübereinstimmung, keine Stärkemessung. |
+| [Endspiel-Muster und Datenaggregation](docs/muster-endspiel-messung.md) | Letzte Tabelle gegen Default −3,7 Punkte [−10,7; +3,3] über 240 Paare. | Reihe abgeschlossen, nicht übernommen. Kein allgemeines Urteil über mehr Lehrdaten oder andere Netze. |
+| [Endspiel-Netz im Spiel](docs/endspiel-netz.md), danach [Dosis](docs/netz-dosis.md) | +46,9 Punkte bei Einführung, +15,5 beim Wechsel von 0,5 auf 0,8. | Eingebaut; neuere Komponentenmessung gegen beide Gegner bestätigt seinen Beitrag. |
+
+Die alten Verlustprofile liegen **vor dem Endspiel-Netz**. Ob sie beim heutigen
+Default ohne Vorgabe gegen Fuego fortbestehen, ist durch diese Diagnosen
+nicht beantwortet. Eine Wiederholung unter diesen Bedingungen wäre eine
+Übertragungsprüfung, keine erstmalige Untersuchung von Kandidatenausschluss.
+Ein Verlust vor oder nach Zug 81 beweist für sich allein nicht, welche
+Architekturänderung hilft.
+
+### Bedienung, Passregel und Laufzeit
+
+- **Zählvorschau umgesetzt**, einschließlich Territory: „Mit Annahmen“ und
+  „Nur Bewiesenes“, ohne Einfluss auf die KI. Seki und offenes Ko werden nicht
+  zuverlässig beurteilt; auch „Nur Bewiesenes“ ist keine garantierte
+  Untergrenze. Die 70,2 % exakte Übereinstimmung mit GNU Go betreffen 480
+  ausgespielte Schlussstellungen, nicht beliebige Zwischenstellungen.
+  [Zählung §5](docs/zaehlung.md) · [Zählvorschau §§7–8](docs/zaehlvorschau.md).
+- **Langes Weiterspielen bereits diagnostiziert.** Pass-Sonde und Verteilung
+  der Kandidatenwerte sind gelaufen. Dass Weiterzüge nach einem Gegnerpass
+  unnütz sind, ist nicht belegt; in einer Territory-Handpartie verbesserte
+  sich die Bilanz nach dem ersten Gegnerpass um 14 Punkte.
+  [Endspiel-Abräumen §§6–13](docs/endspiel-abraeumen.md).
+  Der Versuchsschalter `passNachGegnerpass` ist gebaut, **Standard 0**.
+  Sein gepaarter Vergleich ist laut Protokoll noch nicht gestartet; ein
+  Sicherheits- oder Stärkegewinn ist nicht nachgewiesen.
+  [Passregel-Versuch §§3–5](docs/passregel-versuch.md).
+- **A17-Laufzeitproblem aufgelöst:** Chrome lief mit ausgeschaltetem
+  V8-Optimierer. Nach Einschalten: 2662 statt 453 Simulationen in 1,8 s
+  bei Zug 2; Endspiel-Netz ab Zug 81 im Median 106 statt 1635 ms;
+  gesamte Zugdauer 2241 statt 3798 ms. Kein Zug mehr über 1,5× Budget.
+  Auf dem A20s war der Optimierer bereits an; dessen 520 ms Netzzeit sind
+  damit nicht erklärt. Entscheidung vom 31.10.: **keine Beschleunigung des
+  Endspiel-Netzes geplant**. Ein Hinweis auf langsame Ausführung bleibt
+  eine Idee, kein eingebautes Merkmal.
+  [Zeitbudget §§5–6](docs/zeitbudget.md).
+
+### Was tatsächlich offen bleibt
+
+- Wo der heutige Default ohne Vorgabe Stärke verliert: Kandidatenauswahl,
+  Suchverteilung, Rollout-Politik und Blattbewertung sind noch nicht als
+  Ursachen getrennt. Ein einzelner dominanter Engpass ist nicht belegt.
+- Wie stark zusätzliche Simulationen den heutigen Default im relevanten
+  Browser-Bereich verbessern; die alte Skalierung beantwortet das nicht.
+- Ob und wie ein Komi-Eingriff hilft, nachdem die gewählte Kalibrierung
+  keinen tragfähigen Faktor geliefert hat.
+- Ob die neue Pass-Versuchsregel Siege oder Punkte kostet. Die Vorschau
+  und die Einzelrechnung ersetzen den vorgesehenen Vergleich nicht.
+
+Das sind offene Fragen, keine neu beschlossenen Versuche. Vorhandene Werkzeuge
+und Ergebnisse zuerst nutzen; neue Läufe brauchen einen klaren Unterschied
+zur bereits beantworteten Frage.
 
 ## Architektur
 
@@ -219,8 +258,10 @@ die Gewichte nach Zugzahl und freien Feldern, das Krisengewicht mischt
 `evalTsumego` dort ein, wo Ketten in Gefahr sind. Auch die Experten sind
 Heuristiken, keine trainierten Netze. In der ML-Literatur, wo Gate und
 Experten gemeinsam gelernt werden, hieße das eine MoE mit fester
-Gating-Funktion. Darüber liegt Benson als beweisbare Schicht: Was als
-bedingungslos lebend erkannt ist, wird nicht mehr heuristisch bewertet.
+Gating-Funktion. Benson liefert zusätzlich beweisbare Aussagen über
+bedingungsloses Leben. Nicht jede Bewertungsschicht nimmt solche Gruppen
+automatisch aus: Der geprüfte Schalter `bensonAliveExempt` steht weiterhin
+auf 0 ([`docs/benson-lebend-treppe.md`](docs/benson-lebend-treppe.md) §8).
 
 Gelernt sind zwei Teile, beide nur an der Wurzel der KI und beide aus Zügen
 von GNU Go: die Muster-Tabelle (`musterGewicht`), die zur Zugbewertung addiert
@@ -228,6 +269,15 @@ wird, und das Endspiel-Netz (`endspielNetz`), das ab Zug 81 den Prior der
 Wurzelkinder zu 80 % bestimmt. Beide tragen viel (zusammen rund 113 Punkte
 gegen GNU Go und gegen Fuego, `docs/komponenten.md` §9). Das Policy-Netz
 (`netMaxBlend`) ist ein drittes, anderes Netz und steht auf 0.
+
+Das aktive Endspiel-Netz ist **kein Wertnetz**: Es verändert Kandidaten und
+Priors, nicht die Blattbewertung. Die MCTS-Suche nutzt standardmäßig 16
+Wurzelkinder und 8 Kinder je innerem Knoten, innen nach `quickEval`
+ausgewählt. An neuen Blättern folgt ein kurzer Rollout (Default 24 Halbzüge)
+und danach `tanh(evaluateBoard / mctsValueScale)`. Mehr Simulationen erweitern
+eine bereits festgelegte Kinderliste nicht automatisch. Daraus folgt eine
+mögliche Begrenzung, aber noch kein gemessener Stärkeverlust des heutigen
+Defaults.
 
 So wird daraus ein Zug, Schritt für Schritt durch `getAIMove`:
 
@@ -296,6 +346,12 @@ Simulationszahl pro Zug direkt an der Rechenleistung hängt.
 
 ## Belegte Ergebnisse
 
+**Lesart:** Die Tabelle ist eine Versuchschronik, keine Liste unabhängig
+addierbarer Gewinne und kein unveränderter Benchmark. Gegner, Vorgabe,
+Simulationszahl, Engine-Stand und Endpunkt stehen im jeweiligen Protokoll.
+Spätere Nachmessungen können frühere Hinweise überholen; den aktuellen
+Entscheidungsstand nennt die Übersicht oben.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/bilder/ergebnisse-dunkel.svg">
   <img alt="Siegrate jeder gemessenen Änderung im Selbstspiel mit 95-%-Konfidenzintervall, dazu das Ergebnis gegen GNU Go; die Zahlen stehen in der Tabelle darunter" src="docs/bilder/ergebnisse-hell.svg" width="100%">
@@ -325,37 +381,37 @@ Das Diagramm zeigt die Selbstspiel-Messungen aus der Tabelle. Neu zeichnen:
 | `gegnerWert` / `gegnerGebiet` (Wert des Punkts für den Gegner) | Pilot gegen GNU Go: Endstand −90 bis −126 | verworfen — Default 0 (`docs/gegnerwert.md`) |
 | `krisenKandidaten` (Rettung aus dem Atari und Schläge immer in die Suche) | Selbstspiel 51,7 % über 720 Partien (p = 0,37), gegen GNU Go +7,5 (p = 0,50) | verworfen — Default 0 |
 | **`leseRettung` 1 (taktischer Leser rettet gefährdete Ketten)** | **Selbstspiel 62,8 % über 720 Partien (p = 7 · 10⁻¹², +91 Elo)**, gegen GNU Go aber Endstand −30,5 (p = 0,011); nachgemessen mit ausgespielten Partien: gegen GNU Go −6,3 (p = 0,42), im Selbstspiel 58,1 % (p = 0,002) | **kein Default** — rettet Ketten für den Moment, zehn Züge später sind sie fast genauso oft tot; Schalter im Dashboard (`docs/laufkampf-lesen.md` §8) |
-| Suchtiefe: 240 gegen 120, 480 gegen 240 Simulationen | 60,6 % und 57,8 % über je 360 Partien (+75 und +55 Elo je Verdopplung) | Suche hilft, flacht ab — kein großer Hebel (`docs/skalierung.md`) |
+| Suchbudget: 240 gegen 120, 480 gegen 240 Simulationen (03.10., Commit `94b59d0`) | 60,6 % und 57,8 % über je 360 Partien (+75 [38–112] und +55 [19–92] Elo je Verdopplung) | Mehr Suche hilft auf diesem Stand; Abflachen nicht gesichert, höhere Budgets und heutiger Default damit nicht gemessen ([Skalierung §5](docs/skalierung.md)) |
 | `resignQ` 0,95 gegen 0,997 | 29:31 über 60 Partien, p = 0,90 | 0,95 bleibt — rechtzeitiges Aufgeben kostet nichts |
 | Ko-Punkt in Suche und Rollouts (Fehler aus dem Code-Review vom 13.10.) | gegen GNU Go Endstand +0,9 über 240 ausgespielte Paare (95 %: [−5,3; +7,2], p = 0,77), Siege 149 → 157; 235 der 240 Partien ändern sich | **behoben** — Regelkorrektur, keine Stärkeänderung (`docs/code-review.md` §4) |
-| Endspiel-Muster, Schritt 1 (nur offline): eigene Tabelle für Stellungen ab Zug 81 mit Abstand zu den Steinen und Ringen um den Punkt | an 16 228 frischen Stellungen sagt sie GNU Gos Zug in der Liste der KI öfter voraus: Rang 1 **+12,6** Prozentpunkte (95 %: [+10,7; +14,5]), auf Linie 1–2 +8,7, in verlorenen Partien +5,5; alle vier vorab festgelegten Tore bestanden | Schritt 2 (Schalter, Pilot, Messung im Spiel) folgt; bessere Vorhersage ist nicht bessere Zugwahl (`docs/muster-endspiel.md`) |
+| Endspiel-Muster, Schritt 1 (nur offline): eigene Tabelle für Stellungen ab Zug 81 mit Abstand zu den Steinen und Ringen um den Punkt | an 16 228 frischen Stellungen sagt sie GNU Gos Zug in der Liste der KI öfter voraus: Rang 1 **+12,6** Prozentpunkte (95 %: [+10,7; +14,5]), auf Linie 1–2 +8,7, in verlorenen Partien +5,5; alle vier vorab festgelegten Tore bestanden | Schritt 2 und Datenaggregation inzwischen abgeschlossen, Tabelle nicht übernommen; bessere Vorhersage ist nicht bessere Zugwahl (`docs/muster-endspiel.md`) |
 | Endspiel-Muster, Schritt 2: Schalter `musterEndspiel` (die Tabelle aus Schritt 1 an der Wurzel ab Zug 80) | Pilot gegen GNU Go, 60 ausgespielte Paare je Gewicht: Endstand −38,5 (100), −21,8 (200), −23,3 (400), −19,4 (800), p = 0,0001 bis 0,022, Siege 20 bis 33 gegen 35 von 60. Auf den Stellungen der alten KI zieht die Tabelle im Einzelnen besser (+2,0 Punkte nach GNU Go), auf den Stellungen, in die sie selbst führt, trifft sie nicht mehr besser | verworfen — Messung entfällt nach der vorab festgelegten Regel, Schalter wieder entfernt (Stand: Commit `63f727b`); Verschiebung der Stellungen, nicht schlechtere Einzelzüge (`docs/muster-endspiel-spiel.md`) |
-| Endspiel-Muster, Datenaggregation Runde 1 (in GitHub Actions): neue Tabelle aus den Stellungen, in die die alte führt, von GNU Go beschriftet | Pilot gegen GNU Go, 60 ausgespielte Paare, Seed 204: gegenüber dem Default +1,1 Punkte (95 %: [−13,7; +15,8], p = 0,89), gegenüber der alten Tabelle **+22,9** ([+11,1; +34,6], p = 0,0003); Actions spielt dieselben Partien wie der Container (120 von 120) | der Schaden ist weg, ein Gewinn noch nicht: Runde 2 nach der vorab festgelegten Regel (`docs/muster-endspiel-dagger.md` §4, §6) |
-| Endspiel-Muster, Datenaggregation Runde 2 (in GitHub Actions): Tabelle T2 spielt, GNU Go beschriftet 240 Partien, daraus T3 | Pilot gegen GNU Go, 60 ausgespielte Paare, Seed 205: T3 gegenüber dem Default +4,0 Punkte (95 %: [−14,8; +22,8], p = 0,67), T2 gegenüber dem Default +0,7 ([−15,4; +16,9], p = 0,93); beide Piloten zusammen T2 − A +0,9 ([−9,9; +11,7]); offline auf neuen Stellungen T2 und T3 gleichauf (Rang 1: 25,0 gegen 24,8 %) | kein Gewinn nachweisbar: Runde 3, die letzte, nach der vorab festgelegten Regel (`docs/muster-endspiel-dagger.md` §4, §7) |
-| Endspiel-Muster, Datenaggregation Runde 3, die letzte (in GitHub Actions): Tabelle T3 spielt, GNU Go beschriftet 240 Partien, daraus T4 | Pilot gegen GNU Go, 60 ausgespielte Paare, Seed 210: T4 gegenüber dem Default −5,7 Punkte (95 %: [−20,4; +9,0], p = 0,44), T3 −7,0 ([−25,2; +11,2]); alle drei Piloten zusammen NEU − A −0,2 ([−9,4; +9,0], 180 Paare, p = 0,96); offline auf neuen Stellungen T4 vor T3 (Rang ≤ 16: 86,6 gegen 78,9 %), im Spiel nicht | negatives Ergebnis, die Reihe endet nach der vorab festgelegten Regel: kein Schalter auf `main`, keine Messung (`docs/muster-endspiel-dagger.md` §7, §8) |
+| Endspiel-Muster, Datenaggregation Runde 1 (in GitHub Actions): neue Tabelle aus den Stellungen, in die die alte führt, von GNU Go beschriftet | Pilot gegen GNU Go, 60 ausgespielte Paare, Seed 204: gegenüber dem Default +1,1 Punkte (95 %: [−13,7; +15,8], p = 0,89), gegenüber der alten Tabelle **+22,9** ([+11,1; +34,6], p = 0,0003); Actions spielt dieselben Partien wie der Container (120 von 120) | damaliger Zwischenstand; Runde 2 und 3 sowie abschließende Messung inzwischen abgeschlossen, kein Default (`docs/muster-endspiel-dagger.md` §4, §6) |
+| Endspiel-Muster, Datenaggregation Runde 2 (in GitHub Actions): Tabelle T2 spielt, GNU Go beschriftet 240 Partien, daraus T3 | Pilot gegen GNU Go, 60 ausgespielte Paare, Seed 205: T3 gegenüber dem Default +4,0 Punkte (95 %: [−14,8; +22,8], p = 0,67), T2 gegenüber dem Default +0,7 ([−15,4; +16,9], p = 0,93); beide Piloten zusammen T2 − A +0,9 ([−9,9; +11,7]); offline auf neuen Stellungen T2 und T3 gleichauf (Rang 1: 25,0 gegen 24,8 %) | kein Gewinn nachweisbar; Runde 3 und abschließende Messung inzwischen abgeschlossen (`docs/muster-endspiel-dagger.md` §4, §7) |
+| Endspiel-Muster, Datenaggregation Runde 3, die letzte (in GitHub Actions): Tabelle T3 spielt, GNU Go beschriftet 240 Partien, daraus T4 | Pilot gegen GNU Go, 60 ausgespielte Paare, Seed 210: T4 gegenüber dem Default −5,7 Punkte (95 %: [−20,4; +9,0], p = 0,44), T3 −7,0 ([−25,2; +11,2]); alle drei Piloten zusammen NEU − A −0,2 ([−9,4; +9,0], 180 Paare, p = 0,96); offline auf neuen Stellungen T4 vor T3 (Rang ≤ 16: 86,6 gegen 78,9 %), im Spiel nicht | negatives Ergebnis; zunächst keine Messung vorgesehen, danach dennoch 240 Paare gemessen (nächste Zeile); kein Schalter auf `main` (`docs/muster-endspiel-dagger.md` §7, §8) |
 | Endspiel-Muster, Messung mit 240 Paaren gegen GNU Go (in GitHub Actions): letzte Tabelle T4, Gewicht 200 gegen Default, Seed 206 | Endstand B − A **−3,7** (95 %: [−10,7; +3,3], p = 0,30), Siege 132 gegen 149, nach Zug 120 +0,1; Median +6, Vorzeichentest B besser in 135 gegen 102 (p = 0,037), Mittelwert von wenigen großen Verlusten bestimmt | verworfen (Obergrenze unter +10): T4 wird nicht übernommen, die Reihe zum Endspiel-Muster ist abgeschlossen (`docs/muster-endspiel-messung.md` §4, §8) |
 | Endspiel-Muster, Orakel-Test (in GitHub Actions): GNU Go Stufe 10 zieht für die KI ab Zug 81 (in 25 %, 50 % oder allen Zügen) oder ab Zug 161 (in allen), 120 Paare je Arm gegen GNU Go, Seed 206 | Endstand gegenüber Arm A (+22,9, 79 Siege): **D100 +78,7** (95 %: [+68,5; +88,9], 120 Siege), D50 +32,8, D25 +21,3, E100 +34,4, alle p < 0,001; ein geänderter Zug ist im Mittel +1,60 Punkte wert (vorab erwartet 0,6), die KI trifft den Orakelzug in rund 25 % ihrer Züge; der Gewinn hängt nicht am früheren Passen (die Stellung nach dem ersten Pass ergibt den Endstand auf ±1 Punkt) | Spielraum belegt, keine Änderung an der Engine: Messlatte für einen stärkeren Lerner ist ein Zuwachs von 4,0 Prozentpunkten bei den gespielten Zügen für +5 Punkte; T4 mit 2 bis 3 Prozentpunkten wäre rund +3 Punkte wert gewesen, unter der Nachweisgrenze von M1 (`docs/muster-endspiel-orakel.md` §4, §8) |
 | `raveK` 30 und 3000 gegen 300, RAVE ganz aus (je 240 Paare gegen GNU Go, 20.10.) | Endstand −1,4 [−9,8; +7,0], −0,4 [−8,1; +7,2], RAVE aus +3,6 [−4,6; +11,7]; Siege 153, 145, 152 gegen 149 | verworfen: kein Hebel bei 120 Simulationen, Default 300 bleibt (`docs/parameter-reihe.md` §8) |
-| `mctsPriorSharp` 0, 1, 9 gegen 3 (je 240 Paare gegen GNU Go, 20.10.) | Endstand −58,6, −42,2, **+7,3** [+0,2; +14,5, p = 0,045]; Siege 72, 100, **189** gegen 149 von 240 (McNemar für 9: p = 5 · 10⁻⁶) | der Prior trägt, schärfer ist besser; 9 ist nach der vorab festgelegten Regel (α = 0,005) nur ein Hinweis, Default bleibt 3 bis zur Nachmessung (`docs/parameter-reihe.md` §8) |
+| `mctsPriorSharp` 0, 1, 9 gegen 3 (je 240 Paare gegen GNU Go, 20.10.) | Endstand −58,6, −42,2, **+7,3** [+0,2; +14,5, p = 0,045]; Siege 72, 100, **189** gegen 149 von 240 (McNemar für 9: p = 5 · 10⁻⁶) | damals Hinweis für 9 (α = 0,005 verfehlt); Nachmessungen abgeschlossen, auf dem Stand mit Endspiel-Netz verworfen; Default bleibt 3 (`docs/parameter-reihe.md` §8) |
 | `phaseBlendWidth` 0 und 24 gegen 8 (je 240 Paare gegen GNU Go, 20.10.) | Endstand −2,7 [−9,6; +4,3] und +0,3 [−8,5; +9,1] | verworfen: kein Hebel, Default 8 bleibt (`docs/parameter-reihe.md` §8) |
 | Pass-Kurve `passMinMc*`: Negativkontrolle (120 und 150 auf −1000), Stufe 80 auf 300, alle Stufen auf −50 (je 240 Paare gegen GNU Go, 20.10.) | 30 von 30 Partien Zug für Zug gleich; Endstand −1,6 [−3,8; +0,6] und +0,2 [−0,6; +1,0]; Partien 28 Züge kürzer und 14 länger | die Einträge für Zug 120 und 150 sind wirkungslos; die Höhe ändert nur, wann die KI aufhört; die Kurve bleibt, im Code steht jetzt, was sie tut (`docs/parameter-reihe.md` §8) |
 | `bensonAliveExempt` 1 gegen 0 (die Sterbe-Treppe in `evaluateBoard` nimmt Benson-lebende Ketten aus; 240 Paare gegen GNU Go, 20.10.) | Defekt belegt: in vier ganzen Partien trifft die Treppe in 38 % der Bewertungen mit Benson-Analyse eine bewiesen lebende Kette (13 % des Abzugs, meist die des Gegners); Endstand B − A **+1,3** (95 %: [−1,3; +4,0], p = 0,32), Siege 152 gegen 149 (McNemar p = 0,63); Arm A gibt M1-A in 240 von 240 Partien wieder | verworfen (Obergrenze unter +10): Schalter bleibt, Default 0; der Defekt ist belegt, ein Stärkegewinn nicht (`docs/benson-lebend-treppe.md` §8) |
-| `mctsPriorSharp` 9 nachgemessen, frischer Seed (480 Paare gegen GNU Go, dazu 15, 30 und 9 erst ab Zug 120; Selbstspiel 360 Partien, 20.10.) | gegen GNU Go **+7,3** [+2,1; +12,5], p = 0,0064, Siege 365 gegen 304; 15: +12,7, 30: +3,9, ab Zug 120: −0,3; **im Selbstspiel 25,6 %** (p = 4 · 10⁻²¹), 213 der 268 Niederlagen eigene Aufgaben | kein Default nach der vorab festgelegten Regel (M1 und M2 widersprechen sich); untersuchen (`docs/prior-nachmessung.md` §8) |
+| `mctsPriorSharp` 9 nachgemessen, frischer Seed (480 Paare gegen GNU Go, dazu 15, 30 und 9 erst ab Zug 120; Selbstspiel 360 Partien, 20.10.) | gegen GNU Go **+7,3** [+2,1; +12,5], p = 0,0064, Siege 365 gegen 304; 15: +12,7, 30: +3,9, ab Zug 120: −0,3; **im Selbstspiel 25,6 %** (p = 4 · 10⁻²¹), 213 der 268 Niederlagen eigene Aufgaben | damals kein Default; inzwischen mit Endspiel-Netz und ohne Aufgabe nachgemessen und verworfen (nächste Zeile) (`docs/prior-nachmessung.md` §8) |
 | `mctsPriorSharp` 9 auf dem Default mit Endspiel-Netz (240 Paare gegen GNU Go, Selbstspiel ohne und mit Aufgabe je 360, 20.10.) | gegen GNU Go **−11,4** [−18,4; −4,5], p = 0,0014, Siege 197 gegen 222; Selbstspiel ohne Aufgabe 26,4 %, mit Aufgabe 18,6 % | **verworfen**, Default 3 bleibt; die Schwäche im Selbstspiel lag nicht an der Aufgabe (`docs/prior-neun.md` §8) |
 | `bensonDeathTransfer` 1 gegen GNU Go (240 Paare, Selbstspiel 360, 20.10.) | −0,8 [−2,4; +0,7], 50,8 % im Selbstspiel | verworfen, Default 0 (`docs/prior-nachmessung.md` §8) |
-| Endspiel-Lerner, Schritt 1 (offline, GitHub Actions): ein kleines Faltungsnetz greift an der Wurzel ab Zug 81 ein (4 beste Netzzüge in die Kandidaten, Prior zur Hälfte vom Netz) | 19 222 frische Stellungen (Seed 206): die gespielten Züge treffen GNU Gos Zug (Stufe 10) in **34,9 % statt 18,1 %**, +16,8 Prozentpunkte (Zug 81–160: +23,2, ab 161: +10,5); 48 % der Züge ändern sich | Tor (+4,0) bestanden: Schritt 2 folgt, Schalter in `index.html` und Messung im Spiel; ob Treffer Punkte werden, ist offen (`docs/endspiel-lerner.md` §8) |
-| **`endspielNetz` 0,5 (Endspiel-Netz im Spiel, Schritt 2; 240 Paare gegen GNU Go, Selbstspiel 360, 20.10.)** | **Endstand +46,9** [+40,4; +53,4], p = 10⁻³³, Siege 227 gegen 149 von 240; Selbstspiel 83,1 %; Kontrolle 15 von 15 | **Default 0,5** (`docs/endspiel-netz.md` §8) |
+| Endspiel-Lerner, Schritt 1 (offline, GitHub Actions): ein kleines Faltungsnetz greift an der Wurzel ab Zug 81 ein (4 beste Netzzüge in die Kandidaten, Prior zur Hälfte vom Netz) | 19 222 frische Stellungen (Seed 206): die gespielten Züge treffen GNU Gos Zug (Stufe 10) in **34,9 % statt 18,1 %**, +16,8 Prozentpunkte (Zug 81–160: +23,2, ab 161: +10,5); 48 % der Züge ändern sich | Offline-Tor (+4,0) bestanden; Schritt 2 inzwischen positiv abgeschlossen, danach Dosis 0,8 übernommen (folgende Zeilen) (`docs/endspiel-lerner.md` §8) |
+| **`endspielNetz` 0,5 (Endspiel-Netz im Spiel, Schritt 2; 240 Paare gegen GNU Go, Selbstspiel 360, 20.10.)** | **Endstand +46,9** [+40,4; +53,4], p = 10⁻³³, Siege 227 gegen 149 von 240; Selbstspiel 83,1 %; Kontrolle 15 von 15 | **damals Default 0,5, inzwischen 0,8** (`docs/endspiel-netz.md` §8; Dosis unten) |
 | **`endspielNetz` 0,8 (Dosis des Endspiel-Netzes; 240 Paare gegen GNU Go mit sechs Vorgabesteinen, Selbstspiel 360 ohne Aufgabe, 20.10.)** | **Endstand +15,5** [+7,9; +23,1] gegen 0,5, p = 7,5 · 10⁻⁵, Siege 154 gegen 123; Selbstspiel 56,4 %; `endspielNetzTop` 8 statt 4: +1,3 [−6,0; +8,6]; Kontrolle 15 von 15 | **Default 0,8**, Top 8 verworfen (`docs/netz-dosis.md` §8) |
 | `endspielNetz` 0,9 und 1 (höhere Dosis; 240 Paare gegen GNU Go mit sechs Vorgabesteinen, Selbstspiel 360 ohne Aufgabe, 24.10.) | gegen 0,8: 0,9 −1,9 [−9,3; +5,6], 1 −4,1 [−11,4; +3,2]; Selbstspiel 49,7 % und 53,1 %; Kontrolle 15 von 15 | verworfen — Default bleibt 0,8 (`docs/netz-hoch.md` §8) |
 | Komponenten Stufe A: Teile des Defaults abgeschaltet, gegen GNU Go und Fuego (6 Steine, je 480 bzw. 240 Paare, Seed 220, 29.10.) | ohne Netz −70,8 / −68,4, ohne Muster +2,0 / −10,1, ohne beide −113,6 / −112,1, ohne RAVE −5,5 / −1,1, reduzierte Engine −149,4 / −111,4 (gegen GNU Go / Fuego, 99 %); Wechselwirkung Netz × Muster −44,9 / −33,6; Kontrollen 15/15 und 10/10 | kein Default geändert; Netz und Muster übertragen sich auf Fuego (`docs/komponenten.md` §9) |
-| Komponenten Stufe B: die sieben übrigen Zusätze auf dem vollen Default einzeln und zusammen abgeschaltet, gegen GNU Go und Fuego (je 480 Paare, Seed 220, 29.10.) | alle sieben zusammen −4,7 / −2,0; ohne frische Wurzel −34,7 / −29,6 (ohne Baum-Übernahme dagegen −5,0 / +2,1); scharfer Prior −6,4 / −1,9; übrige nahe 0 (gegen GNU Go / Fuego, 99,4 %); kein Unterschied der Gegner schließt 0 aus; Kontrollen 20/20 und 20/20 | kein Default geändert; die sieben sind auf dem Default überflüssig, die frische Wurzel verhindert nur einen Defekt der Baum-Übernahme (`docs/komponenten-b.md` §9) |
+| Komponenten Stufe B: die sieben übrigen Zusätze auf dem vollen Default einzeln und zusammen abgeschaltet, gegen GNU Go und Fuego (je 480 Paare, Seed 220, 29.10.) | alle sieben zusammen −4,7 / −2,0; ohne frische Wurzel −34,7 / −29,6 (ohne Baum-Übernahme dagegen −5,0 / +2,1); scharfer Prior −6,4 / −1,9; übrige nahe 0 (gegen GNU Go / Fuego, 99,4 %); kein Unterschied der Gegner schließt 0 aus; Kontrollen 20/20 und 20/20 | kein Default geändert; zusammen kein messbarer Beitrag unter diesen Bedingungen, einzeln unterschiedlich; frische Wurzel bei aktiver Baum-Übernahme wichtig (`docs/komponenten-b.md` §9) |
 | `musterAb` 40 und 80 (Muster erst ab Zug 40 bzw. 80; je 480 Paare gegen GNU Go und Fuego, Seed 220, Selbstspiel 360 ohne Aufgabe, 29.10.) | 40: −3,7 / +0,8; 80: +3,5 / −3,1 (gegen GNU Go / Fuego, 97,5 %); Selbstspiel 44,4 % und 27,8 %, beide signifikant unter 50 %; Probe 480/480, Kontrollen 20/20 | verworfen — Default bleibt 0; der frühe Vorsprung nach GNU Gos Schätzung war ein Merkmal der Schätzung (`docs/muster-eroeffnung.md` §9) |
 | `mctsTreeReuse` 0 (Baum nicht übernehmen; Nichtunterlegenheit mit Grenze −10, je 960 Paare bei 120 und 240 bei 600 Simulationen gegen GNU Go und Fuego, Seed 221, Selbstspiel 360 ohne Aufgabe, 29.10.) | 120 Sim.: −2,9 [−7,3; +1,4] / −0,2 [−5,6; +5,2], nicht unterlegen; 600 Sim.: −5,8 [−14,7; +3,1] / +0,1 [−12,1; +12,3] (gegen GNU Go / Fuego, 95 %); Selbstspiel 46,9 %; Kontrollen 20/20 | Default bleibt 1 — bei 600 Simulationen gegen GNU Go knapp unter der Schwelle −5 für den Mittelwert (`docs/baum-uebernahme.md` §9) |
 | Leeres Brett: D, ohne Muster (M0), ohne Netz (N0) und Muster erst ab Zug 80 (A80) gegen GNU Go Stufe 1 ohne Vorgabe (je 480 Paare, 120 Simulationen, Seed 222, 29.10.) | M0 **+14,3** [+7,8; +20,8], N0 −46,9 [−53,0; −40,7], A80 **+17,1** [+10,6; +23,5] (98,3 %); mit sechs Steinen +2,0, −70,8 und +3,5; D verliert 472 von 480, Ø −78,8; Proben und Kontrolle bestanden | kein Default geändert; ohne Vorgabe schaden die Muster gegen GNU Go, das Netz trägt (`docs/leeres-brett.md` §9) |
 | Aktuelle Engine gegen die ältere PWA-Fassung (ohne Endspiel-Netz) über `gtp-ki.js`, ohne Vorgabe, GNU Go zählt (360 Partien bei 120 Simulationen, 120 bei 1,8 s je Zug, Gleichstandsprobe 120, 29.10.) | **84,7 %** [80,6; 88,3] bei 120 Simulationen, Endstand +40,4; **71,7 %** [62,7; 79,5] bei 1,8 s je Zug (rund 4 700 Simulationen), +28,7; gegen sich selbst 51,7 %; Kontrolle 20/20 | kein Default geändert; die aktuelle Engine ist klar stärker, der Vorsprung entsteht nach Zug 80 (`docs/pwa-vergleich.md` §9) |
 | `musterOhneVorgabe` 0 und 0,5, `musterWeissOhneVorgabe` 0 (Muster ohne Vorgabe aus, halb, nur als Weiß aus; je 480 Paare gegen GNU Go und Fuego ohne Vorgabe, Seed 226, Selbstspiel 360, 30.10.) | 0: **+18,1** [+11,9; +24,4] / +0,6 [−5,4; +6,6]; 0,5: +15,2 / −0,3; nur Weiß: +13,1 / −4,1 (gegen GNU Go / Fuego, 98,3 %); Selbstspiel 26,9 %, 45,6 %, 38,6 %; Kontrollen 20/20 | verworfen — Default bleibt 1; gegen Fuego kein Schaden, der Schaden hängt an GNU Go (`docs/muster-ohne-vorgabe.md` §9) |
 | `musterOhneVorgabe` 0 und 0,5, Siege gegen Fuego mit 50 Spielen je Zug (je 960 Paare ohne Vorgabe, Seed 228, McNemar alpha 0,025, 31.10.) | Siegquote D 48,0 %, 0: 35,2 %, 0,5: 39,5 %; nur Arm / nur D: 180 / 303 und 196 / 278; Kontrolle 20/20 | verworfen — D gewinnt öfter (p 2,4e-8 und 0,0002), Default bleibt 1 (`docs/muster-fuego-siege.md` §10) |
-| k-Schätzung für ein Komi-Bewusstsein: `evaluateBoard` nach Zug 200/240/280 gegen den komifreien Flächenstand (2 399 Alt-Partien ohne Vorgabe, keine neuen Partien, 31.10.) | R² 0,33 / 0,31 / 0,34; u (Einheiten je Punkt) 5,9 / 7,6 / 10,4, k 44 / 57 / 78 (Abweichung 22,8 % und 36,7 %, erlaubt 25 %) | kein k eingefroren — diese Methode liefert auf diesen Daten keine tragfähige Kalibrierung; Stufen 2 und 3 zurückgestellt (`docs/komi-bewusstsein.md` §5) |
+| k-Schätzung für Komi: `evaluateBoard` nach Zug 200/240/280 gegen den **späteren** komifreien Endstand (2 399 Alt-Partien ohne Vorgabe, 31.10.) | eigene Zählung: R² 0,33 / 0,31 / 0,34, k 44 / 57 / 78; GNU Gos `final_score`: R² 0,05 / 0,12 / 0,28, k 34 / 44 / 58; auch mit identischer Partieauswahl kein stabiler Faktor | abgeschlossen, kein k eingefroren; Stufen 2 und 3 zurückgestellt. Kein Nachweis eines Komi-Effekts oder eines nötigen Bewerterwechsels ([Komi §§5–7](docs/komi-bewusstsein.md)) |
 | Phasentausch früh/spät | +12,5 gegen +5,0 Prozentpunkte, Differenz 3 Partien | **nicht entschieden** — Mechanismus offen |
 | `openContactResponse` (neuer Term in `evalOpening`) | 48,8 % über 80 Partien, p = 0,91 | verworfen — Default 0 |
 | `phaseNormalize` (Experten vor dem Blend normieren) | 42,5 % über 80 Partien, p = 0,22 | verworfen — Default 0 |
@@ -371,6 +427,63 @@ Engine spielt also nachweislich anders und gewinnt dadurch nicht.
 
 Die vollständigen Zahlen samt Vorbehalten stehen im Kopfkommentar von
 [`ab-harness.js`](ab-harness.js).
+
+## Versuchschronik: frühere Befunde und ihre Nachmessungen
+
+Die folgenden Abschnitte bewahren den damaligen Verlauf. Zahlen und
+Erklärungen beziehen sich auf den beschriebenen Stand. Neue Untersuchungen
+nicht aus einem alten „als Nächstes“ ableiten, sondern zuerst die aktuelle
+Übersicht und die Ergebnisnachträge in `docs/` abgleichen.
+
+### Separates Policy-Netz: bisherige Lernversuche
+
+**Historische Lernversuche mit dem separaten Policy-Netz.** Gemeint ist das
+Policy-Netz hinter `netMaxBlend`, nicht das Endspiel-Netz (`endspielNetz`,
+oben unter „Funktioniert“), das deutlich gewinnt. Es sind zwei verschiedene
+Netze. Ein kleines Dense-Netz (3971→128→361) kann Wurzelzüge mitgewichten. Bis August 2026 war
+es doppelt tot: im Messrahmen gar nicht vorhanden, und im Spiel in einem
+geschlossenen Kreis gefangen, der `gamesPlayed` nie über 0 kommen ließ — es
+hat also nie gelernt, bei niemandem. Beides ist behoben. Danach gemessen:
+Distillation auf den Suchzug verbessert den mittleren Rang repliziert über
+vier Initialisierungen (111,7 → 90,3 bei Zufallserwartung 101,3), aber die
+Trefferquote im Kopf der Verteilung bleibt auf Zufallsniveau — der Suchzug
+landet nie auf Rang 1. Für PUCT zählt nur der Kopf. `netMaxBlend` steht
+deshalb auf 0: das Netz lernt mit, steuert aber nicht.
+ Der Nachfolgeversuch, überwacht aus KataGo-Partien zu lernen
+([`distillation/`](distillation/)), hebt den Kopf erstmals **über**
+Zufallsniveau — Top-1 1,2 %, Top-10 7,8 % gegen 0,28 % / 2,77 % bei Zufall —
+und gewinnt trotzdem in keinem A/B: 35,0 % über 120 gepaarte Partien bei
+`netScoreScale` 5000 (p = 0,003). Diese Skala ist **gemessen** kommensurabel
+— der Netzterm liegt bei 0,4× bis 5,6× der Entscheidungsspanne von
+`evaluateMove`, die spannenkalibrierten Werte streuen um Median 3841. Ein
+Gegentest mit 800 kam auf 41,7 %, schaltete das Netz dabei aber weitgehend ab
+(0,06×–0,35×) und belegt daher keine Neutralität. `netMaxBlend` bleibt 0.
+ Kalibrierung ist als Erklärung **erschöpft**. Über eine 250-fache
+Skalenspanne ergibt sich eine monotone Dosis-Wirkungs-Kurve, die von unten
+gegen 50 % läuft: 35,0 % (Skala 5000), 41,7 % (800), 46,7 % (20, ab Zug 250
+auf 1000). Wäre die Skala nur falsch eingestellt, müsste eine Zwischendosis
+über 50 % schießen — keine tut es, und das beste Ergebnis ist dasjenige, bei
+dem das Netz fast nichts tut. Der Engpass ist die Kopfgüte: der Abstand
+zwischen bestem und zweitbestem Heuristikzug ist in Eröffnung und Mittelspiel
+praktisch null (Gap 0,0–0,5 bei einer Spanne von 45–236), dort entscheidet
+der Prior bei jeder Skala — und ein Netz mit Top-1 1,2 % bringt dort fast
+Zufall ein.
+ Und die Kopfgüte hängt an der **Datenmenge**, nicht an Kapazität oder
+Merkmalsform: 554 985 Parameter auf 56 363 Beispiele waren 9,8×
+überparametrisiert. Eine Datenmengen-Kurve bei identischem Testsatz steigt
+monoton und ohne Plateau — Top-1 0,37 % → 0,99 % und Top-10 3,77 % → 8,24 %
+(Mittel über die letzten zehn Epochen, Endpunkte rund 4 SD getrennt)
+über 15 k bis 120 k Zeilen, wobei der Trainingsverlust dabei von 2,43 auf
+4,21 *steigt*: das Netz verlässt den Memorierbereich. Benutzt wurden bisher
+vier `val/`-Shards mit zusammen 61 363 Zeilen; verfügbar sind **8160
+`train/`-Shards**, und die sind 22,7× größer (348 571 nutzbare Zeilen gegen
+15 388) — hochgerechnet von einem gemessenen train-Shard rund 2,8 Milliarden
+Stellungen, von denen der Referenzlauf **0,002 %** gesehen hat. Die höchste
+Hebelwirkung liegt damit in der Datenpipeline, und dort im **Durchsatz**,
+nicht in der Verfügbarkeit: dicht gespeichert wären das 45 TB, sparse noch
+7–13 TB. Streaming ist der einzige Weg für den vollen Bestand, sparse das
+RAM-Format für den Arbeitsausschnitt. Ob all das der Spielstärke hilft, ist
+**nicht** gemessen.
 
 ### Gemessen heißt nicht wirksam: gespeicherte Parameter überschreiben jeden Default
 
@@ -2261,20 +2374,24 @@ Suche, nicht für die Bewertung. Beide Parameter bleiben 0:
 
 ### Gegen GNU Go: der erste fremde Gegner
 
-Alle Messungen oben sind Selbstspiel. Ein Pilot gegen GNU Go 3.8
-([`gnugo-duell.js`](gnugo-duell.js), über GTP) zeigt, wie weit die KI von
-einem klassischen Programm entfernt ist: **0 Siege in 39 Partien**, auch mit
-neun Vorgabesteinen gegen die schwächste Stufe, auch mit 1 000 Simulationen.
-Die Partien zeigen ein Muster, das im Selbstspiel nicht auffallen kann, weil
-beide Seiten es teilen. Die KI baut lange Mauern, Stein an Stein, lässt
-eigene Steine im Stich und füllt am Ende ihre Flächen selbst auf.
-`evaluateBoard` kennt nur Material und Freiheiten, kein Gebiet. Pilot und
-Analyse: [`docs/gnugo.md`](docs/gnugo.md).
+**Historischer Stand Anfang Oktober, vor Mustern und Endspiel-Netz.**
+Die frühen Versuche waren Selbstspiel. Der erste Pilot gegen GNU Go 3.8
+([`gnugo-duell.js`](gnugo-duell.js), über GTP) ergab **0 Siege in 39 Partien**,
+auch mit neun Vorgabesteinen gegen die schwächste Stufe und in einem Teil
+der Partien mit 1 000 Simulationen. Damals baute die KI lange Mauern,
+ließ eigene Steine im Stich und füllte am Ende ihre Flächen selbst auf.
+Pilot und Analyse: [`docs/gnugo.md`](docs/gnugo.md).
+Das ist kein Leistungsstand des heutigen Defaults.
 
-Mehr Suche schließt diese Lücke nicht. Im Selbstspiel bringt jede
-Verdopplung der Simulationen etwa +75 bzw. +55 Elo, mit abnehmender Tendenz
-([`docs/skalierung.md`](docs/skalierung.md)). Gegen GNU Go änderten 1 000
-statt 120 Simulationen nichts. Der Hebel liegt in der Bewertung.
+Die damalige Selbstspiel-Skalierung belegte +75 bzw. +55 Elo je Verdopplung
+im Bereich 120–480 Simulationen; ein Abflachen war nicht gesichert
+([`docs/skalierung.md`](docs/skalierung.md) §5).
+Gegen GNU Go waren es 0/8 Siege bei 1 000 und 0/17 bei 120 Simulationen.
+Diese kleinen Stichproben isolieren keinen Engpass. Die damalige
+Schlussfolgerung „Mehr Suche schließt die Lücke nicht, der Hebel liegt in
+der Bewertung“ war eine Interpretation. Die folgenden Versuche belegen
+konkrete Verbesserungen an Zugauswahl und Spielverhalten, keine allgemeine
+Entscheidung zwischen Suche und Bewertung.
 
 **Gebiet in der Zugbewertung — der größte Sprung der Reihe.** Der Mauerbau
 kommt aus dem Freiheitsterm in `evalMidgame`. Er ist absolut: Ein Stein an
@@ -2360,6 +2477,23 @@ trotzdem leben 86 % dieser Steine. Kritische große Gruppen rettet die KI in
 nicht unter den Kandidaten der Suche, obwohl der eigene Leser die Gefahr in
 zwei Dritteln der Fälle kennt:
 [`docs/punktverlust.md`](docs/punktverlust.md).
+Das betrifft 120 Partien vor den Mustern, mit neun Vorgabesteinen.
+Die anschließende Nachmessung von `leseRettung` (§8) brachte gegen GNU Go
+keinen belegten Gewinn (−6,3 Punkte, p = 0,42): Direkt gerettete Gruppen
+waren zehn Züge später fast genauso oft tot.
+
+**Nach den Mustern erneut diagnostiziert (12.10.).**
+[`docs/punktverlust-muster.md`](docs/punktverlust-muster.md) untersuchte 240
+Partien auf Commit `2816458`, ebenfalls mit neun Vorgabesteinen und noch
+ohne Endspiel-Netz. Bis Zug 80 blieb der Vorsprung erhalten, danach gingen
+rund 85 Punkte verloren, überwiegend an Gebietsgrenzen; eigene sterbende
+Steine kosteten nur noch rund 7 Punkte. In 30 % der 1 354 untersuchten
+Stellungen lag GNU Gos bester Zug außerhalb der ersten 16 Kandidaten.
+Die Such-Gegenprobe an 340 Stellungen mit 120/480/1000 Simulationen traf
+GNU Gos besten Zug in 16,5/14,4/14,4 % der Fälle. Das misst Übereinstimmung
+mit dem Lehrer, nicht die Siegquote. Die daraus entstandenen Endspiel-Muster-
+und Netzversuche sind unten abgeschlossen dokumentiert; die Diagnose ist
+kein Nachweis desselben Verlustprofils auf dem heutigen Default.
 
 **Augen zählen.** Die Krisenkarte sieht nur Freiheiten, die Engine kann
 aber auch Augen zählen, und zwar brauchbar: Wo sie zwei findet, sieht GNU
@@ -2507,8 +2641,10 @@ Prozentpunkten wäre rechnerisch rund +3 Punkte wert gewesen, weniger, als M1
 erkennen konnte; das passt zu M1, ohne es zu bestätigen. Der Gewinn hängt nicht
 am früheren Passen des Orakels (die Stellung nach dem ersten Pass ergibt den
 Endstand auf einen Punkt genau). Das sagt, dass es etwas zu holen gibt, nicht
-dass sich ein Lerner es holt; die Engine bleibt unverändert, der nächste Schritt
-wäre ein stärkerer Lerner offline, mit der Messlatte als Tor.
+dass sich ein Lerner es holt. Das Orakel spielte auf dem damaligen Stand
+vor dem Endspiel-Netz; +78,7 ist deshalb kein gemessener Restspielraum des
+heutigen Defaults. Der anschließende stärkere Lerner wurde inzwischen
+offline und im Spiel geprüft und als Endspiel-Netz übernommen (unten).
 
 **Die vier offenen Parameter (20.10.).** `raveK`, `mctsPriorSharp`,
 `phaseBlendWidth` und die Pass-Kurve `passMinMc` standen seit dem ersten Commit
@@ -2530,8 +2666,8 @@ Kandidat nach Zug 80 im Median bei 906 und fällt nur im letzten Zug unter 20.
 Schärfe 1 −42,2 gegen den Default 3), und schärfer ist besser. Mit 9 gewinnt die
 KI 189 statt 149 von 240 Partien (McNemar p = 5 · 10⁻⁶), und der Endstand steigt
 um 7,3 [+0,2; +14,5], nach der vorab festgelegten Regel nur ein Hinweis (p = 0,045
-bei Schwelle 0,005). Der Default bleibt 3, bis eine Nachmessung mit frischem Seed
-vorliegt.
+bei Schwelle 0,005). Damals blieb der Default 3 bis zur Nachmessung. Diese und die Gegenprobe
+mit Endspiel-Netz sind inzwischen abgeschlossen: 9 ist verworfen (unten).
 
 **Die Sterbe-Treppe und lebende Ketten (20.10.).** `bensonClassify` kennt die
 pass-alive-Ketten (`_bnAlive`), `evaluateBoard` fragt aber nur die toten
@@ -2571,7 +2707,8 @@ kommt zur Hälfte vom Netz. Offline trafen die gespielten Züge GNU Gos Zug in
 34,9 % statt 18,1 % ([`docs/endspiel-lerner.md`](docs/endspiel-lerner.md)). Im
 Spiel bringt es **+46,9 Punkte** [+40,4; +53,4] und 227 statt 149 Siege von
 240, im Selbstspiel 83,1 % ([`docs/endspiel-netz.md`](docs/endspiel-netz.md)).
-Seitdem ist `endspielNetz` = 0,5 Default. Alles lief in GitHub Actions.
+Damals wurde `endspielNetz` = 0,5 Default, seit der Dosisreihe 0,8
+(unten). Alles lief in GitHub Actions.
 
 **Neuer Prüfstand: sechs Vorgabesteine (20.10.).** Mit dem Netz gewinnt die KI
 mit neun Steinen 95 % der Partien gegen GNU Go Stufe 1. Je 60 Partien mit 9, 6,
@@ -2671,6 +2808,15 @@ erkennbare Effektgröße, jedes Ergebnis das 95-%-Intervall. Ein
 Nullergebnis heißt „nicht belegt“, nicht „kein Effekt“:
 [`docs/teststaerke.md`](docs/teststaerke.md).
 
+**Historische Berichte können korrigiert sein.** Am 30.10. wurde die
+Zuglimit-Zählung im Komponentenbericht berichtigt: Partien ohne Sieger
+werden samt Partner aus den Intervallen ausgeschlossen. Die betroffenen
+alten Berichte bleiben archiviert, die Korrektur änderte keine Entscheidung.
+Die betroffenen Läufe und korrigierten Paarzahlen stehen in
+[`docs/zuglimit-zaehlung.md`](docs/zuglimit-zaehlung.md). Bei Widersprüchen
+zwischen einem älteren Ergebnistext und einem späteren Korrektur-Nachtrag
+gilt der Nachtrag.
+
 Abgelehnte Befunde stehen als Kommentar an der jeweiligen Codestelle. Sonst
 wird derselbe Versuch in einem Jahr erneut gefahren und die Untersuchungskosten
 fallen zweimal an.
@@ -2694,14 +2840,13 @@ tests/stellungen/               echte Partien als Testvorlage (SGF)
 .github/workflows/ab-harness.yml  Messläufe in CI, manuell startbar
 ```
 
-[`tests/`](tests/) umfasst vierzehn Suiten: NaN-Schutzschichten,
-Aufgabekriterium, Transfer-Wächter, Benson-Übertrag, feste Simulationszahl,
-Rohdump, Einflusskarte, Endspiel-Gleichstand, Epochenzähler, Raumrisiko,
-GNU-Go-Brücke (überspringt sich ohne GNU Go), Trainings-Stabilität, einen Rauchtest des Harness und
-einen Browser-Test — ohne `node_modules`, gegen dieselben `<script>`-Blöcke, die
-ausgeliefert werden. Ein Test gegen eine Kopie prüft irgendwann etwas, das niemand
-ausliefert. Der Browser-Test braucht zusätzlich Playwright und überspringt
-sich ohne es.
+[`tests/`](tests/) enthält Suiten für Regeln, Suche, Bewertung,
+Messrahmen und Oberfläche; die aktuelle Auswahl steht in
+[`tests/run.js`](tests/run.js). Neuere Prüfungen decken auch Zählvorschau,
+Pass-Versuchsregel und die Komponentenberichte ab. Die Tests verwenden
+dieselben `<script>`-Blöcke wie das Spiel. GNU-Go-Prüfungen benötigen GNU Go,
+Browser-Prüfungen zusätzlich Playwright; ohne diese Voraussetzungen können
+entsprechende Prüfungen übersprungen werden.
 
 [`docs/`](docs/) nimmt auf, was den README sprengen würde: eine vorab
 registrierte Versuchsplanung samt Ergebnis, mit Abschnitten, die vor den Daten
