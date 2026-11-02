@@ -301,8 +301,9 @@ Hier stehen sie in der Fassung, die die Daten tragen.
    anderes Fenster (Zug 40 bis Ende) und ein anderer Engine-Stand. Verglichen wurde nicht.
 3. **Suchskalierung.** „Mehr Suche ist kein Hebel“ war falsch ausgedrückt. Gemessen
    (`skalierung.md` §5, Selbstspiel): Eine Verdopplung bringt +75 Elo (38 bis 112) von 120 auf 240
-   Simulationen und +55 (19 bis 92) von 240 auf 480. Mehr Suche hilft also messbar, mit abnehmendem
-   Ertrag (die Intervalle überlappen, das Abflachen ist nicht gesichert). Gemessen ist bis 480
+   Simulationen und +55 (19 bis 92) von 240 auf 480. Mehr Suche hilft also messbar. Die Punktschätzung
+   ist bei der zweiten Verdopplung niedriger; ein Abflachen ist nicht gesichert (die Intervalle
+   überlappen weit). Gemessen ist bis 480
    Simulationen, die KI rechnet im Spiel 750 bis 1300. „Die Grenze liegt in der Bewertung“ bleibt
    eine **Hypothese**. Ihre Belege sind klein oder indirekt: 0 von 8 gegen 0 von 17 Siegen bei 1000
    statt 120 Simulationen gegen GNU Go, und dass mehr Suche GNU Gos besten Zug nicht öfter trifft

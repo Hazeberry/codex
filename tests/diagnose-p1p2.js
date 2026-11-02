@@ -344,6 +344,7 @@ test('Doc §10: Korrekturen zur Einordnung (P1, Suchskalierung, Netzwirkung) und
   pruefe(/207 Züge/.test(k) && /ungeklärt/.test(k) && /70 %/.test(k), 'P2: Liste und 70 %');
   pruefe(/Beschreibung dieser vier Archive/.test(k) && /Verglichen wurde nicht/.test(k), 'P1 nur beschreibend');
   pruefe(/\+75 Elo/.test(k) && /\+55/.test(k) && /Hypothese/.test(k) && /bis 480/.test(k), 'Suchskalierung korrigiert');
+  pruefe(/niedriger; ein Abflachen ist nicht gesichert/.test(k.replace(/\s+/g, ' ')) && !/abnehmend/.test(doc), 'kein „abnehmender Ertrag“, sondern niedrigere Punktschätzung');
   pruefe(/Hypothese\*\*, kein Befund/.test(k) && /nicht „wirkungslos“|nicht\s+„wirkungslos“/.test(k), 'Netzwirkung als Hypothese');
   pruefe(!/liegt also an der Begrenzung auf 16,\s+nicht daran/.test(doc), 'alter Satz in §9 ersetzt');
 });
