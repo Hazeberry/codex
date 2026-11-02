@@ -1,0 +1,6 @@
+Reproduktionsprüfung bis Zug 200, Partien 2, 3, 100, 101, 240 je Archiv
+leeres-brett g-D (Seed 222, GNU Go): 5 von 5 Partien ohne Abweichung, 500 von 500 KI-Zügen gleich, Netz an 300×, Wurzelkinder = erste 16 nach dem Netz in 300 von 300
+muster-ohne-vorgabe g-D (Seed 226, GNU Go): 5 von 5 Partien ohne Abweichung, 500 von 500 KI-Zügen gleich, Netz an 300×, Wurzelkinder = erste 16 nach dem Netz in 300 von 300
+muster-ohne-vorgabe f-D (Seed 226, Fuego 100 Spiele): 5 von 5 Partien ohne Abweichung, 500 von 500 KI-Zügen gleich, Netz an 300×, Wurzelkinder = erste 16 nach dem Netz in 300 von 300
+fuego-siege D (Seed 228, Fuego 50 Spiele): 5 von 5 Partien ohne Abweichung, 500 von 500 KI-Zügen gleich, Netz an 300×, Wurzelkinder = erste 16 nach dem Netz in 300 von 300
+Gesamt: 20 von 20 Partien, 2000 von 2000 KI-Zügen, Wurzelkinder = erste 16 nach dem Netz in 1200 von 1200 Netzzügen
