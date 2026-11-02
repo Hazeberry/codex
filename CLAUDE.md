@@ -64,5 +64,6 @@ Statusmeldungen kurz. Lizenz: PolyForm Noncommercial 1.0.0.
 `README.md` (Stand und Grenzen), `docs/zeitbudget.md` (Zeit auf dem Handy; Ursache auf dem
 A17 war der ausgeschaltete V8-Optimierer in Chrome), `docs/endspiel-abraeumen.md`,
 `docs/zaehlvorschau.md`, `docs/passregel-versuch.md`, `docs/skalierung.md` (mehr Suche bringt
-abnehmend +75 und +55 Elo je Verdopplung; die Grenze liegt in der Bewertung), `docs/komponenten.md`
++75 und +55 Elo je Verdopplung: niedrigere Punktschätzung bei der zweiten Verdopplung, Abflachen
+nicht gesichert; die Grenze liegt in der Bewertung), `docs/komponenten.md`
 (was welcher Teil bringt), `docs/fuego.md`, `docs/pwa-vergleich.md`.
