@@ -215,20 +215,24 @@ Fortsetzen, Wiederverwendung) kam nicht zum Einsatz. Berichtsjob 125542111191: `
 Teile **gültig**. Die Berichte stehen unverändert in `docs/daten/diagnose-p1p2/p1.md` und `p2.md`.
 Die Rohdaten (Artefakte `diagnose-<archiv>`) liegen im Lauf und sind dort bis zum 31. Januar 2027
 abrufbar; sie sind noch **nicht** im Repo, der Download aus dem Container wurde abgewiesen.
-**Sicherung (vorbereitet, nicht gelaufen):** Der Workflow `.github/workflows/diagnose-sichern.yml`
-lädt die vier Artefakte des Laufs, legt die Ergebniszeilen verlustfrei komprimiert unter
-`docs/daten/diagnose-p1p2/rohdaten/<archiv>/` ab (`p1.jsonl.gz`, `p2.jsonl.gz`), schreibt ein
-`manifest.json` (Artefakt-ID und -Digest, Zeilenzahlen, Prüfsummen) und `fehlgeschlagen-p1.md` mit
-den Partien ohne Buchung (Nr., Seed, Zugzahl, Fehlermeldung) auf einen neuen Zweig
-`claude/diagnose-rohdaten-<lauf>`. Er rechnet nichts neu und startet erst nach ausdrücklichem „Go“.
+**Sicherung (gelaufen, Actions-Lauf 41530351261, keine Neuberechnung):** Der Workflow
+`.github/workflows/diagnose-sichern.yml` lud die vier Artefakte des Laufs und legte die
+Ergebniszeilen verlustfrei komprimiert unter `docs/daten/diagnose-p1p2/rohdaten/<archiv>/` ab
+(`p1.jsonl.gz`, `p2.jsonl.gz`). Dazu `manifest.json` (Artefakt-ID und -Digest, Zeilenzahlen,
+Prüfsummen) und `fehlgeschlagen-p1.md`. **Alle vier Archive sind vollständig gesichert:** P1 hat je
+Archiv so viele Zeilen wie geeignete Partien (480, 480, 480, 960), P2 je 40 Zeilen und 1200
+Stellungen (darin die 46 Passfälle, die der Bericht nicht zählt). Wiederholungskontrolle in P1:
+je Archiv die ersten 5 Partien gleich, 0 anders.
 
 Die Berichtsjobs dieses Laufs prüften noch mit der Fassung vor §8 (ein ganz fehlendes Archiv wäre
 nicht aufgefallen). Hier waren alle vier Archive vorhanden: 40 von 40 Partien je Archiv in P2, in
-P1 958 von 960 (`fuego-siege-D`, 99,8 %) und 480 von 480 in den übrigen drei. Warum zwei Partien aus
-`fuego-siege-D` nicht gebucht wurden, ist **noch nicht bekannt**: Es steht im Feld `fehler` der
-Rohdaten, die ich bisher nicht lesen konnte; `fehlgeschlagen-p1.md` der Sicherung dokumentiert
-Nr., Seed, Zugzahl und Fehlermeldung. Bis dahin gilt nur: 958 von 960 ist 99,8 % und erfüllt die
-Schwelle von 98 %. Ob die zwei Partien die Aussage ändern würden, ist nicht untersucht.
+P1 958 von 960 (`fuego-siege-D`, 99,8 %) und 480 von 480 in den übrigen drei. **Die zwei Partien ohne Buchung** sind beide aus `fuego-siege-D`: Nr. 450 (Seed 22800450, 361 Züge,
+KI Schwarz) und Nr. 585 (Seed 22800585, 342 Züge, KI Weiß). In beiden brach der Schiedsrichter ab:
+`final_status_list dead → ? GNU Go beendet (null, SIGSEGV)`, also ein Absturz von GNU Go (Stufe 1)
+bei der Statusabfrage. Das ist ein Fehler des Auswertewerkzeugs, nicht der Partie; ob er sich
+wiederholen lässt oder von der Stellung abhängt, ist nicht untersucht. 958 von 960 (99,8 %)
+erfüllen die Schwelle von 98 %. Ob die zwei Partien die Aussage ändern würden, ist ebenfalls nicht
+untersucht. Einzelheiten: `docs/daten/diagnose-p1p2/rohdaten/fehlgeschlagen-p1.md`.
 
 ### P1: Buchung zwischen Zug 100 und 200 (Punkte je Partie, Sicht der KI; 2398 Partien)
 
