@@ -9,4 +9,4 @@ Gesamt: 2 Partien.
 | fuego-siege-D | 450 | 22800450 | 361 | S | final_status_list dead → ? GNU Go beendet (null, SIGSEGV) |
 | fuego-siege-D | 585 | 22800585 | 342 | W | final_status_list dead → ? GNU Go beendet (null, SIGSEGV) |
 
-Diese Partien fehlen in P1. Ob sie die Aussage ändern würden, ist nicht untersucht; die Schwelle der Vorabfestlegung (mindestens 98 % je Archiv) ist unabhängig davon erfüllt oder nicht (siehe Bericht).
+Diese Partien fehlen in P1. Ob sie die Aussage ändern würden, ist nicht untersucht. Die Schwelle der Vorabfestlegung (mindestens 98 % der geeigneten Partien je Archiv) beurteilt der Bericht.

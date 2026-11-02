@@ -57,7 +57,7 @@ function sichern(opt) {
   if (fehl.length) {
     md.push('| Archiv | Nr. | Seed | Züge | Farbe der KI | Fehlermeldung |', '|---|---:|---:|---:|---|---|');
     for (const f of fehl) md.push(`| ${f.archiv} | ${f.nr} | ${f.seed === null ? '–' : f.seed} | ${f.zuege === null ? '–' : f.zuege} | ${f.wirFarbe || '–'} | ${f.fehler.replace(/\|/g, '/')} |`);
-    md.push('', 'Diese Partien fehlen in P1. Ob sie die Aussage ändern würden, ist nicht untersucht; die Schwelle der Vorabfestlegung (mindestens 98 % je Archiv) ist unabhängig davon erfüllt oder nicht (siehe Bericht).');
+    md.push('', 'Diese Partien fehlen in P1. Ob sie die Aussage ändern würden, ist nicht untersucht. Die Schwelle der Vorabfestlegung (mindestens 98 % der geeigneten Partien je Archiv) beurteilt der Bericht.');
   } else md.push('Alle Partien wurden gebucht.');
   fs.writeFileSync(path.join(aus, 'fehlgeschlagen-p1.md'), md.join('\n') + '\n');
   return {probleme, fehlgeschlagen: fehl, manifest};

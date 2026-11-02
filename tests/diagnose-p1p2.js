@@ -321,6 +321,23 @@ test('P1-Posten heißen „Gegner“, nicht „GNU Go“ (gilt auch für die Fue
   pruefe(/GNU Go Stufe 10, `reg_genmove`/.test(doc), 'P2-Referenz bleibt GNU Go');
 });
 
+test('Gesicherte Rohdaten im Repo: alle vier Archive vollständig, die zwei nicht gebuchten P1-Partien dokumentiert', () => {
+  const zlib = require('zlib'), dir = path.join(wurzel, 'docs/daten/diagnose-p1p2/rohdaten');
+  const soll = {'leeres-brett-g-D': 480, 'muster-ohne-vorgabe-g-D': 480, 'muster-ohne-vorgabe-f-D': 480, 'fuego-siege-D': 960};
+  const man = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
+  pruefeGleich(String(man.lauf), '41480291668', 'Lauf im Manifest');
+  for (const [n, z] of Object.entries(soll)) {
+    const p1 = zlib.gunzipSync(fs.readFileSync(path.join(dir, n, 'p1.jsonl.gz'))).toString('utf8').split('\n').filter(Boolean), p2 = zlib.gunzipSync(fs.readFileSync(path.join(dir, n, 'p2.jsonl.gz'))).toString('utf8').split('\n').filter(Boolean);
+    pruefeGleich(p1.length, z, n + ': P1-Zeilen'); pruefeGleich(p2.length, 40, n + ': P2-Zeilen');
+    pruefeGleich(man.archive[n].p1.geeignet, z, n + ': geeignet'); pruefeGleich(man.archive[n].p2.reproduziert, 40, n + ': P2 reproduziert');
+    pruefeGleich(p1.filter(l => !JSON.parse(l).buchung).length, man.archive[n].p1.nicht_gebucht.length, n + ': nicht gebuchte Partien');
+  }
+  pruefeGleich(man.archive['fuego-siege-D'].p1.nicht_gebucht.join(), '450,585', 'nicht gebucht');
+  const md = fs.readFileSync(path.join(dir, 'fehlgeschlagen-p1.md'), 'utf8'), doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8');
+  pruefe(/Gesamt: 2 Partien/.test(md) && /SIGSEGV/.test(md) && /\| 450 \|/.test(md) && /\| 585 \|/.test(md), 'Dokumentation der zwei Partien');
+  pruefe(/Nr\. 450/.test(doc) && /Nr\. 585/.test(doc) && /SIGSEGV/.test(doc) && !/noch nicht bekannt/.test(doc), 'Doc nennt Nr. und Fehler');
+});
+
 test('Doc: Vergleiche nur beschreibend, Begünstigung durch GNU Go als Hypothese gekennzeichnet', () => {
   const doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8');
   pruefe(/nur beschreibend, nicht kausal/.test(doc), 'nur beschreibend, nicht kausal');
