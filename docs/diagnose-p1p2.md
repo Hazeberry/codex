@@ -205,3 +205,59 @@ wurde**:
 
 Die Änderungen betreffen Ablauf und Prüfregeln, nicht Auswahl, Kennzahlen oder Schwellen. Sie wurden
 vor dem Lesen irgendeines Ergebnisses festgelegt.
+
+## 9. Ergebnis (Nachtrag, 2. November 2026)
+
+Actions-Lauf 41480291668 (Kopf `8271c92cf86633f32b01afa2706475edea0d3a9a`), alle vier Archive in
+**einem** Lauf gerechnet, nichts übernommen oder neu gerechnet; das Verfahren in §8 (Pakete,
+Fortsetzen, Wiederverwendung) kam nicht zum Einsatz. Berichtsjob 125542111191: `p1=0 p2=0`, beide
+Teile **gültig**. Die Berichte stehen unverändert in `docs/daten/diagnose-p1p2/p1.md` und `p2.md`.
+Die Rohdaten (Artefakte `diagnose-<archiv>`) liegen im Lauf und sind dort bis zum 31. Januar 2027
+abrufbar; sie sind noch **nicht** im Repo, der Download aus dem Container wurde abgewiesen.
+
+Die Berichtsjobs dieses Laufs prüften noch mit der Fassung vor §8 (ein ganz fehlendes Archiv wäre
+nicht aufgefallen). Hier waren alle vier Archive vorhanden: 40 von 40 Partien je Archiv in P2, in
+P1 958 von 960 (`fuego-siege-D`, 99,8 %) und 480 von 480 in den übrigen drei. Warum zwei Partien aus
+`fuego-siege-D` nicht gebucht wurden, steht in den Rohdaten (Feld `fehler`) und ist nicht
+ausgewertet.
+
+### P1: Buchung zwischen Zug 100 und 200 (Punkte je Partie, Sicht der KI; 2398 Partien)
+
+- **Summe:** `fuego-siege-D` +13,8 [10,3; 17,3], `muster-ohne-vorgabe-f-D` −5,7 [−10,0; −1,3],
+  `leeres-brett-g-D` −33,5 [−37,3; −29,7], `muster-ohne-vorgabe-g-D` −36,8 [−40,4; −33,2]; alle Archive
+  −9,7 [−11,8; −7,5]. Anteil der Partien mit negativer Summe: 40,4 / 56,0 / 79,2 / 83,3 %
+  (alle 59,9 %).
+- **Posten (alle Archive, Mittel je Partie):** eigene Steine sterben −8,2; eigenes Gebiet geht
+  verloren −31,1; neutrales Gebiet an GNU Go −48,4; neutrales Gebiet an die KI +42,2; von GNU Go
+  zurückgewonnen +34,0; eigene tote Steine leben wieder +6,0; tote GNU-Go-Steine leben wieder −4,2.
+  Die Summe der Posten ist je Partie die Veränderung der Zählung (Kontrolle bestanden, sonst wäre
+  der Teil ungültig).
+- **Lesart (nur Beschreibung):** Zwischen Zug 100 und 200 wechseln viele Punkte in beide Richtungen;
+  die Nettosumme ist ein kleiner Rest großer gegenläufiger Posten. Der größte negative Einzelposten
+  ist „neutrales Gebiet an GNU Go“, der größte positive „neutrales Gebiet an die KI“. In den
+  Archiven gegen GNU Go ist die Summe deutlich negativer (rund −34 bis −37) als in denen gegen Fuego
+  (−5,7 und +13,8).
+- **Nicht ausgewertet:** Ursachen der Posten, ein Vergleich der Archive untereinander
+  (Gegner, Seed und Engine-Stand unterscheiden sich), Aussagen über Zugqualität.
+
+### P2: Kandidatenabdeckung gegenüber GNU Go (160 Partien, 4754 Stellungen)
+
+- **GNU Gos Zug unter den 16 Wurzelkindern:** 38,9 % [36,1; 41,6] (Mittel je Partie; gepoolt 38,8 %).
+  Je Archiv 31,6 % (`muster-ohne-vorgabe-f-D`) bis 43,0 % (`muster-ohne-vorgabe-g-D`).
+- **Ohne das Endspiel-Netz** (Liste vor dem Netz): 34,2 % [31,3; 37,2]. **Nur durch das Netz**
+  hineingekommen: 6,6 %; **durch das Netz hinausgedrängt**: 2,0 %. Das Netz änderte die
+  Wurzelkinder in 84,5 % der Stellungen (die Netzkontrolle hat Zusatzkandidaten festgestellt).
+- **In der Liste überhaupt** (nach dem Netz, beliebiger Rang): 99,4 %. Dass GNU Gos Zug in
+  rund 61 % der Stellungen nicht unter den ersten 16 steht, liegt also an der Begrenzung auf 16,
+  nicht daran, dass er gar nicht in der Liste wäre. Auf welchem Rang er dort steht, ist in diesem
+  Bericht nicht ausgewiesen.
+- **Die KI spielte denselben Zug wie GNU Go** in 12,7 % der Stellungen.
+- 46 Stellungen, in denen GNU Go passt, sind nicht gezählt. Ausgeschlossen wegen Nicht-Reproduktion: 0.
+  Stellungen ohne Antwort von GNU Go: 0.
+
+**Grenzen (wie in §6):** GNU Go ist Lehrer von Netz und Mustern, der Anteil „nur durch das Netz“
+und die Abdeckung insgesamt sind deshalb nach oben verzerrt. Abdeckung ist keine Zugqualität: Fehlt
+GNU Gos Zug unter den Kindern, fehlt nicht automatisch ein guter Zug.
+
+**Folgeentscheidung:** keine. Ob und wie sich daraus ein Versuch zu Breite, Suche oder Netz ableitet,
+entscheidet Hazeberry; dieses Dokument legt dafür keine Regel fest.

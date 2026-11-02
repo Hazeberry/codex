@@ -275,6 +275,8 @@ test('Belege im Repo: Abgleich nennt die drei Commits; Reproduktion vollständig
   const rp = fs.readFileSync(path.join(wurzel, 'docs/daten/diagnose-p1p2/reproduktion.txt'), 'utf8');
   pruefe(/Gesamt: 20 von 20 Partien, 2000 von 2000 KI-Zügen, Wurzelkinder = erste 16 nach dem Netz in 1200 von 1200 Netzzügen/.test(rp), 'Reproduktion vollständig');
   pruefe(!/ABWEICHUNGEN/.test(rp), 'keine Abweichungen');
+  for (const f of ['p1.md', 'p2.md']) pruefe(/Lauf gültig/.test(fs.readFileSync(path.join(wurzel, 'docs/daten/diagnose-p1p2', f), 'utf8')), f + ': Ergebnis des Laufs 41480291668 gültig');
+  pruefe(/p1=0 p2=0/.test(fs.readFileSync(path.join(wurzel, 'docs/daten/diagnose-p1p2/status.txt'), 'utf8')), 'status.txt');
 });
 
 laufeTests('Diagnose P1/P2').then(ok => process.exit(ok ? 0 : 1));
