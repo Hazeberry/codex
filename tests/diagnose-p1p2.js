@@ -279,4 +279,44 @@ test('Belege im Repo: Abgleich nennt die drei Commits; Reproduktion vollständig
   pruefe(/p1=0 p2=0/.test(fs.readFileSync(path.join(wurzel, 'docs/daten/diagnose-p1p2/status.txt'), 'utf8')), 'status.txt');
 });
 
+test('Rohdaten sichern: verlustfrei, nicht gebuchte Partien dokumentiert, Probleme führen zu Exit 1', () => {
+  const {spawnSync} = require('child_process');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sich-')), roh = path.join(tmp, 'roh'), aus = path.join(tmp, 'aus');
+  const rec = (a, nr, o = {}) => Object.assign({archiv: a, nr, geeignet: 4, buchung: {posten: {}}}, o);
+  for (const n of EW.NAMEN) {
+    fs.mkdirSync(path.join(roh, n), {recursive: true});
+    const p1 = [rec(n, 1, {wiederholung: 'gleich'}), rec(n, 2), rec(n, 3), n === 'fuego-siege-D' ? {archiv: n, nr: 4, geeignet: 4, fehler: 'GNU Go beendet (1, null) | zweite Zeile'} : rec(n, 4)];
+    fs.writeFileSync(path.join(roh, n, `p1-${n}.jsonl`), p1.map(r => JSON.stringify(r)).join('\n') + '\n');
+    fs.writeFileSync(path.join(roh, n, `p2-${n}.jsonl`), [{archiv: n, nr: 12, reproduziert: true, stellungen: [{mc: 80}, {mc: 84}]}].map(r => JSON.stringify(r)).join('\n') + '\n');
+  }
+  fs.writeFileSync(path.join(roh, 'artifacts.json'), JSON.stringify({artifacts: [{name: 'diagnose-fuego-siege-D', id: 7, digest: 'sha256:abc', created_at: 'x', expires_at: 'y'}]}));
+  const lauf = () => spawnSync(process.execPath, [path.join(wurzel, 'auswertung/diagnose/rohdaten-sichern.js'), '--roh', roh, '--aus', aus, '--run', '123'], {encoding: 'utf8'});
+  let r = lauf(); pruefeGleich(r.status, 0, 'Exit 0: ' + r.stdout + r.stderr);
+  const man = JSON.parse(fs.readFileSync(path.join(aus, 'manifest.json'), 'utf8'));
+  pruefeGleich(man.archive['fuego-siege-D'].p1.nicht_gebucht.join(), '4', 'nicht gebuchte Nr.'); pruefeGleich(man.archive['fuego-siege-D'].artefakt.digest, 'sha256:abc', 'Digest');
+  pruefeGleich(man.archive['leeres-brett-g-D'].p1.gebucht, 4, 'gebucht'); pruefeGleich(man.archive['leeres-brett-g-D'].p2.stellungen, 2, 'Stellungen');
+  const quelle = fs.readFileSync(path.join(roh, 'fuego-siege-D', 'p1-fuego-siege-D.jsonl'));
+  pruefe(require('zlib').gunzipSync(fs.readFileSync(path.join(aus, 'fuego-siege-D', 'p1.jsonl.gz'))).equals(quelle), 'verlustfrei');
+  const md = fs.readFileSync(path.join(aus, 'fehlgeschlagen-p1.md'), 'utf8');
+  pruefe(/Gesamt: 1 Partien/.test(md) && /fuego-siege-D \| 4 \|/.test(md) && md.includes('GNU Go beendet (1, null) / zweite Zeile'), 'Dokumentation der nicht gebuchten Partie: ' + md);
+  fs.unlinkSync(path.join(roh, 'muster-ohne-vorgabe-f-D', 'p2-muster-ohne-vorgabe-f-D.jsonl'));
+  r = lauf(); pruefe(r.status === 1 && /Quelldatei fehlt/.test(r.stderr), 'fehlende Quelle → Exit 1');
+});
+
+test('Sicherungs-Workflow: nur von Hand, schreibt nur auf neuen Zweig claude/, nie auf main, nie Force', () => {
+  const y = fs.readFileSync(path.join(wurzel, '.github/workflows/diagnose-sichern.yml'), 'utf8');
+  pruefe(/^on:\n  workflow_dispatch:\n/m.test(y) && !/^\s*(push|pull_request|schedule):/m.test(y), 'nur workflow_dispatch');
+  pruefe(/refs\/heads\/\$zweig/.test(y) && /zweig="claude\/diagnose-rohdaten-/.test(y), 'Zweig claude/diagnose-rohdaten-<lauf>');
+  pruefe(!/--force|git push -f|push origin main|refs\/heads\/main/.test(y), 'kein Force, kein main');
+  pruefe(/rohdaten-sichern\.js/.test(y) && !/p1-buchung\.js|p2-kandidaten\.js|gnugo/i.test(y), 'keine Neuberechnung, kein GNU Go');
+  for (const f of ['diagnose-p1p2.yml', 'diagnose-timeout-probe.yml']) pruefe(!/contents: write/.test(fs.readFileSync(path.join(wurzel, '.github/workflows', f), 'utf8')), f + ' ohne Schreibrecht');
+});
+
+test('Doc: Vergleiche nur beschreibend, Begünstigung durch GNU Go als Hypothese gekennzeichnet', () => {
+  const doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8');
+  pruefe(/nur beschreibend, nicht kausal/.test(doc), 'nur beschreibend, nicht kausal');
+  pruefe(!/Vergleich der Archive untereinander\s*\n?\s*\(Gegner/.test(doc) && !/nicht zulässig/.test(doc), 'kein „nicht zulässig“ mehr');
+  pruefe(/\*\*Hypothese, nicht gemessen:\*\*/.test(doc) && !/nach oben verzerrt/.test(doc), 'Begünstigung als Hypothese');
+});
+
 laufeTests('Diagnose P1/P2').then(ok => process.exit(ok ? 0 : 1));

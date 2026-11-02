@@ -134,9 +134,9 @@ mit Grund im Bericht, und der Lauf wird rot. Ein Ergebnis wird nicht nachträgli
 ## 6. Grenzen
 
 - **Der Lehrer ist die Referenz.** GNU Go ist zugleich Lehrer des Endspiel-Netzes und der
-  Muster (siehe README). Die Abdeckung wird dadurch nach oben verzerrt, besonders ab Zug 81, wo das
-  Netz zusätzliche Kandidaten einbringt. Das Ergebnis misst „bildet die Liste GNU Gos Wahl ab“,
-  nicht „sind die Kandidaten gut“.
+  Muster (siehe README). Die Abdeckung könnte dadurch begünstigt sein, besonders ab Zug 81, wo das
+  Netz zusätzliche Kandidaten einbringt (**Hypothese**, nicht gemessen). Das Ergebnis misst „bildet
+  die Liste GNU Gos Wahl ab“, nicht „sind die Kandidaten gut“.
 - **Fehlt GNU Gos Zug, fehlt nicht automatisch ein guter Zug.**
 - **Stichprobe:** 40 Partien × 30 Stellungen je Archiv, Stellungen innerhalb einer Partie sind
   nicht unabhängig; deshalb zählt die Partie als Einheit.
@@ -214,12 +214,20 @@ Fortsetzen, Wiederverwendung) kam nicht zum Einsatz. Berichtsjob 125542111191: `
 Teile **gültig**. Die Berichte stehen unverändert in `docs/daten/diagnose-p1p2/p1.md` und `p2.md`.
 Die Rohdaten (Artefakte `diagnose-<archiv>`) liegen im Lauf und sind dort bis zum 31. Januar 2027
 abrufbar; sie sind noch **nicht** im Repo, der Download aus dem Container wurde abgewiesen.
+**Sicherung (vorbereitet, nicht gelaufen):** Der Workflow `.github/workflows/diagnose-sichern.yml`
+lädt die vier Artefakte des Laufs, legt die Ergebniszeilen verlustfrei komprimiert unter
+`docs/daten/diagnose-p1p2/rohdaten/<archiv>/` ab (`p1.jsonl.gz`, `p2.jsonl.gz`), schreibt ein
+`manifest.json` (Artefakt-ID und -Digest, Zeilenzahlen, Prüfsummen) und `fehlgeschlagen-p1.md` mit
+den Partien ohne Buchung (Nr., Seed, Zugzahl, Fehlermeldung) auf einen neuen Zweig
+`claude/diagnose-rohdaten-<lauf>`. Er rechnet nichts neu und startet erst nach ausdrücklichem „Go“.
 
 Die Berichtsjobs dieses Laufs prüften noch mit der Fassung vor §8 (ein ganz fehlendes Archiv wäre
 nicht aufgefallen). Hier waren alle vier Archive vorhanden: 40 von 40 Partien je Archiv in P2, in
 P1 958 von 960 (`fuego-siege-D`, 99,8 %) und 480 von 480 in den übrigen drei. Warum zwei Partien aus
-`fuego-siege-D` nicht gebucht wurden, steht in den Rohdaten (Feld `fehler`) und ist nicht
-ausgewertet.
+`fuego-siege-D` nicht gebucht wurden, ist **noch nicht bekannt**: Es steht im Feld `fehler` der
+Rohdaten, die ich bisher nicht lesen konnte; `fehlgeschlagen-p1.md` der Sicherung dokumentiert
+Nr., Seed, Zugzahl und Fehlermeldung. Bis dahin gilt nur: 958 von 960 ist 99,8 % und erfüllt die
+Schwelle von 98 %. Ob die zwei Partien die Aussage ändern würden, ist nicht untersucht.
 
 ### P1: Buchung zwischen Zug 100 und 200 (Punkte je Partie, Sicht der KI; 2398 Partien)
 
@@ -235,10 +243,12 @@ ausgewertet.
 - **Lesart (nur Beschreibung):** Zwischen Zug 100 und 200 wechseln viele Punkte in beide Richtungen;
   die Nettosumme ist ein kleiner Rest großer gegenläufiger Posten. Der größte negative Einzelposten
   ist „neutrales Gebiet an GNU Go“, der größte positive „neutrales Gebiet an die KI“. In den
-  Archiven gegen GNU Go ist die Summe deutlich negativer (rund −34 bis −37) als in denen gegen Fuego
-  (−5,7 und +13,8).
-- **Nicht ausgewertet:** Ursachen der Posten, ein Vergleich der Archive untereinander
-  (Gegner, Seed und Engine-Stand unterscheiden sich), Aussagen über Zugqualität.
+  Archiven gegen GNU Go ist die Summe negativer (rund −34 bis −37) als in denen gegen Fuego
+  (−5,7 und +13,8); das ist eine Beobachtung, kein Befund über den Gegner.
+- **Nicht ausgewertet:** Ursachen der Posten und Aussagen über Zugqualität. Vergleiche der Archive
+  untereinander sind **nur beschreibend, nicht kausal**: Gegner, Seed und Engine-Stand unterscheiden
+  sich, und die Archive wurden nicht gepaart gegeneinander gemessen. Auch der Unterschied zwischen
+  den Archiven gegen GNU Go und denen gegen Fuego ist deshalb nur eine Beobachtung.
 
 ### P2: Kandidatenabdeckung gegenüber GNU Go (160 Partien, 4754 Stellungen)
 
@@ -255,9 +265,11 @@ ausgewertet.
 - 46 Stellungen, in denen GNU Go passt, sind nicht gezählt. Ausgeschlossen wegen Nicht-Reproduktion: 0.
   Stellungen ohne Antwort von GNU Go: 0.
 
-**Grenzen (wie in §6):** GNU Go ist Lehrer von Netz und Mustern, der Anteil „nur durch das Netz“
-und die Abdeckung insgesamt sind deshalb nach oben verzerrt. Abdeckung ist keine Zugqualität: Fehlt
-GNU Gos Zug unter den Kindern, fehlt nicht automatisch ein guter Zug.
+**Grenzen (wie in §6):** Abdeckung ist keine Zugqualität: Fehlt GNU Gos Zug unter den Kindern,
+fehlt nicht automatisch ein guter Zug. **Hypothese, nicht gemessen:** Weil GNU Go zugleich Lehrer
+von Netz und Mustern ist, könnten der Anteil „nur durch das Netz“ und die Abdeckung insgesamt
+dadurch begünstigt sein. Die Diagnose enthält keine Messung, die das prüft (etwa eine Referenz, die
+nicht Lehrer ist); die Richtung und Größe einer solchen Begünstigung sind unbekannt.
 
 **Folgeentscheidung:** keine. Ob und wie sich daraus ein Versuch zu Breite, Suche oder Netz ableitet,
 entscheidet Hazeberry; dieses Dokument legt dafür keine Regel fest.
