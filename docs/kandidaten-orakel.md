@@ -27,25 +27,71 @@ Die alten +1,6 Punkte je geändertem Zug aus dem Orakel-Test sind **keine Progno
 Dort wurde ein Zug erzwungen, hier entscheidet die Suche, unter anderen Bedingungen. Der Aufwand und die
 erkennbare Größe werden deshalb aus Messung und Streuung bestimmt (§5, §7), nicht aus dieser Zahl.
 
-**Frage:** Verbessert es das Spiel, wenn GNU Gos Zug (Orakel) im Endspiel zusätzlich unter den
-Wurzelkindern steht, und wie viel davon ist die **Aufnahme** des Zuges und wie viel sein **Prior-Gewicht**?
+**Frage (Stufe 1):** Verbessert es das Spiel, wenn GNU Gos Zug (Orakel) im Endspiel **zusätzlich unter
+den Wurzelkindern steht und den Spitzenprior bekommt** (der kombinierte Eingriff S gegen den Default A)?
 
-## 2. Zwei Dinge, die getrennt werden müssen
+**Frage (nur Vollentwurf):** Wie viel davon ist die **Aufnahme** des Zuges und wie viel sein
+**Prior-Gewicht**? **Stufe 1 beantwortet das ausdrücklich nicht.** Sie prüft nur den kombinierten Eingriff.
 
-Ein zusätzlicher Zug mit Spitzenprior testet **beides zugleich**: dass er überhaupt gesucht werden kann
-(Aufnahme), und dass die Suche ihn bevorzugt (Gewicht). Deshalb gibt es getrennte Eingriffe.
+## 2. Aufnahme und Gewicht, und die Prior-Rechnung
 
-- **Aufnahme.** Der Orakelzug wird als **17. Wurzelkind** aufgenommen, wenn er nicht schon unter den
-  16 ist. Sein Prior ist der **natürliche**: derselbe Softmax aus seinem Score und derselbe Netz-Anteil wie
-  bei jedem Kind, mit der Temperatur der ersten 16 festgehalten (damit der Zusatz die Priors der anderen
-  nur durch die Renormierung verändert, nicht durch eine geänderte Temperatur).
-- **Gewicht (Spitzenprior).** Der Prior eines Kindes wird auf den **größten Prior der ersten 16** gesetzt
-  (auf den fertigen Prior-Vektor nach dem Netz-Anteil, danach auf Summe 1 renormiert). Das ist die Art,
-  wie `krisenKandidaten` einem Zug den Wert des besten Kandidaten gibt.
+Ein zusätzlicher Zug mit Spitzenprior verändert **zwei Dinge zugleich**: Er kann überhaupt gesucht werden
+(**Aufnahme**), und die Suche bevorzugt ihn (**Gewicht**). Der Vollentwurf trennt beides (Arme N und P),
+Stufe 1 tut es nicht (§5).
 
-Vorbild für die Anwendung ist `krisenKandidaten` (Zug bekommt die Chance, die Suche entscheidet), nicht
+Vorbild für die Anwendung ist `krisenKandidaten` (der Zug bekommt die Chance, die Suche entscheidet), nicht
 der erzwungene Zug des Orakel-Tests. Die Eingriffe wirken an der Wurzel in jedem KI-Zug ab Zug 81
-(`mc` ≥ 80, wie das Endspiel-Netz) bis zum Partieende.
+(`mc` ≥ 80, wie das Endspiel-Netz) bis zum Partieende, **nach** dem Endspiel-Netz und den
+Krisenkandidaten, auf die frisch gebildeten Wurzelkinder; Statistik aus einem übernommenen Teilbaum
+(`wurzelFrisch`) wird wie im Default übernommen.
+
+### Prior-Rechnung, eindeutig
+
+**Bezeichnungen.** *L* ist die Kandidatenliste, wie sie `mctsPUCT` bekommt. *s(m)* ist der Score des Zuges
+*m*. *K* = 16 (`mctsRootChildren`). *B* sind die ersten *K* Einträge von *L* (die Basiskinder).
+σ = `mctsPriorSharp` (Default 3), λ = `endspielNetz` (Default 0,8), *q(m)* die Netz-Wahrscheinlichkeit von
+*m* (0, wenn nicht vorhanden).
+
+**Basisprior (Default, unverändert).** Mit hi = max und lo = min der **endlichen** Scores *s(m)*, *m* ∈ *B*,
+ṽ(m) = s(m) für endliches *s(m)*, sonst lo, und *T* = max(10⁻⁶, (hi − lo) / σ):
+
+  w(m) = exp((ṽ(m) − hi) / T),  Z_B = Σ_{m∈B} w(m),  P_B(m) = w(m) / Z_B.
+
+Ist λ > 0 und Σ_{m∈B} q(m) > 0 (Endspiel-Netz an), dann
+
+  P(m) = (1 − λ) · P_B(m) + λ · q(m) / Σ_{m∈B} q(m).
+
+**Aufnahme** eines Zuges *a* ∉ *B* (Fall (d)); die Kinder sind *B′* = *B* ∪ {*a*} (17 Kinder). hi, lo und
+*T* bleiben die aus *B* (**nicht** neu gerechnet). Mit ṽ(a) wie oben:
+
+  w(a) = exp((ṽ(a) − hi) / T),  Z′ = Z_B + w(a),  P′_S(m) = w(m) / Z′  für alle m ∈ B′,
+
+und, falls λ > 0 und Σ_{m∈B′} q(m) > 0,
+
+  P′(m) = (1 − λ) · P′_S(m) + λ · q(m) / Σ_{m∈B′} q(m).
+
+Ohne Netz-Anteil ist P′ = P′_S. Es gilt Σ P′ = 1. Die Priors der 16 Basiskinder ändern sich nur durch die
+Normierung über 17 statt 16 Kinder (und den Netz-Nenner), nicht durch eine andere Temperatur. Das ist der
+**natürliche Prior** des aufgenommenen Zuges.
+
+**Spitzenprior** für ein Kind *c* ∈ *B′* (bei Aufnahme auf P′, sonst auf dem Default-Vektor P über *B*; im
+Folgenden *R* für den jeweils geltenden Vektor): *M* = max_{m ≠ c} R(m). Ist R(c) ≥ *M*, gibt es **keinen
+Eingriff** (Fall (c1)). Sonst
+
+  R″(c) = M,  R″(m) = R(m) sonst,  R‴(m) = R″(m) / Σ_i R″(i).
+
+Nach der Normierung hat *c* den größten Prior **gleichauf** mit dem bisher größten anderen Kind (nicht
+darüber). Alle übrigen PUCT-Größen (Exploration, Simulationszahl, Q-Werte) bleiben unverändert.
+
+**Rechenbeispiel** (zur Anschauung *K* = 3 statt 16, σ = 3, ohne Netz-Anteil; Scores 10, 8, 4 für die
+Basiskinder und 2 für den aufgenommenen Zug): hi = 10, lo = 4, *T* = 2. Basisprior: w = (1; 0,3679; 0,0498),
+Z_B = 1,4177, P_B = (0,7054; 0,2595; 0,0351). Aufnahme: w(a) = exp(−4) = 0,0183, Z′ = 1,4360,
+P′ = (0,6964; 0,2562; 0,0347; 0,0128). Spitzenprior für den aufgenommenen Zug: M = 0,6964,
+R″ = (0,6964; 0,2562; 0,0347; 0,6964), Summe 1,6836, R‴ = (0,4136; 0,1522; 0,0206; 0,4136). Der Test in §8
+rechnet dieses Beispiel nach.
+
+**Entartete Fälle.** Fällt die Default-Rechnung auf den Rang-Prior zurück (σ = 0, nur ein Kind, Z_B nicht
+endlich oder ≤ 0), gibt es in diesem Zug **keinen Eingriff** in keinem Arm; die Stellung wird gezählt.
 
 ### Fälle je KI-Zug
 
@@ -58,7 +104,7 @@ Stellung abgefragt), *r* sein Rang in *L*.
 | (a) | *g* ist Pass | kein Eingriff in **keinem** Arm |
 | (b) | *g* steht nicht in *L* (r = 0; auch z. B. für die KI verbotener Ko-Zug) | kein Eingriff in **keinem** Arm |
 | (c) | 1 ≤ r ≤ 16, *g* ist schon Kind | Aufnahme gibt es nichts zu tun; Gewicht kann angehoben werden |
-| (c1) | *g* hat schon den größten Prior (oder, in der Kontrolle, der Nachbar *n*) | in keinem Arm ein Eingriff in diesem Fall |
+| (c1) | *g* hat schon den größten Prior (oder, für die Kontrollen, der Nachbar *n*): R(c) ≥ M | in keinem Arm ein Eingriff in diesem Fall |
 | (d) | r > 16, *g* steht in *L* | Aufnahme als 17. Kind möglich |
 
 Nach P2 (nur Schwarz, andere Bedingungen, **keine Prognose**) wäre zu erwarten: (c) rund 39 %, (d) rund
@@ -91,17 +137,21 @@ sich zwischen Arm und Kontrolle unterscheidet, ist allein die Identität des Zug
 
 **Was die Vergleiche aussagen:**
 
-- **S − ZS** (primär): Wert des **Orakelzugs** als Spitzenkandidat gegenüber einem beliebigen Nachbarn
-  derselben Eingriffsart. Die Kosten der Eingriffsart selbst (Verdünnung der 120 Simulationen auf mehr
-  Kinder, Rauschen eines beliebigen Spitzenzugs) sind darin herausgerechnet.
-- **N − ZN**: Wert der **Aufnahme allein** (natürlicher Prior, kaum besucht, wenn die Suche ihn nicht von
-  selbst für gut hält).
-- **P − ZP**: Wert des **Gewichts allein** für schon vorhandene Orakelzüge.
-- **S − A**: Gesamteffekt des Eingriffs **einschließlich** seiner Kosten (beschreibend). Zeigt zugleich, was
-  die Kontrolle ZS − A an Kosten hat.
+- **S − A (Hauptvergleich, Stufe 1):** Gesamtwirkung des kombinierten Eingriffs im Spiel: Der Orakelzug wird
+  als Kind aufgenommen und bekommt den Spitzenprior (bei schon vorhandenem Orakelzug nur den Spitzenprior).
+  Darin stecken **alle** Folgen des Eingriffs, auch Verdünnung der 120 Simulationen auf mehr Kinder und
+  Rauschen eines Spitzenzuges. Sie werden **nicht** herausgerechnet.
+- **S − ZS (ergänzende Kontrolle, Stufe 1):** Unterschied zwischen dem **Orakelzug** und seinem
+  **Rang-Nachbarn** bei gleicher Eingriffsart. ZS ist **kein neutraler Platzhalter**: Der Nachbar kann ein
+  guter oder schlechter Zug sein, seine Wirkung und seine Kosten sind nicht die „des Eingriffs ohne
+  Information“. S − ZS sagt deshalb nur, ob der Orakelzug sich vom Nachbarn unterscheidet; er sagt nicht,
+  wie viel der Eingriffskosten abgezogen wurden. ZS − A beschreibt, was derselbe Eingriff mit dem Nachbarn
+  bewirkt, und ist beschreibend.
+- **N − ZN** und **P − ZP** (nur Vollentwurf): Aufnahme allein beziehungsweise Gewicht allein, jeweils gegen
+  den Nachbarn. Es sind getrennte Messungen von Teilen des Eingriffs, **keine Summanden** von S − ZS.
 
-Eine Zerlegung S − ZS in „Aufnahme“ und „Gewicht“ ist **nicht additiv** vorausgesetzt; N − ZN und P − ZP
-sind getrennte Messungen von Teilen des Eingriffs, keine Summanden.
+**Stufe 1 prüft ausdrücklich nur den kombinierten Eingriff** (Arme A, S, ZS). Aussagen über Aufnahme allein
+oder Gewicht allein macht sie nicht; N, ZN, P, ZP gehören nicht zu Stufe 1.
 
 ## 4. Bedingungen und Protokoll
 
@@ -122,25 +172,57 @@ in *L*), ob *g* schon Kind war, gewählter Nachbar *n* und sein Rang, aufgenomme
 Rang des gespielten Zugs in *L*, ob der gespielte Zug *g* ist, Visiten von *g* beziehungsweise *n* (und des
 besten Kindes), Antwort des Orakels ja/nein. Je Partie dazu: Endstand, Zugzahl, Neustarts von GNU Go.
 
-## 5. Endpunkte, Umfang, Auflösung
+## 5. Endpunkte, Umfang, Genauigkeit und Teststärke
 
-- **Primärer Endpunkt:** Differenz des Endstands nach GNU Gos Zählung (Fläche), gepaart nach Partienummer,
-  für S − ZS, getrennt je Gegner. Sekundär: N − ZN, P − ZP, S − A, Siege (exakter McNemar-Test,
-  Clopper-Pearson-Intervalle) und alles **nach Farbe** getrennt (beschreibend).
-- **Mehrfachvergleiche:** Drei Vergleiche (S − ZS, N − ZN, P − ZP) je Gegner, α = 0,05 / 3 je Vergleich,
-  Intervalle zu 98,3 %. S − A ist beschreibend.
-- **Umfang:** Der Vollentwurf hat sieben Arme. Die Zahl der Paare je Arm und Gegner und die Zahl der Jobs
-  werden **erst nach der Laufzeitprobe** (§7) in einem Nachtrag vor dem Start festgelegt. Ist der
-  Aufwand zu groß, gilt die **Stufe-1-Fassung** mit den Armen A, S, ZS (primärer Vergleich); N, ZN, P, ZP
-  folgen dann nur auf ein weiteres Go. Beide Fassungen sind damit vorab beschrieben.
-- **Erkennbare Größe:** Aus der Streuung der Paardifferenz (bisher 74 bis 83 Punkte ohne Vorgabe,
-  `komponenten.md`), nicht aus einer erwarteten Wirkung. Bei 480 Paaren und 98,3 % ist die halbe Breite
-  rund 2,39 · 80 / √480 ≈ 8,7 Punkte; bei 240 Paaren rund 12. Wirkungen darunter sind **nicht sichtbar**.
-  Die Probe liefert eine Schätzung der Streuung; die endgültige Breite steht im Nachtrag vor dem Start.
+- **Primärer Endpunkt (Stufe 1):** Differenz des Endstands nach GNU Gos Zählung (Fläche), gepaart nach
+  Partienummer, **S − A**, getrennt je Gegner. Zwei Gegner, also zwei primäre Tests: α = 0,05 / 2 = 0,025
+  je Gegner, Intervalle zu 97,5 %.
+- **Ergänzend, ohne Signifikanzurteil:** S − ZS und ZS − A als 95-%-Intervalle; Siege (exakter McNemar-Test,
+  Clopper-Pearson) und alles **nach Farbe** getrennt, jeweils beschreibend.
+- **Mehrfachvergleiche:** Nur die zwei primären Tests tragen ein Fehlerniveau. Alles andere ist
+  beschreibend und wird nicht als bestanden oder nicht bestanden gelesen.
+- **Fassungen:** **Stufe 1** = Arme A, S, ZS, **beide Gegner** (Präferenz von Hazeberry), nur der
+  kombinierte Eingriff. **Vollentwurf** = sieben Arme (zusätzlich N, ZN, P, ZP); er folgt nur auf ein
+  weiteres Go.
+
+### Streuungsquelle
+
+Gebraucht wird die SD der **gepaarten Differenz** des Endstands (A gegen S, gleiche Partienummer). Sie ist
+für diesen Eingriff unbekannt. Planungswerte stammen aus anderen Messungen, mit ihren Bedingungen:
+
+| Gegner | Quelle | Bedingungen | SD der Paardifferenz | Planungswert |
+|---|---|---|---:|---:|
+| GNU Go | `leeres-brett.md` §9, `muster-ohne-vorgabe.md` §5 | **ohne Vorgabe** | 56 bis 59 | 59 |
+| Fuego | `komponenten.md` §9 | **mit sechs Vorgabesteinen** | 74 bis 83 (85 in `muster-ohne-vorgabe.md` §5) | 85 |
+
+Für Fuego ohne Vorgabe ist **kein Wert belegt**; der Planungswert 85 ist eine Annahme. (Eine frühere
+Fassung dieses Dokuments nannte 74 bis 83 fälschlich als Wert „ohne Vorgabe“.) Die Probe schätzt die SD
+aus wenigen Paaren (bei 8 Paaren mit rund ±27 % relativer Unsicherheit) und prüft nur, ob die
+Planungswerte um mehr als den Faktor 1,5 danebenliegen; sie ersetzt sie nicht.
+
+### Intervallbreite und Teststärke sind verschieden
+
+Mit z = 2,2414 (α = 0,025, zweiseitig), z₈₀ = 0,8416 (Teststärke 80 %), SD σ und *n* Paaren:
+
+- **Halbe Breite des Intervalls** h = z · σ / √n. Das ist die **Genauigkeit**: Sie bestimmt, welchen Gewinn
+  ein **Nullergebnis ausschließt** (Obergrenze = Punktschätzer + h).
+- **Kleinster mit 80 % Wahrscheinlichkeit signifikant werdender wahrer Effekt**
+  MDE₈₀ = (z + z₈₀) · σ / √n. Das ist die **Teststärke**. Sie ist größer als h.
+
+| Paare *n* je Gegner | GNU Go (σ = 59): h / MDE₈₀ | Fuego (σ = 85): h / MDE₈₀ |
+|---:|---:|---:|
+| 240 | 8,5 / 11,7 | 12,3 / 16,9 |
+| 480 | 6,0 / 8,3 | 8,7 / 12,0 |
+| 960 | 4,3 / 5,9 | 6,1 / 8,5 |
+
+Für einen wahren Effekt von 10 Punkten bei 80 % Teststärke brauchen GNU Go rund 331, Fuego rund 687 Paare
+(σ wie oben). Die Größen sind aus Streuungen gerechnet, **nicht** aus einer erwarteten Wirkung; die alten
++1,6 Punkte je geändertem Zug gehen nicht ein. Die Zahl der Paare je Gegner (sie darf verschieden sein) wird
+nach der Probe in einem Nachtrag vor dem Start festgelegt.
 
 ## 6. Lesart und Grenzen
 
-**Ein Nullergebnis** (S − ZS nicht signifikant) bedeutet: *Dieser Eingriff bringt keinen nachgewiesenen
+**Ein Nullergebnis** (S − A nicht signifikant) bedeutet: *Dieser Eingriff bringt keinen nachgewiesenen
 Gewinn.* Berichtet wird die **Obergrenze** des Intervalls („kein nachgewiesener Gewinn über +U Punkte“),
 nicht „kein Effekt“. Es bedeutet **nicht**, dass Kandidatenabdeckung unwichtig ist. Es lässt offen:
 
@@ -150,7 +232,10 @@ nicht „kein Effekt“. Es bedeutet **nicht**, dass Kandidatenabdeckung unwicht
 - ob die Bewertung in den Blättern den Zug unterschätzt. Ein Nullergebnis wäre **verträglich** mit „die
   Bewertung ist der Engpass“, belegt es aber nicht.
 
-**Ein positives Ergebnis** besagt, dass der Orakelzug als Spitzenkandidat hilft. Es besagt nicht, dass
+**Ein positives Ergebnis** (S − A) besagt, dass der kombinierte Eingriff dem Spiel nutzt. Ob das am
+Orakelzug liegt oder an einem beliebigen Zusatzkind mit Spitzenprior, zeigt erst die ergänzende Kontrolle
+S − ZS, und auch sie nur mit den Grenzen aus §3. Es besagt nicht, dass Aufnahme oder Gewicht allein helfen
+(Stufe 1 trennt das nicht). Es besagt nicht, dass
 eine größere Wurzelkinderzahl hilft (das wäre ein anderer Eingriff ohne Orakel), und es zeigt keinen Weg,
 den Zug ohne Orakel zu finden. Frühere Versuche, einen solchen Lerner zu bauen, sind verworfen
 (`muster-endspiel-*.md`).
@@ -166,7 +251,7 @@ Der Aufwand ist nicht bekannt: Das Orakel wird in jedem KI-Zug ab Zug 81 befragt
 Partie, Zeit je Abfrage nicht gemessen), und die Partien enden wegen der Eingriffe nicht gleich lang. Die
 Probe misst ihn, bevor der Umfang festgelegt wird.
 
-**Umfang der Probe:** Seed 230, Arme A, S, ZS, je 8 Partien gegen GNU Go (je vier mit der KI als Schwarz
+**Umfang der Probe:** Seed 230, Arme A, S, ZS (die Arme von Stufe 1), je 8 Partien gegen GNU Go (je vier mit der KI als Schwarz
 und als Weiß) und je 4 gegen Fuego (je zwei). Dazu die Kontrolle: Arm A mit ausgeschaltetem Schalter
 reproduziert vier archivierte Partien (`leeres-brett-g-D`, Seed 222, Nr. 1 bis 4, zwei je Farbe) Zug für Zug. Die Probe
 läuft in Actions mit Paketen, Schritt-Zeitlimit kürzer als Job-Zeitlimit, Upload mit `always()` und
@@ -175,7 +260,7 @@ Fortsetzen (Erfahrung aus der Diagnose: ein Job mit mehr als vier Stunden ist ke
 **Was die Probe auswertet:** Dauer je Partie (Median, Maximum) je Arm und Gegner; Zeit je Orakelabfrage;
 Antwortquote und Neustarts des Orakels; Anteile der Fälle (a) bis (d) und Zahl der Eingriffe je Partie,
 getrennt nach Farbe; ob Auslöser von S und ZS in jeder Partie bis zur ersten Abweichung übereinstimmen;
-Streuung der Paardifferenz des Endstands (nur als Streuung, für die Auflösung).
+Streuung der Paardifferenz des Endstands (nur als Streuung, für die Planung, siehe §5).
 
 **Was die Probe nicht auswertet:** die **Höhe** der Endstand-Unterschiede zwischen den Armen. Die Probe
 sagt nichts über den Effekt; ihre Partien zählen nicht zum Hauptversuch. Ein Blick auf die Mittelwerte
@@ -204,7 +289,8 @@ Start und eine Meldung mit Grund):
   `always()`, Ergebnis auf einen neuen Ergebnisbranch mit anschließendem PR (Schreibrecht freigegeben),
   getrennte Workflows für Probe und Hauptversuch.
 - **Tests:** Schalter aus bitgleich; Rang-Nachbar und alle Fälle der Tabelle in §3 mit gebauten Listen;
-  Eingriffe verändern nur die vorgesehenen Priors (Summe 1, Temperatur der ersten 16); Kontrolle und
+  Prior-Rechnung gegen das Rechenbeispiel aus §2 und gegen die Default-Berechnung (ohne Eingriff identisch);
+Eingriffe verändern nur die vorgesehenen Priors (Summe 1, Temperatur der ersten 16); Kontrolle und
   Eingriff lösen in denselben Stellungen aus; Pässe, nicht gelistete Züge und fehlende Nachbarn ändern
   nichts; Protokollfelder vollständig; Workflows nur von Hand.
 
@@ -213,14 +299,17 @@ Start und eine Meldung mit Grund):
 Zwei Zustände. **Ungültig** („kein Urteil“, Lauf rot) bei: Verletzung einer technischen Bedingung aus §7
 im Hauptversuch; Orakelantwort unter 98 %; ungleich besetzte Arme (weniger als 98 % der Partien eines Arms
 ausgewertet, oder ungleiche Zahl je Farbe); Auslöser von Eingriff und Kontrolle weichen in mehr als 0 Paaren
-bis zur ersten Abweichung ab; Wiederholungskontrolle (die ersten drei Partien eines Arms zweimal gespielt)
+bis zur ersten Abweichung ab (gilt für S gegen ZS, im Vollentwurf auch N/ZN und P/ZP); die Prior-Summe eines
+Eingriffs ist nicht 1 (Abweichung > 10⁻⁹); Wiederholungskontrolle (die ersten drei Partien eines Arms zweimal gespielt)
 nicht identisch; Zählersummen der Fälle gehen nicht auf. Die Gültigkeit hängt **nicht** vom Ausgang ab
 (Siegrate, Vorzeichen des Effekts).
 
-## 10. Offene Entscheidungen für Hazeberry
+## 10. Entscheidungen und Stand
 
-1. **Vollentwurf (sieben Arme) oder Stufe 1 (A, S, ZS)?** Die Probe liefert die Grundlage; die Zerlegung in
-   Aufnahme und Gewicht braucht N, ZN, P, ZP.
-2. **Gegner:** beide (GNU Go und Fuego) oder zuerst nur GNU Go (das Orakel ist selbst GNU Go).
-3. **Budget** für den Hauptversuch (nach der Probe).
-4. **Go** für die Umsetzung (Schalter, Harness, Workflows, Tests) und danach getrennt für die Probe.
+Festgehalten (Präferenz von Hazeberry): **Stufe 1 mit beiden Gegnern** (GNU Go und Fuego), Arme A, S, ZS,
+nur der kombinierte Eingriff, Hauptvergleich S − A.
+
+Noch offen:
+1. **Zahl der Paare je Gegner** und das **Budget** (nach der Probe, siehe §5 und §7).
+2. **Go** für die Umsetzung (Schalter, Harness, Workflows, Tests, §8) und danach, getrennt davon, für die
+   Laufzeitprobe. Bis dahin ist nichts umgesetzt und nichts gelaufen.
