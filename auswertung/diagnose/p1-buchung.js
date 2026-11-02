@@ -15,9 +15,12 @@
 
    Aufruf:
      node auswertung/diagnose/p1-buchung.js --archiv NAME=datei.jsonl.gz --aus p1-NAME.jsonl [--gnugo pfad]
+          [--paket K [--paketgroesse 120]] [--fortsetzen]
      node auswertung/diagnose/p1-buchung.js --bericht p1-*.jsonl */
 'use strict';
 const fs = require('fs'), zlib = require('zlib');
+const EW = require('./erwartet.js');
+const lies = d => (/\.gz$/.test(d) ? zlib.gunzipSync(fs.readFileSync(d)).toString('utf8') : fs.readFileSync(d, 'utf8')).split('\n').filter(Boolean).map(l => JSON.parse(l));
 const MARKEN = [100, 200];
 const GUELTIG = {ausgewertet: 0.98, wiederholung: 5};
 const BESITZ = {'KI-Stein': 1, 'KI-Gebiet': 1, 'GG-tot': 1, 'neutral': 0, 'GG-Stein': -1, 'GG-Gebiet': -1, 'KI-tot': -1};
@@ -65,9 +68,10 @@ function auswerten(partien) {
   return aus;
 }
 
-function gueltigkeit(partien, geeignetJeArchiv) {
+function gueltigkeit(partien, geeignetJeArchiv, erwartet = []) {
   const gruende = [];
   const archive = {}; for (const p of partien) (archive[p.archiv] = archive[p.archiv] || []).push(p);
+  for (const n of erwartet) if (!archive[n]) gruende.push(`${n}: Archiv fehlt vollständig (keine Ergebnisse)`);
   for (const [name, ps] of Object.entries(archive)) {
     const mit = ps.find(p => p.geeignet);
     const geeignet = geeignetJeArchiv && geeignetJeArchiv[name] ? geeignetJeArchiv[name] : (mit ? mit.geeignet : ps.length);
@@ -88,9 +92,9 @@ function gueltigkeit(partien, geeignetJeArchiv) {
 
 const f1 = x => x === null || x === undefined ? '–' : (x >= 0 ? '+' : '') + x.toFixed(1);
 const fci = x => x ? `[${x[0].toFixed(1)}; ${x[1].toFixed(1)}]` : '–';
-function bericht(partien, geeignetJeArchiv) {
+function bericht(partien, geeignetJeArchiv, erwartet = []) {
   const archive = {}; for (const p of partien) (archive[p.archiv] = archive[p.archiv] || []).push(p);
-  const g = gueltigkeit(partien, geeignetJeArchiv), z = [];
+  const g = gueltigkeit(partien, geeignetJeArchiv, erwartet), z = [];
   z.push('# P1: Buchung der Punkte zwischen Zug 100 und Zug 200 (Punkte je Partie, Sicht der KI)', '');
   if (!g.gueltig) z.push('**KEIN URTEIL (ungültig).** Grund: ' + g.gruende.join('; '), '', 'Die folgenden Zahlen sind **vorläufig**.', '');
   else z.push('Lauf gültig (alle vorab festgelegten technischen Bedingungen erfüllt).', '');
@@ -108,33 +112,51 @@ function bericht(partien, geeignetJeArchiv) {
   return {text: z.join('\n'), gueltig: g.gueltig, gruende: g.gruende};
 }
 
-module.exports = {MARKEN, GUELTIG, BESITZ, POSTEN, buchen, auswerten, gueltigkeit, bericht};
+/* Ein Paket (oder das ganze Archiv) buchen. opt: {aus, gnugo, paket, groesse, fortsetzen, analysiere, log}
+   Pakete: die geeigneten Partien (nach Nr.) in Stücken von `groesse`; Paket k = k-tes Stück (ab 1).
+   Fortsetzen: schon gebuchte Partien in `aus` bleiben stehen und werden nicht neu gerechnet;
+   fehlgeschlagene werden wiederholt. Jede Partie wird sofort angehängt, ein Abbruch verliert höchstens die laufende. */
+async function lauf(name, datei, opt = {}) {
+  const log = opt.log || (s => console.log(s));
+  const alle = EW.geeignete(lies(datei)), groesse = opt.groesse || EW.PAKET;
+  const pakete = EW.anzahlPakete(alle.length, groesse), k = opt.paket || 1;
+  const rows = opt.paket ? EW.paketVon(alle, k, groesse) : alle;
+  const analysiere = opt.analysiere || require('../besitz-verlauf.js').analysiere;
+  const optA = {marken: MARKEN, gnugo: opt.gnugo || '/usr/games/gnugo', karten: false};
+  const fertig = new Map();
+  if (opt.aus && opt.fortsetzen && fs.existsSync(opt.aus))
+    for (const l of fs.readFileSync(opt.aus, 'utf8').split('\n').filter(Boolean)) { try { const r = JSON.parse(l); if (r.buchung) fertig.set(r.nr, r); } catch (e) { /* halbe Zeile nach Abbruch */ } }
+  if (opt.aus) fs.writeFileSync(opt.aus, [...fertig.values()].map(r => JSON.stringify(r) + '\n').join(''));
+  const bez = opt.paket ? `Paket ${k} von ${pakete}` : 'ganzes Archiv';
+  log(`P1 ${name}, ${bez}: ${rows.length} Partien, davon ${fertig.size} schon gebucht (Archiv: ${alle.length} geeignet)`);
+  let n = fertig.size, erledigt = fertig.size, fehler = 0;
+  for (const p of rows) {
+    if (fertig.has(p.nr)) continue;
+    const i = alle.indexOf(p), rec = {archiv: name, nr: p.nr, geeignet: alle.length};
+    try {
+      rec.buchung = buchen(await analysiere(p, optA));
+      if (i < GUELTIG.wiederholung) { const w = buchen(await analysiere(p, optA)); rec.wiederholung = JSON.stringify(w) === JSON.stringify(rec.buchung) ? 'gleich' : 'anders'; }
+    } catch (e) { rec.fehler = String(e.message || e); fehler++; }
+    if (rec.buchung) n++;
+    erledigt++;
+    if (opt.aus) fs.appendFileSync(opt.aus, JSON.stringify(rec) + '\n');
+    if (erledigt % 5 === 0 || erledigt === rows.length) log(`Fortschritt P1 ${name}, ${bez}: ${erledigt} von ${rows.length} Partien erledigt, ${rows.length - erledigt} verbleibend${fehler ? `, ${fehler} fehlgeschlagen` : ''}`);
+  }
+  log(`${name}, ${bez}: ${n} von ${rows.length} Partien gebucht`);
+  return {gebucht: n, partien: rows.length, fehler};
+}
+
+module.exports = {MARKEN, GUELTIG, BESITZ, POSTEN, buchen, auswerten, gueltigkeit, bericht, lauf};
 
 if (require.main === module) {
   const a = process.argv.slice(2), opt = k => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : null; };
-  const lies = d => (/\.gz$/.test(d) ? zlib.gunzipSync(fs.readFileSync(d)).toString('utf8') : fs.readFileSync(d, 'utf8')).split('\n').filter(Boolean).map(l => JSON.parse(l));
   if (a.includes('--bericht')) {
     const dateien = [opt('--bericht'), ...a.filter(x => !x.startsWith('--') && x !== opt('--bericht'))].filter(Boolean);
-    const ps = dateien.flatMap(lies);
-    const b = bericht(ps); console.log(b.text); process.exit(b.gueltig ? 0 : 1);
+    const ps = EW.entdoppeln(dateien.flatMap(lies));
+    const b = bericht(ps, null, opt('--erwartet') ? opt('--erwartet').split(',') : EW.NAMEN); console.log(b.text); process.exit(b.gueltig ? 0 : 1);
   }
   const ar = opt('--archiv'); if (!ar || !ar.includes('=')) { console.error('--archiv NAME=datei erwartet'); process.exit(2); }
-  const name = ar.slice(0, ar.indexOf('=')), datei = ar.slice(ar.indexOf('=') + 1), aus = opt('--aus');
-  const {analysiere} = require('../besitz-verlauf.js');
-  (async () => {
-    const rows = lies(datei).filter(p => !(p.vorgabe >= 2) && !p.abgebrochen && p.zuege && p.zuege.length >= Math.max(...MARKEN)).sort((x, y) => x.nr - y.nr);
-    if (aus) fs.writeFileSync(aus, '');
-    const optA = {marken: MARKEN, gnugo: opt('--gnugo') || '/usr/games/gnugo', karten: false};
-    let n = 0;
-    for (const [i, p] of rows.entries()) {
-      const rec = {archiv: name, nr: p.nr, geeignet: rows.length};
-      try {
-        rec.buchung = buchen(await analysiere(p, optA));
-        if (i < GUELTIG.wiederholung) { const w = buchen(await analysiere(p, optA)); rec.wiederholung = JSON.stringify(w) === JSON.stringify(rec.buchung) ? 'gleich' : 'anders'; }
-      } catch (e) { rec.fehler = String(e.message || e); }
-      if (rec.buchung) n++;
-      if (aus) fs.appendFileSync(aus, JSON.stringify(rec) + '\n');
-    }
-    console.log(`${name}: ${n} von ${rows.length} geeigneten Partien gebucht`);
-  })().catch(e => { console.error(e.stack || e.message); process.exit(1); });
+  const name = ar.slice(0, ar.indexOf('=')), datei = ar.slice(ar.indexOf('=') + 1);
+  lauf(name, datei, {aus: opt('--aus'), gnugo: opt('--gnugo'), paket: opt('--paket') ? +opt('--paket') : null, groesse: opt('--paketgroesse') ? +opt('--paketgroesse') : null, fortsetzen: a.includes('--fortsetzen')})
+    .catch(e => { console.error(e.stack || e.message); process.exit(1); });
 }

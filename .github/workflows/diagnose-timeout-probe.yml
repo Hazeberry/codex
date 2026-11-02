@@ -1,0 +1,53 @@
+name: Diagnose Zeitlimit-Probe
+
+# Kleine Probe (etwa 3 Minuten, kein GNU Go, keine Partien): Läuft ein Schritt mit eigenem
+# Zeitlimit ab, wird dann der Upload mit always() noch ausgeführt, und kommt, was der Schritt
+# bis dahin geschrieben hat, im Artefakt an? Erwartet: Job „Probe“ ist rot (Zeitlimit des
+# Schritts), Job „Prüfung“ ist grün (Artefakt da, Teilinhalt vorhanden, nicht vollständig).
+# Von Hand zu starten.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Schritt mit Zeitlimit (läuft absichtlich ab)
+        timeout-minutes: 1
+        run: |
+          mkdir -p ergebnisse
+          echo "zeile 1" > ergebnisse/teil.jsonl
+          for i in 2 3 4 5 6 7; do sleep 20; echo "zeile $i" >> ergebnisse/teil.jsonl; done
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: probe
+          path: ergebnisse/
+          retention-days: 3
+          if-no-files-found: error
+
+  pruefung:
+    name: Prüfung
+    needs: probe
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: probe
+          path: probe
+
+      - name: Teilinhalt prüfen
+        run: |
+          set -uo pipefail
+          n=$(wc -l < probe/teil.jsonl)
+          echo "Zeilen im Artefakt: $n (vollständig wären 7)"
+          [ "$n" -ge 2 ] && [ "$n" -lt 7 ] || { echo "Erwartet: Teilinhalt (2 bis 6 Zeilen)"; exit 1; }
+          echo "Probe bestanden: Der Schritt wurde abgebrochen, der Upload lief trotzdem, der Teilinhalt ist gesichert."
