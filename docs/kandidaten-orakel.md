@@ -155,8 +155,9 @@ und in keinem angehoben.
 | **ZS** | *n* als 17. Kind, Spitzenprior | Spitzenprior für *n* | nichts |
 
 Damit gilt: In allen Armen mit Eingriff wächst die Kinderzahl in denselben Stellungen um genau eins
-(Fall (d)), ein Spitzenprior wird in denselben Stellungen vergeben (Fall (c) und (d) bei S), und was
-sich zwischen Arm und Kontrolle unterscheidet, ist allein die Identität des Zuges.
+(Fall (d)), ein Spitzenprior wird in denselben Stellungen vergeben (Fall (c) und (d) bei S und ZS, ausgenommen
+(c1) und (d1), wo er in beiden Armen entfällt), und was sich zwischen Arm und Kontrolle unterscheidet, ist
+allein die Identität des Zuges.
 
 **Was die Vergleiche aussagen:**
 
