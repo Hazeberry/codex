@@ -349,6 +349,17 @@ test('Doc §10: Korrekturen zur Einordnung (P1, Suchskalierung, Netzwirkung) und
   pruefe(!/liegt also an der Begrenzung auf 16,\s+nicht daran/.test(doc), 'alter Satz in §9 ersetzt');
 });
 
+test('P2 nur mit KI als Schwarz: im ursprünglichen P2-Ergebnis deutlich nachgetragen (Doc §5, §9, §10 und Bericht)', () => {
+  const doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8'), p2 = fs.readFileSync(path.join(wurzel, 'docs/daten/diagnose-p1p2/p2.md'), 'utf8');
+  const kopf = doc.slice(doc.indexOf('### P2: Kandidatenabdeckung gegenüber GNU Go (160'), doc.indexOf('- **GNU Gos Zug unter den 16 Wurzelkindern:**'));
+  pruefe(/\*\*Schwarz\*\*/.test(kopf) && /nur für Stellungen, in denen die KI Schwarz ist/.test(kopf.replace(/\n> /g, ' ')), '§9: Hinweis direkt unter der P2-Überschrift');
+  pruefe(/Auswahlfehler, erst nach dem Lauf bemerkt/.test(doc) && /5\. \*\*P2 enthält nur Partien mit der KI als Schwarz/.test(doc), '§5 und §10 Punkt 5');
+  pruefe(/technischen\s+Gültigkeitsprüfungen/.test(doc.replace(/\n/g, ' ')) && /nicht erkannt/.test(doc), 'Gültigkeitsprüfungen haben es nicht erkannt');
+  pruefe(/P1 ist nicht betroffen/.test(doc), 'P1 nicht betroffen');
+  pruefe(/\*\*Schwarz\*\*/.test(p2) && /Nachtrag zum Bericht/.test(p2) && /nicht erkannt/.test(p2), 'Bericht p2.md trägt den Nachtrag');
+  pruefe(!/Sie ist noch nicht vorbereitet/.test(doc), 'überholter Satz entfernt');
+});
+
 test('Doc: Vergleiche nur beschreibend, Begünstigung durch GNU Go als Hypothese gekennzeichnet', () => {
   const doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8');
   pruefe(/nur beschreibend, nicht kausal/.test(doc), 'nur beschreibend, nicht kausal');
