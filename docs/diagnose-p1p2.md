@@ -262,10 +262,10 @@ untersucht. Einzelheiten: `docs/daten/diagnose-p1p2/rohdaten/fehlgeschlagen-p1.m
 - **Ohne das Endspiel-Netz** (Liste vor dem Netz): 34,2 % [31,3; 37,2]. **Nur durch das Netz**
   hineingekommen: 6,6 %; **durch das Netz hinausgedrängt**: 2,0 %. Das Netz änderte die
   Wurzelkinder in 84,5 % der Stellungen (die Netzkontrolle hat Zusatzkandidaten festgestellt).
-- **In der Liste überhaupt** (nach dem Netz, beliebiger Rang): 99,4 %. Dass GNU Gos Zug in
-  rund 61 % der Stellungen nicht unter den ersten 16 steht, liegt also an der Begrenzung auf 16,
-  nicht daran, dass er gar nicht in der Liste wäre. Auf welchem Rang er dort steht, ist in diesem
-  Bericht nicht ausgewiesen.
+- **In der Liste überhaupt** (nach dem Netz, beliebiger Rang): 99,4 %. Die Liste umfasst im Mittel
+  207 Züge je Stellung (122 bis 284), die Zahl sagt deshalb wenig. In rund 61 % der Stellungen steht
+  GNU Gos Zug nicht unter den ersten 16, sein Rang liegt also darüber; wie weit darüber, ist in
+  diesem Bericht nicht ausgewiesen (siehe §10).
 - **Die KI spielte denselben Zug wie GNU Go** in 12,7 % der Stellungen.
 - 46 Stellungen, in denen GNU Go passt, sind nicht gezählt. Ausgeschlossen wegen Nicht-Reproduktion: 0.
   Stellungen ohne Antwort von GNU Go: 0.
@@ -278,3 +278,48 @@ nicht Lehrer ist); die Richtung und Größe einer solchen Begünstigung sind unb
 
 **Folgeentscheidung:** keine. Ob und wie sich daraus ein Versuch zu Breite, Suche oder Netz ableitet,
 entscheidet Hazeberry; dieses Dokument legt dafür keine Regel fest.
+
+## 10. Korrekturen zur Einordnung (2. November 2026)
+
+Nach dem Nachtrag in §9 habe ich mündlich eine Einordnung gegeben. Vier Aussagen waren zu stark.
+Hier stehen sie in der Fassung, die die Daten tragen.
+
+1. **P2, „in der Liste überhaupt“.** Die 99,4 % sind kaum aussagekräftig, weil die Liste im Mittel
+   207 Züge umfasst (aus den Rohdaten gezählt). Der Satz „liegt an der Begrenzung auf 16“ war eine
+   Deutung. Belegt ist nur: In rund 61 % der Stellungen liegt GNU Gos Zug auf einem Rang über 16.
+   **Unterschied zu früher:** `punktverlust-muster.md` §5 fand GNU Gos besten Zug in 70 % der
+   Stellungen unter den ersten 16 Kandidaten, P2 findet 34,2 % (vor dem Netz) und 38,9 % (nach dem
+   Netz). Warum, ist **ungeklärt**. Die Messungen unterscheiden sich in Vorgabe (neun Steine gegen
+   keine), Gegner, Fenster der Züge, Art der Referenz (`top_moves` gegen `reg_genmove`), Zufall der
+   Liste (dort auf 0, hier der echte Strom) und Engine-Stand. Welche dieser Unterschiede die Zahl
+   erklären, ist nicht untersucht; P2 ist deshalb nicht als Verschlechterung zu lesen.
+2. **P1, „das Ergebnis entscheidet sich im Gebiet, nicht bei den Steinen“.** Das ist eine
+   Beschreibung dieser vier Archive im Fenster Zug 100 bis 200 und nur sie. Die Zusammenfassung der
+   sieben Posten zu „Steine“ und „Gebiet“ ist meine, nicht Teil des Berichts. Ursachen sind nicht
+   untersucht, und GNU Gos Urteil bei Zug 100 ist vorläufig. Dass sich das mit `punktverlust-muster.md`
+   „deckt“, ist zu stark: Dort sind es andere Partien (neun Vorgabesteine, GNU Go Stufe 1), ein
+   anderes Fenster (Zug 40 bis Ende) und ein anderer Engine-Stand. Verglichen wurde nicht.
+3. **Suchskalierung.** „Mehr Suche ist kein Hebel“ war falsch ausgedrückt. Gemessen
+   (`skalierung.md` §5, Selbstspiel): Eine Verdopplung bringt +75 Elo (38 bis 112) von 120 auf 240
+   Simulationen und +55 (19 bis 92) von 240 auf 480. Mehr Suche hilft also messbar. Die Punktschätzung
+   ist bei der zweiten Verdopplung niedriger; ein Abflachen ist nicht gesichert (die Intervalle
+   überlappen weit). Gemessen ist bis 480
+   Simulationen, die KI rechnet im Spiel 750 bis 1300. „Die Grenze liegt in der Bewertung“ bleibt
+   eine **Hypothese**. Ihre Belege sind klein oder indirekt: 0 von 8 gegen 0 von 17 Siegen bei 1000
+   statt 120 Simulationen gegen GNU Go, und dass mehr Suche GNU Gos besten Zug nicht öfter trifft
+   (16,5 / 14,4 / 14,4 %, `punktverlust-muster.md` §6). Letzteres misst Übereinstimmung mit GNU Go,
+   keine Spielstärke.
+4. **Netzwirkung.** „Das Netz wirkt über den Prior, kaum über die Abdeckung“ ist eine
+   **Hypothese**, kein Befund. Belegt ist: P2 findet durch das Netz 4,7 Prozentpunkte mehr
+   Abdeckung (34,2 → 38,9 %), und das Netz ändert die Wurzelkinder in 84,5 % der Stellungen. Die
+   Messreihe zur Dosis zeigt +46,9 (λ 0 → 0,5) und +15,5 (λ 0,5 → 0,8) sowie L9 −1,9 [−9,3; +5,6]
+   und L10 −4,1 [−11,4; +3,2]. Mehr Netzpunkte unter den Kandidaten (`endspielNetzTop` 8) ergaben
+   +1,3 [−6,0; +8,6]; „verworfen“ heißt dort nur, dass die Obergrenze unter +10 liegt, nicht
+   „wirkungslos“. Alle diese Messungen laufen unter anderen Bedingungen als P2 (sechs Vorgabesteine,
+   GNU Go Stufe 1). Kein Versuch trennt die Wirkung auf den Prior von der auf die Kandidaten;
+   die Gesamtwirkung des Netzes (N0 −71 gegen GNU Go, −68 gegen Fuego, `komponenten.md`) sagt
+   nichts über den Weg.
+
+**Bisher nicht erklärt, geplant:** Eine kleine Auswertung der vorhandenen P2-Rohdaten (Rang vor und
+nach dem Netz, nach Archiv und Spielphase) soll klären, welche der Unterschiede in Punkt 1 sich mit
+diesen Daten überhaupt prüfen lassen. Sie ist noch nicht vorbereitet.

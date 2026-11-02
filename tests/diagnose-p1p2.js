@@ -338,6 +338,17 @@ test('Gesicherte Rohdaten im Repo: alle vier Archive vollständig, die zwei nich
   pruefe(/Nr\. 450/.test(doc) && /Nr\. 585/.test(doc) && /SIGSEGV/.test(doc) && !/noch nicht bekannt/.test(doc), 'Doc nennt Nr. und Fehler');
 });
 
+test('Doc §10: Korrekturen zur Einordnung (P1, Suchskalierung, Netzwirkung) und ungeklärter Unterschied zu 70 %', () => {
+  const doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8'), k = doc.slice(doc.indexOf('## 10. Korrekturen zur Einordnung'));
+  pruefe(k.length > 500, '§10 vorhanden');
+  pruefe(/207 Züge/.test(k) && /ungeklärt/.test(k) && /70 %/.test(k), 'P2: Liste und 70 %');
+  pruefe(/Beschreibung dieser vier Archive/.test(k) && /Verglichen wurde nicht/.test(k), 'P1 nur beschreibend');
+  pruefe(/\+75 Elo/.test(k) && /\+55/.test(k) && /Hypothese/.test(k) && /bis 480/.test(k), 'Suchskalierung korrigiert');
+  pruefe(/niedriger; ein Abflachen ist nicht gesichert/.test(k.replace(/\s+/g, ' ')) && !/abnehmend/.test(doc), 'kein „abnehmender Ertrag“, sondern niedrigere Punktschätzung');
+  pruefe(/Hypothese\*\*, kein Befund/.test(k) && /nicht „wirkungslos“|nicht\s+„wirkungslos“/.test(k), 'Netzwirkung als Hypothese');
+  pruefe(!/liegt also an der Begrenzung auf 16,\s+nicht daran/.test(doc), 'alter Satz in §9 ersetzt');
+});
+
 test('Doc: Vergleiche nur beschreibend, Begünstigung durch GNU Go als Hypothese gekennzeichnet', () => {
   const doc = fs.readFileSync(path.join(wurzel, 'docs/diagnose-p1p2.md'), 'utf8');
   pruefe(/nur beschreibend, nicht kausal/.test(doc), 'nur beschreibend, nicht kausal');
