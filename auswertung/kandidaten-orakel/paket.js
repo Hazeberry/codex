@@ -13,7 +13,7 @@
    statt Partien verschiedener Stände zu mischen. Fehlt die Begleitdatei zu einer vorhandenen
    Paketdatei, ebenso.
 
-   Aufruf:  node auswertung/kandidaten-orakel/paket.js --gegner g|f --arm A|S|ZS --von N --anzahl K
+   Aufruf:  node auswertung/kandidaten-orakel/paket.js --gegner g|f --arm A|N|P|S|ZS --von N --anzahl K
                  --seed S --aus paket.jsonl [--nur-pruefen]
    Umgebung wie spielen.sh (ARME, VORGABE, GNUGO, FUEGO); DUELL_ZUSATZ setzt das Paket selbst.
    --nur-pruefen  spielt nichts, gibt nur "fehlen=<Zahl>" aus (Exit 0, oder 3 bei abweichendem Stand).
@@ -38,7 +38,7 @@ function optionen(argv) {
     o[a.slice(2)] = v; i++;
   }
   for (const k of ['von', 'anzahl', 'seed']) { if (!/^\d+$/.test(o[k] || '')) return null; o[k] = +o[k]; }
-  if (!['g', 'f'].includes(o.gegner) || !['A', 'S', 'ZS'].includes(o.arm) || !o.aus || o.von < 1 || o.anzahl < 1) return null;
+  if (!['g', 'f'].includes(o.gegner) || !['A', 'N', 'P', 'S', 'ZS'].includes(o.arm) || !o.aus || o.von < 1 || o.anzahl < 1) return null;
   return o;
 }
 
@@ -81,7 +81,7 @@ function bestand(datei, o) {
 function main() {
   const o = optionen(process.argv.slice(2));
   if (!o) {
-    console.error('Aufruf: node paket.js --gegner g|f --arm A|S|ZS --von N --anzahl K --seed S --aus paket.jsonl [--nur-pruefen]');
+    console.error('Aufruf: node paket.js --gegner g|f --arm A|N|P|S|ZS --von N --anzahl K --seed S --aus paket.jsonl [--nur-pruefen]');
     return 2;
   }
   const metaDatei = o.aus + '.meta.json', soll = meta(o);

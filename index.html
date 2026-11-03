@@ -4461,7 +4461,9 @@ function _kandKind(e, P) { return {idx: e.m.idx, x: e.m.x, y: e.m.y, P, N: 0, W:
 /* Wurzelkinder mit Eingriff. Fälle: a Pass, x keine Antwort, b nicht in der Liste, e entartete
    Prior-Rechnung, c0/d0 kein zulässiger Nachbar, c Spitzenprior für ein vorhandenes Kind, c1 schon
    größter Prior (g oder Nachbar), d Aufnahme als Kind K+1 mit Spitzenprior, d1 Aufnahme ohne
-   Anhebung (g oder Nachbar hätte schon mit natürlichem Prior den größten). Arm A greift nie ein. */
+   Anhebung (g oder Nachbar hätte schon mit natürlichem Prior den größten). Arm A greift nie ein.
+   Vierarm-Versuch (docs/kandidaten-orakel-vierarm.md): N nimmt in d und d1 mit natürlichem Prior auf
+   und hebt nie an; P hebt nur in c an und nimmt nie auf. Fallbestimmung für alle Arme gleich. */
 function _mctsKidsOrakel(list, K, o) {
   const kids = _mctsKidsOrakelKern(list, K, o), p = _kandProt;
   /* Laufzeitprüfung der Prior-Summe (docs/kandidaten-orakel.md §9, §12): nur lesen, die Kinder bleiben
@@ -4471,14 +4473,17 @@ function _mctsKidsOrakel(list, K, o) {
     for (let i = 0; i < kids.length; i++) s += kids[i].P;
     p.priorSumme = s;
     p.priorFehler = Math.abs(s - 1) > 1e-9 ? kids.map(k => [k.idx, k.P]) : null;
+    /* endgültiger Prior des Orakelzugs, wenn er Kind ist (sonst null); nur lesen */
+    const kg = p.g !== null && p.g >= 0 ? kids.find(k => k.idx === p.g) : null;
+    p.pEnd = kg ? kg.P : null;
   }
   return kids;
 }
 function _mctsKidsOrakelKern(list, K, o) {
   const basis = _mctsKids(list, K), n = basis.length;
-  const arm = o.arm === 'S' || o.arm === 'ZS' ? o.arm : 'A';
+  const arm = ['S', 'ZS', 'N', 'P'].includes(o.arm) ? o.arm : 'A';
   const g = Number.isInteger(o.g) ? o.g : null;
-  const prot = _kandProt = {arm, g, fall: null, r: 0, rn: 0, nIdx: -1, pG: null, pN: null, aufgenommen: false, angehoben: false, kinder: n, besuche: null, priorSumme: null, priorFehler: null};
+  const prot = _kandProt = {arm, g, fall: null, r: 0, rn: 0, nIdx: -1, pG: null, pN: null, aufgenommen: false, angehoben: false, kinder: n, besuche: null, priorSumme: null, priorFehler: null, pEnd: null};
   if (g === null) { prot.fall = 'x'; return basis; }
   if (g < 0) { prot.fall = 'a'; return basis; }
   const r = list.findIndex(s => s.m.idx === g) + 1;
@@ -4492,8 +4497,8 @@ function _mctsKidsOrakelKern(list, K, o) {
     prot.rn = rn; prot.nIdx = list[rn - 1].m.idx; prot.pG = P0[r - 1]; prot.pN = P0[rn - 1];
     if (!_kandMax(P0, r - 1).ok || !_kandMax(P0, rn - 1).ok) { prot.fall = 'c1'; return basis; }
     prot.fall = 'c';
-    if (arm === 'A') return basis;
-    const Q = _kandAnheben(P0, arm === 'S' ? r - 1 : rn - 1);
+    if (arm === 'A' || arm === 'N') return basis;     /* N hebt nie an */
+    const Q = _kandAnheben(P0, arm === 'ZS' ? rn - 1 : r - 1);
     for (let i = 0; i < n; i++) basis[i].P = Q[i];
     prot.angehoben = true;
     return basis;
@@ -4507,10 +4512,10 @@ function _mctsKidsOrakelKern(list, K, o) {
   prot.pG = Pg[n]; prot.pN = Pn[n];
   const d1 = !_kandMax(Pg, n).ok || !_kandMax(Pn, n).ok;
   prot.fall = d1 ? 'd1' : 'd';
-  if (arm === 'A') return basis;
-  const e = arm === 'S' ? eg : en;
-  let P = arm === 'S' ? Pg : Pn;
-  if (!d1) { P = _kandAnheben(P, n); prot.angehoben = true; }
+  if (arm === 'A' || arm === 'P') return basis;     /* P nimmt nie auf */
+  const e = arm === 'S' || arm === 'N' ? eg : en;
+  let P = arm === 'S' || arm === 'N' ? Pg : Pn;
+  if (!d1 && arm !== 'N') { P = _kandAnheben(P, n); prot.angehoben = true; }
   const kids = new Array(n + 1);
   for (let i = 0; i < n; i++) { basis[i].P = P[i]; kids[i] = basis[i]; }
   kids[n] = _kandKind(e, P[n]);

@@ -4,7 +4,7 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 -->
 # Kandidaten-Orakel, Vierarm-Versuch: Aufnahme und Gewicht getrennt (Vorabfestlegung, Entwurf)
 
-**Stand: Entwurf.** Nichts ist umgesetzt, nichts ist gelaufen. Umsetzung (Arme N und P in der Engine, Harness,
+**Stand: Vorabfestlegung gemergt (#270), Umsetzung nach Go von Hazeberry (§12); nichts gelaufen.** Ursprünglich: Entwurf, nichts umgesetzt. Umsetzung (Arme N und P in der Engine, Harness,
 Protokoll, Workflows, Tests), technische Probe und Hauptlauf beginnen **jeweils** erst nach eigenem „Go“ von
 Hazeberry. Grundlage ist der abgeschlossene Versuch Stufe 1 (`kandidaten-orakel.md`, Ergebnis §13). Es gibt
 **keine automatische Folgeentscheidung**.
@@ -211,3 +211,24 @@ Scores, gleicher Prior, c0, d0, e); Stelle für Stelle S = N in d/d1 plus Anhebu
 
 Zur Entscheidung durch Hazeberry in diesem Entwurf: Bedingungen 10 und 11 (§7), die Einteilung der Spielphasen
 im Protokoll (§8) und das Planungsbudget (§10).
+
+## 12. Umsetzung (Go von Hazeberry, 03.11.2026; nicht gelaufen)
+
+- **Engine (`index.html`, nur Messpfad):** `_mctsKidsOrakelKern` kennt die Arme `N` und `P`. Die
+  Fallbestimmung ist für alle Arme dieselbe; N kehrt in Fall c unverändert zurück und nimmt in d und d1 mit dem
+  natürlichen Prior P′ auf, ohne anzuheben; P kehrt in d und d1 unverändert zurück und hebt in c an wie S. A, S
+  und ZS sind unverändert: An den Archivpartien Nr. 1 bis 4 (Zug 81 bis 160, Orakelzug auf Rang 2, 5, 12, 16,
+  17, 25, 40) gaben alte und neue Engine für A, S und ZS dieselben Züge und Kinder (Vergleich lokal, nicht im
+  Repo). Neues Protokollfeld `pEnd`: Prior des Orakelzugs unter den fertigen Kindern, sonst `null` (nur lesend).
+- **Harness (`gnugo-duell.js`):** `--kandidaten-orakel A|N|P|S|ZS`; Protokollfeld `pE`.
+- **Pakete und Zusammenführen:** `paket.js` und `zusammenfuehren.js` kennen N und P.
+- **Bericht:** `auswertung/kandidaten-orakel/vierarm-bericht.js`, mit `--probe` für §9 (ohne
+  Endstand-Unterschiede). Prüft §7 Punkt 1 bis 11 (9 über `zusammenfuehren.js`); Hauptvergleiche mit
+  α = 0,05/6; Additivität der Mittelwerte als Zeile; Protokoll getrennt nach c und d/d1, Farbe und Phase.
+- **Workflows (nur von Hand):** `kandidaten-orakel-vierarm-probe.yml` (Seed 233, 4 × 8 + 4 × 4 Partien,
+  Kontrolle) und `kandidaten-orakel-vierarm.yml` (Seeds 234 und 235, 4 × 16 und 4 × 24 Pakete, Wiederholung,
+  Kontrolle), Aufbau wie `kandidaten-orakel-haupt.yml`.
+- **Tests:** `tests/kandidaten-orakel-vierarm.js` (Job „Prüfen“ in beiden Workflows).
+
+**Nicht gestartet:** weder Probe noch Hauptlauf. Beide brauchen ein eigenes Go.
+

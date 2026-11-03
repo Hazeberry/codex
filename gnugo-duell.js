@@ -47,7 +47,7 @@
                           den Zug, der statt unseres gespielt wird. getAIMove
                           läuft trotzdem; seine Wahl wird nur verglichen)
                          [--orakel-zug-stufe S] (Stufe dieses GNU Go, Standard 10)
-                         [--kandidaten-orakel A|S|ZS] [--kandidaten-ab AB] (Kandidaten-Orakel,
+                         [--kandidaten-orakel A|N|P|S|ZS] [--kandidaten-ab AB] (Kandidaten-Orakel,
                           docs/kandidaten-orakel.md, Stufe 1: dasselbe zweite GNU Go
                           (Stufe --orakel-zug-stufe) wird in jedem unserer Züge ab mc ≥ AB
                           (Standard 80) VOR der Suche nach seinem Zug gefragt. A: nur Protokoll;
@@ -146,7 +146,7 @@ for (let i = 0; i < a.length; i++) {
     }
     case '--orakel-zug-stufe': opt.orakelZugStufe = +v; i++; break;
     case '--kandidaten-orakel':
-      if (!['A', 'S', 'ZS'].includes(v)) { console.error(`--kandidaten-orakel A|S|ZS erwartet (Stufe 1 der Vorabfestlegung docs/kandidaten-orakel.md): ${v}`); process.exit(2); }
+      if (!['A', 'N', 'P', 'S', 'ZS'].includes(v)) { console.error(`--kandidaten-orakel A|N|P|S|ZS erwartet (docs/kandidaten-orakel.md, docs/kandidaten-orakel-vierarm.md): ${v}`); process.exit(2); }
       opt.kandidatenOrakel = v; i++; break;
     case '--kandidaten-ab': opt.kandidatenAb = +v; i++; break;
     case '--gegner':
@@ -455,7 +455,7 @@ async function partieSpielen(nr) {
           /* kompakt: ein Eintrag je Zug; p = null, wenn die Wurzel nicht neu gebildet wurde */
           kandProt.push(p ? {mc, f: wir === 1 ? 'S' : 'W', g: p.g, fall: p.fall, r: p.r, rn: p.rn, n: p.nIdx, pG: p.pG, pN: p.pN,
                              auf: p.aufgenommen ? 1 : 0, ang: p.angehoben ? 1 : 0, k: p.kinder, b: p.besuche, i, gl: p.g === i ? 1 : 0,
-                             ps: p.priorSumme, ...(p.priorFehler ? {pf: p.priorFehler} : {})}
+                             ps: p.priorSumme, pE: p.pEnd, ...(p.priorFehler ? {pf: p.priorFehler} : {})}
                           : {mc, f: wir === 1 ? 'S' : 'W', g: k.g === undefined ? null : k.g, fall: 'kein-protokoll', i});
         }
         if (oz && opt.orakelZug && mc >= opt.orakelZug.ab) {
