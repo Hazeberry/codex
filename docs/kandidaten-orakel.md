@@ -470,3 +470,106 @@ ist nicht gemessen, und das Maximum aus 8 bzw. 4 Partien kann im Hauptversuch ü
 Dagegen soll der Workflow des Hauptversuchs nach jeder Partie sichern und sich fortsetzen lassen (eigener PR,
 nur Vorbereitung; der Lauf braucht ein eigenes Go).
 
+
+## 12. Hauptversuch: Workflow, Fortsetzen und Auswertung (Festlegung vor dem Start)
+
+**Stand: vorbereitet, nicht gestartet.** Der Lauf beginnt erst nach einem eigenen „Go“ von Hazeberry. Dieser
+Abschnitt legt vorab fest, wie gespielt, gesichert, fortgesetzt und ausgewertet wird. Er konkretisiert §9 an
+einigen Stellen; diese Stellen sind unten als **Konkretisierung** markiert und gehören zur Prüfung vor dem Go.
+
+### Ablauf (`.github/workflows/kandidaten-orakel-haupt.yml`, nur von Hand)
+
+| Job | Inhalt |
+|---|---|
+| `pruefen` | `tests/kandidaten-orakel.js`, `tests/kandidaten-orakel-spiel.js`, `tests/kandidaten-orakel-haupt.js`; ohne grünen Test läuft keine Partie |
+| `fuego-bauen` | Fuego r2038, einmal je Lauf |
+| `gnugo` | Arme A, S, ZS × 16 Pakete zu 30 Partien (Nr. 1 bis 480), Seed 231 |
+| `fuego` | Arme A, S, ZS × 24 Pakete zu 20 Partien (Nr. 1 bis 480), Seed 232 |
+| `wiederholung` | je Gegner und Arm die Partien 1 bis 3 noch einmal, in eigenen Jobs (§9) |
+| `kontrolle` | Arm A, Seed 222, Nr. 1 bis 4 gegen das Archiv (Bedingung 1, im Hauptversuch erneut) |
+| `ergebnis` | Zusammenführen, Bericht, Ergebnisbranch `ergebnisse/kandidaten-orakel-haupt-lauf<N>` |
+
+Bedingungen wie in §4 und in der Probe: ohne Vorgabe, `mctsFixedSims` 120, Aufgabe aus, Komi 7,5, GNU Go
+Stufe 1 zählt (Fläche), Fuego mit 100 Spielen je Zug, Arm D aus `arme-o.sh` (Default) plus
+`--kandidaten-orakel A|S|ZS`. Jedes Paket beginnt mit einer ungeraden Nummer und enthält gleich viele
+Partien je Farbe. Alle drei Arme spielen dieselben Nummern.
+
+### Sicherung und Fortsetzen
+
+- **Eine Partie je Prozess.** `auswertung/kandidaten-orakel/paket.js` ruft `spielen.sh` für jede Partie
+  einzeln auf und hängt den Datensatz sofort an die Paketdatei (mit `fsync`). Die Probe spielte vier
+  Partien in einem Prozess. Dass das an den Partien nichts ändert, ist nötig, damit fortgesetzte Partien
+  dieselben sind. Belegt wird es dreifach: im Code (`neuePartie` setzt die Zustände zurück, die zwischen Partien weiterleben könnten:
+  gespeicherter Baum, Aufgabe-Serien, Zeitmessung; der Zufallsstrom wird je Partie aus dem Seed neu gesetzt), im Test (Partie 2 im eigenen Prozess gleich wie
+  nach Partie 1 im selben Prozess, mit der GTP-Attrappe), und im Lauf selbst: Die Kontrolle spielt die vier
+  Archivpartien, die damals in **einem** Prozess entstanden, jetzt einzeln nach.
+- **Zeitlimits.** Spielschritt 240 Minuten, Job 270 Minuten (Pakete: GNU Go rund 30, Fuego rund 33 Minuten
+  nach den Medianen der Probe; 68 bzw. 86 Minuten nach Maximum plus 50 %). Läuft ein Schritt ab, sichert der
+  Upload mit `always()` alle fertigen Partien.
+- **Fortsetzen.** Eingabe `fortsetzen_aus` = Nummer (run id) eines früheren Laufs. Jedes Paket holt sein
+  Artefakt `haupt-<Paket>` aus jenem Lauf und spielt **nur die fehlenden Nummern**. Fertige Pakete
+  installieren nichts und spielen nichts, sie laden ihr Artefakt nur wieder hoch. Eine beim Abbruch
+  abgeschnittene letzte Zeile wird verworfen und die Partie neu gespielt. Fortsetzen lässt sich verketten
+  (Lauf 3 aus Lauf 2), weil jeder Lauf alle Pakete vollständig wieder sichert.
+- **Kein Mischen von Ständen.** Jedes Paket führt eine Begleitdatei mit Gegner, Arm, Seed, Bereich,
+  Umgebung (`VORGABE`, `SIMS`, `SCHAETZUNG`, `FUEGO_SPIELE`), Datei der Arme und SHA-256 von `index.html`,
+  `gnugo-duell.js`, `spielen.sh`, `lebensurteil.js` und `arme-o.sh`. Weicht beim Fortsetzen etwas ab,
+  bricht das Paket ab (Exit 3). Der Ergebnis-Job prüft noch einmal, dass alle Pakete denselben Stand nennen.
+  Nicht erfasst sind die Versionen von GNU Go (Ubuntu-Paket auf `ubuntu-24.04`) und Fuego (fester Stand
+  r2038, je Lauf neu gebaut). Ändert sich dort etwas zwischen zwei Läufen, fällt das nur über die Kontrolle
+  und die Wiederholung auf, nicht über die Begleitdatei.
+- **Unvollständig ist kein Ergebnis.** Fehlen Nummern, ist der Lauf rot („KEIN URTEIL: unvollständig“), der
+  Bericht nennt die fehlenden Partien und den Lauf zum Fortsetzen, und es entsteht **kein** Ergebnisbranch,
+  nur das Artefakt. Der Ergebnisbranch entsteht erst bei vollständigen Daten, auch wenn der Lauf ungültig
+  ist (dann mit Bericht „KEIN URTEIL“ und Grund).
+
+### Gültigkeit (§9, konkretisiert)
+
+Ungültig („KEIN URTEIL“, Lauf rot, **kein** Effekt im Bericht), wenn eine der folgenden Prüfungen fehlschlägt:
+
+1. Je Arm und Gegner liegt jede Nummer 1 bis 480 genau einmal vor, mit der Farbe nach der Nummer.
+   **Konkretisierung:** „gleiche Zahl je Farbe“ bezieht sich auf die **gespielten** Partien (240 je Farbe);
+   abgebrochene Partien zählen gegen die 98 %, nicht gegen die Farbgleichheit.
+2. Je Arm und Gegner sind mindestens 471 von 480 Partien ausgewertet (98 %). Abgebrochene Partien fallen
+   samt ihren Partnern aus den Paarvergleichen.
+3. Kontrolle: Arm A reproduziert Seed 222, Nr. 1 bis 4 bitgleich (Züge und Endstand).
+4. Antwortquote des Orakels ≥ 98 %, **Konkretisierung:** je Arm und Gegner, nicht nur insgesamt.
+5. Fall (d) tritt je Gegner in beiden Farben auf.
+6. Erster Auslöser von S und ZS gleich (Zugnummer, Fall, Rang von *g* und *n*) in allen Paaren.
+7. Wiederholungskontrolle: Partien 1 bis 3 je Arm und Gegner beim zweiten Spielen identisch (Züge und
+   Endstand). Eine abgebrochene Partie unter diesen sechs macht die Kontrolle nicht prüfbar und den Lauf
+   ungültig.
+8. Zählersummen: je ausgewerteter Partie ein Protokolleintrag je Abfrage, eine Abfrage je KI-Zug ab Zug 81
+   (genau die Zugnummern), Zahl der Fälle `x` gleich der Zahl fehlender Antworten, nur bekannte Fälle. (An den
+   40 Partien der Probe nachgeprüft: stimmt in allen.)
+9. Gleicher Stand der Quellen in allen Paketen (Begleitdateien).
+
+**Prior-Summe 1 (Konkretisierung, zur Entscheidung durch Hazeberry).** §9 nennt „die Prior-Summe eines
+Eingriffs ist nicht 1 (Abweichung > 10⁻⁹)“ als Ungültigkeitsgrund. Das Protokoll eines Zuges führt die
+Summe nicht, und sie nachträglich hineinzuschreiben wäre eine Änderung an `index.html`. Vorgeschlagen ist
+deshalb: Die Summe wird durch die Tests gesichert (`tests/kandidaten-orakel.js` prüft sie für alle Fälle,
+Randfälle und echte Stellungen), und der Job `pruefen` muss grün sein, bevor eine Partie läuft. Das ist eine
+Prüfung des Codes, keine Prüfung jedes einzelnen Eingriffs im Lauf. Soll sie im Lauf geprüft werden, braucht
+es ein weiteres Protokollfeld in `index.html` (Schalter bleibt aus, Default bitgleich) mit eigenem Go.
+
+### Auswertung (`auswertung/kandidaten-orakel/haupt-bericht.js`, nur bei Gültigkeit)
+
+- **Primär, je Gegner:** Endstand S − A, gepaart nach Partienummer, zweiseitiger gepaarter t-Test,
+  α = 0,025, Intervall zu 97,5 % mit dem t-Quantil (bei 480 Paaren 2,2485 statt z = 2,2414 aus §5; der
+  Unterschied ist ohne praktische Folge). Urteil: „S besser als A“ oder „S schlechter als A“ bei p < 0,025,
+  sonst „kein nachgewiesener Unterschied“ mit der Obergrenze des Intervalls (§6).
+- **Ergänzend, ohne Signifikanzurteil (95 %):** S − ZS, ZS − A, exakter Vorzeichentest, Siege mit
+  Clopper-Pearson und exaktem McNemar-Test (S gegen A, S gegen ZS, ZS gegen A), alles auch nach Farbe der KI.
+- **Beschreibend je Arm:** ausgewertete und abgebrochene Partien, Züge, Auslöser je Partie (c, d, d1),
+  Eingriffe je Partie, Anteil „gespielter Zug = Orakelzug“ bei Auslösern, `kein-protokoll` (davon mit
+  einem Zug des Orakels), Dauer (Median, Maximum) und Summe der Partiezeit gegen das Budget.
+
+Die Gültigkeit hängt nicht vom Ausgang ab. Ein Funktionstest des Berichts lief einmal auf den Rohdaten der
+Probe. Seine Zahlen gehen in keine Entscheidung ein und werden nicht berichtet (§7). Die Tests nutzen
+gebaute Daten.
+
+### Aufwand
+
+Wie in §11: vorsichtig rund 158 bis 160 Runnerstunden, nach den Medianen der Probe rund 65. Die Wanduhrzeit
+hängt davon ab, wie viele Jobs GitHub gleichzeitig laufen lässt. Bei 20 gleichzeitigen Jobs wären es nach
+den Medianen grob 3 bis 4 Stunden, vorsichtig rund 8. Das ist eine Hypothese, nicht gemessen.
