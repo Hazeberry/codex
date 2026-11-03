@@ -316,7 +316,7 @@ function bericht(e, a) {
   }
   L.push('');
   for (const o of Object.keys(GEGNER)) L.push(`- ${GEGNER[o]}: **${a[o].vollePaare} vollständige Paare** von ${e.n} verwendet; alle Intervalle und Tests unten sind aus diesen Paaren berechnet.`);
-  L.push('', 'Eine eigene Schwelle für vollständige Paare gibt es nicht; die Gültigkeit hängt an der 98-%-Regel je Arm (Festlegung Hazeberry, 03.11.2026).');
+  L.push('', 'Eine eigene Schwelle für vollständige Paare gibt es nicht: Für die Vollständigkeit gilt allein die 98-%-Regel je Arm; alle übrigen Gültigkeitsbedingungen gelten unverändert (Festlegung Hazeberry, 03.11.2026).');
   L.push('', '## Primärer Endpunkt: Endstand S − A (gepaart, α = 0,025 je Gegner, Intervall 97,5 %)', '',
     '| Gegner | verwendete Paare | Differenz S − A [97,5 %] | SD | t | p (zweiseitig) | Urteil |', '|---|---:|---|---:|---:|---:|---|');
   for (const o of Object.keys(GEGNER)) {

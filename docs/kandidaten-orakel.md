@@ -575,9 +575,10 @@ nur der Normalfall (alle Fälle und Arme: Summe protokolliert, gleich der Summe 
   **Ausfallgründe** (fehlt, abgebrochen mit der Meldung des Harness, kein Endstand, ohne Protokoll des
   Orakels). Der Bericht nennt je Gegner die **tatsächlich verwendete Paarzahl**; alle Intervalle und Tests
   sind aus genau diesen Paaren berechnet, die Tabellen nennen sie als „verwendete Paare“.
-  **Keine eigene Schwelle für vollständige Paare** (Festlegung Hazeberry, 03.11.2026): Die Gültigkeit hängt
-  allein an der 98-%-Regel je Arm (Punkt 2 oben). Der Anteil vollständiger Paare kann deshalb unter 98 %
-  liegen, wenn Partien verschiedener Arme an verschiedenen Nummern ausfallen; er steht dann im Bericht.
+  **Keine eigene Schwelle für vollständige Paare** (Festlegung Hazeberry, 03.11.2026): Für die
+  **Vollständigkeit** gilt allein die 98-%-Regel je Arm (Punkt 2 oben). Alle übrigen Gültigkeitsbedingungen
+  (Punkte 1 und 3 bis 10) gelten unverändert. Der Anteil vollständiger Paare kann deshalb unter 98 % liegen,
+  wenn Partien verschiedener Arme an verschiedenen Nummern ausfallen; er steht dann im Bericht.
 - **Primär, je Gegner:** Endstand S − A, gepaart nach Partienummer, zweiseitiger gepaarter t-Test,
   α = 0,025, Intervall zu 97,5 % mit dem t-Quantil (bei 480 Paaren 2,2485 statt z = 2,2414 aus §5; der
   Unterschied ist ohne praktische Folge). Urteil: „S besser als A“ oder „S schlechter als A“ bei p < 0,025,

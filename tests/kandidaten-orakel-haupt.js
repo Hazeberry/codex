@@ -215,7 +215,7 @@ test('Bericht: nur vollständige Paare; Ausfälle nach Arm, Gegner und Farbe', (
   pruefeGleich(JSON.stringify(a.f.ausfaelle.SS.gruende), JSON.stringify({'abgebrochen: GNU Go beendet': 1}), 'Ausfallgrund');
   const t = B.bericht(e, a);
   pruefe(/## Ausfälle und vollständige Paare/.test(t) && /\| Fuego \| S \| Schwarz \| 50\/50 \| 1 \(1\) \| 0 \| 4 \| abgebrochen: GNU Go beendet \(1\) \|/.test(t)
-    && /\*\*99 vollständige Paare\*\* von 100 verwendet/.test(t) && /\| Fuego \| 99 \|/.test(t), 'Ausfalltabelle im Bericht');
+    && /\*\*99 vollständige Paare\*\* von 100 verwendet/.test(t) && /Für die Vollständigkeit gilt allein die 98-%-Regel je Arm; alle übrigen Gültigkeitsbedingungen gelten unverändert/.test(t) && /\| Fuego \| 99 \|/.test(t), 'Ausfalltabelle im Bericht');
 });
 
 test('Bericht: jede Verletzung → KEIN URTEIL mit Grund und ohne Effekt', () => {
