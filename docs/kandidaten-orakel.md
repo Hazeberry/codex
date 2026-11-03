@@ -4,7 +4,7 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 -->
 # Kandidaten-Orakel: Bringt GNU Gos Zug als zusätzliches Wurzelkind etwas? (Vorabfestlegung, Entwurf)
 
-**Stand: Laufzeitprobe gelaufen und gültig (§11), Hauptversuch nicht gestartet.** Der folgende Absatz
+**Stand: Hauptversuch Stufe 1 gelaufen und gültig (§13).** Der folgende Absatz
 beschreibt den ursprünglichen Entwurf; den aktuellen Stand nennen §10 und §11.
 
 Ursprünglicher Stand: Entwurf, nichts umgesetzt, nichts gelaufen. Die Umsetzung (ein Messschalter in der
@@ -476,7 +476,7 @@ nur Vorbereitung; der Lauf braucht ein eigenes Go).
 
 ## 12. Hauptversuch: Workflow, Fortsetzen und Auswertung (Festlegung vor dem Start)
 
-**Stand: vorbereitet, nicht gestartet.** Der Lauf beginnt erst nach einem eigenen „Go“ von Hazeberry. Dieser
+**Stand: gelaufen (Lauf 41563696817, Go von Hazeberry am 03.11.2026), Ergebnis in §13.** Ursprünglich: vorbereitet, Lauf erst nach eigenem Go. Dieser
 Abschnitt legt vorab fest, wie gespielt, gesichert, fortgesetzt und ausgewertet wird. Er konkretisiert §9 an
 einigen Stellen; diese Stellen sind unten als **Konkretisierung** markiert und gehören zur Prüfung vor dem Go.
 
@@ -602,3 +602,103 @@ Probe wären es rund 65 h. Die Laufzeitprüfung der Prior-Summe kostet je Zug ei
 Zahlen und fällt nicht ins Gewicht. Die Wanduhrzeit
 hängt davon ab, wie viele Jobs GitHub gleichzeitig laufen lässt. Bei 20 gleichzeitigen Jobs wären es nach
 den Medianen grob 3 bis 4 Stunden, vorsichtig rund 8. Das ist eine Hypothese, nicht gemessen.
+
+## 13. Nachtrag: Ergebnis des Hauptversuchs (Lauf 41563696817)
+
+**Quelle:** Workflow `kandidaten-orakel-haupt.yml`, Lauf 41563696817 (Nr. 1), Stand `370df8e`, gestartet
+03.11.2026 02:03 UTC nach Go von Hazeberry, ohne Fortsetzen, ein Durchgang. Bericht, Auswertung, Begleitdateien
+und Rohdaten unter `docs/daten/kandidaten-orakel/haupt-lauf1/`. Der Bericht wurde lokal aus den Rohdaten
+mit demselben `haupt-bericht.js` nachgerechnet und ist **zeichengleich**.
+
+### Gültigkeit
+
+**Gültig.** Alle Bedingungen aus §9 und §12 erfüllt:
+
+| Bedingung | Ergebnis |
+|---|---|
+| Vollständigkeit | je Arm und Gegner alle 480 Nummern gespielt, 240 je Farbe |
+| ≥ 98 % ausgewertet je Arm | GNU Go A 480, S 479, ZS 479; Fuego je 480 |
+| Kontrolle Seed 222, Nr. 1 bis 4 | bitgleich (Partien je einzeln im eigenen Prozess gespielt) |
+| Antwortquote des Orakels je Arm und Gegner | 100 % in allen sechs (zusammen 381 584 Abfragen) |
+| Fall (d) in beiden Farben | GNU Go 24 307 / 27 162, Fuego 39 404 / 39 930 |
+| erster Auslöser S = ZS | GNU Go 478 Paare, Fuego 480 Paare, 0 abweichend |
+| Wiederholungskontrolle (Nr. 1 bis 3) | in allen sechs Arm-Gegner-Kombinationen identisch |
+| Zählersummen | stimmen |
+| Prior-Summe zur Laufzeit | 377 496 Einträge geprüft, größte Abweichung 8,9 · 10⁻¹⁶, Fehlerprotokoll leer |
+| Stand der Quellen | in allen Paketen gleich |
+
+**Ausfälle:** zwei Partien, beide gegen GNU Go, beide wegen eines Absturzes des Gegners (GNU Go,
+SIGSEGV bei `genmove`): Arm S Nr. 401 (KI Weiß) und Arm ZS Nr. 422 (KI Schwarz). Damit **478
+vollständige Paare** gegen GNU Go, **480** gegen Fuego. Alle Vergleiche beruhen auf diesen Paaren.
+
+### Primärer Endpunkt: Endstand S − A (α = 0,025 je Gegner, 97,5 %)
+
+| Gegner | verwendete Paare | S − A [97,5 %] | SD | p (zweiseitig) | Median der Differenz | Urteil |
+|---|---:|---|---:|---:|---:|---|
+| GNU Go | 478 | **+24,7** [+19,9; +29,5] | 46,6 | 1,7 · 10⁻²⁷ | +24 | S besser als A |
+| Fuego | 480 | **+36,0** [+30,1; +42,0] | 58,0 | 6,8 · 10⁻³⁶ | +28 | S besser als A |
+
+Beide primären Tests sind signifikant. **Der kombinierte Eingriff (GNU Gos Zug als zusätzliches
+Wurzelkind mit Spitzenprior) verbessert den Endstand gegen beide Gegner**, unter den gemessenen
+Bedingungen (§4). Die SD der Paardifferenz lag mit 46,6 und 58,0 unter den Planungswerten 59 und 85; die
+Intervalle sind entsprechend schmaler als geplant (halbe Breite rund 4,8 und 6,0 statt 6,0 und 8,7).
+
+### Ergänzend, ohne Signifikanzurteil (95 %)
+
+| Gegner | Vergleich | Differenz [95 %] | Vorzeichen besser/schlechter | Siege nur erster / nur zweiter |
+|---|---|---|---|---|
+| GNU Go | S − ZS | +42,4 [+38,0; +46,8] | 394 / 75 | 35 / 3 |
+| GNU Go | ZS − A | −17,7 [−22,2; −13,3] | 167 / 306 | 4 / 7 |
+| Fuego | S − ZS | +51,7 [+46,1; +57,3] | 392 / 87 | 165 / 19 |
+| Fuego | ZS − A | −15,7 [−20,5; −10,8] | 179 / 290 | 31 / 48 |
+
+Siegquoten in den vollständigen Paaren (95 %, Clopper-Pearson; Gegner GNU Go Stufe 1 und **Fuego mit 100
+Spielen je Zug**):
+
+| Gegner | A | S | ZS |
+|---|---|---|---|
+| GNU Go | 1,5 % [0,6; 3,0] | 7,5 % [5,3; 10,3] | 0,8 % [0,2; 2,1] |
+| Fuego | 12,3 % [9,5; 15,6] | 39,2 % [34,8; 43,7] | 8,8 % [6,4; 11,6] |
+
+Die frühere Messung von 48,0 % Siegen des Defaults gegen Fuego (`muster-fuego-siege.md`, Lauf 1, Seed 228)
+lief gegen **Fuego mit 50 Spielen je Zug** und ist mit den Quoten hier (Fuego mit 100 Spielen je Zug) **nicht
+direkt vergleichbar**.
+
+Nach Farbe der KI ist S − A in allen vier Gruppen positiv (GNU Go Schwarz +20,6, Weiß +28,8; Fuego Schwarz
++34,2, Weiß +37,9; Intervalle im Bericht).
+
+### Beschreibend
+
+- **Gespielter Zug = Orakelzug** bei einem Auslöser: Arm A 2,2 % (GNU Go) und 1,4 % (Fuego), Arm S 34,3 % und
+  30,9 %, Arm ZS 2,0 % und 1,3 %. Im Default wählt die Suche GNU Gos Zug an diesen Stellen also fast nie; mit
+  dem Eingriff in rund einem Drittel der Fälle.
+- **Auslöser je Partie** (c, d, d1): GNU Go A 63,5, S 57,6, ZS 69,0; Fuego A 88,1, S 80,5, ZS 95,4. Eingriffe
+  in S und ZS gleich den Auslösern, in A 0.
+- **`kein-protokoll`** (KI passt vor der Suche): je Arm 480 bis 934. Davon mit einem **Zug** des Orakels, also
+  ein Eingriff, der wegen des Passes der KI entfiel: GNU Go A 5, S 2, ZS 4; Fuego A 91, S 31, ZS 93. Die Regel ist
+  in allen Armen dieselbe (§11).
+- **Fall `e`** (entartete Prior-Rechnung, kein Eingriff): 31-mal gegen Fuego, gegen GNU Go nicht.
+- **Laufzeit:** Partiezeit zusammen 65,0 h, Wanduhrzeit des Laufs 3 h 39 min (02:03 bis 05:42 UTC). Das liegt
+  weit unter dem Planungsbudget von rund 160 h und nahe an der Erwartung aus den Medianen der Probe (rund 65 h).
+  Längste Partie 351 s (Fuego, ZS), also über dem Maximum der Probe (172 s); ein Paket ist trotzdem nie an
+  sein Zeitlimit gekommen.
+
+### Lesart (§6)
+
+- **Gemessen:** Der kombinierte Eingriff S hebt den Endstand gegen GNU Go um rund 25 und gegen Fuego um rund
+  36 Punkte, bei 120 Simulationen, ohne Vorgabe, gezählt von GNU Go Stufe 1 (Fläche).
+- **Gemessen, beschreibend:** Der kombinierte Eingriff verbessert mit dem Orakelzug den Endstand (S − A +25
+  und +36) und verschlechtert ihn mit dem gewählten Rang-Nachbarn (ZS − A rund −18 und −16; S − ZS +42 und
+  +52). Die Verluste von ZS sind **keine isoliert gemessenen Eingriffskosten**: ZS setzt einen bestimmten
+  anderen Zug ein, kein neutrales Zusatzkind. Wie §3 sagt, ist ZS kein neutraler Platzhalter; S − ZS ist
+  keine Zerlegung von S − A.
+- **Nicht gezeigt (§6):** ob Aufnahme oder Gewicht allein hilft (Stufe 1 trennt das nicht); wie die Suche
+  einen solchen Zug **ohne Orakel** finden könnte; ob das Ergebnis bei 750 bis 1300 Simulationen (Spiel im
+  Browser) gleich ausfällt; ob es an einem guten Zug liegt oder an der Verwandtschaft von Orakel, Netz,
+  Mustern und Schiedsrichter (alle GNU Go). Letzteres bleibt **Hypothese**; gegen Fuego als Gegner tritt der
+  Gewinn ebenso auf, gezählt wird aber auch dort von GNU Go.
+- **Folge für das Spiel:** Keine. Das Orakel ist ein Messmittel und steht im Spiel nicht zur Verfügung. Das
+  Ergebnis besagt, dass an der Wurzel im Endspiel Punkte liegen, die die Kandidatenliste und der Prior heute
+  nicht erreichen. Ob und wie sich das ohne Orakel nutzen lässt, ist eine neue Frage und keine automatische
+  Folgeentscheidung.
+
