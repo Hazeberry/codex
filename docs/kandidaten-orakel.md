@@ -652,12 +652,17 @@ Intervalle sind entsprechend schmaler als geplant (halbe Breite rund 4,8 und 6,0
 | Fuego | S − ZS | +51,7 [+46,1; +57,3] | 392 / 87 | 165 / 19 |
 | Fuego | ZS − A | −15,7 [−20,5; −10,8] | 179 / 290 | 31 / 48 |
 
-Siegquoten in den vollständigen Paaren (95 %, Clopper-Pearson):
+Siegquoten in den vollständigen Paaren (95 %, Clopper-Pearson; Gegner GNU Go Stufe 1 und **Fuego mit 100
+Spielen je Zug**):
 
 | Gegner | A | S | ZS |
 |---|---|---|---|
 | GNU Go | 1,5 % [0,6; 3,0] | 7,5 % [5,3; 10,3] | 0,8 % [0,2; 2,1] |
 | Fuego | 12,3 % [9,5; 15,6] | 39,2 % [34,8; 43,7] | 8,8 % [6,4; 11,6] |
+
+Die frühere Messung von 48,0 % Siegen des Defaults gegen Fuego (`muster-fuego-siege.md`, Lauf 1, Seed 228)
+lief gegen **Fuego mit 50 Spielen je Zug** und ist mit den Quoten hier (Fuego mit 100 Spielen je Zug) **nicht
+direkt vergleichbar**.
 
 Nach Farbe der KI ist S − A in allen vier Gruppen positiv (GNU Go Schwarz +20,6, Weiß +28,8; Fuego Schwarz
 +34,2, Weiß +37,9; Intervalle im Bericht).
@@ -682,10 +687,11 @@ Nach Farbe der KI ist S − A in allen vier Gruppen positiv (GNU Go Schwarz +20,
 
 - **Gemessen:** Der kombinierte Eingriff S hebt den Endstand gegen GNU Go um rund 25 und gegen Fuego um rund
   36 Punkte, bei 120 Simulationen, ohne Vorgabe, gezählt von GNU Go Stufe 1 (Fläche).
-- **Gemessen, beschreibend:** Derselbe Eingriff mit dem Rang-Nachbarn (ZS) **kostet** rund 16 bis 18 Punkte
-  gegenüber dem Default. Der Eingriff an sich (ein Kind mehr, ein Spitzenprior) ist also nicht neutral; der
-  Gewinn von S entsteht trotz dieser Kosten und hängt an der **Identität** des Zuges (S − ZS +42 und +52).
-  Wie §3 sagt, ist ZS kein neutraler Platzhalter; S − ZS ist keine Zerlegung von S − A.
+- **Gemessen, beschreibend:** Der kombinierte Eingriff verbessert mit dem Orakelzug den Endstand (S − A +25
+  und +36) und verschlechtert ihn mit dem gewählten Rang-Nachbarn (ZS − A rund −18 und −16; S − ZS +42 und
+  +52). Die Verluste von ZS sind **keine isoliert gemessenen Eingriffskosten**: ZS setzt einen bestimmten
+  anderen Zug ein, kein neutrales Zusatzkind. Wie §3 sagt, ist ZS kein neutraler Platzhalter; S − ZS ist
+  keine Zerlegung von S − A.
 - **Nicht gezeigt (§6):** ob Aufnahme oder Gewicht allein hilft (Stufe 1 trennt das nicht); wie die Suche
   einen solchen Zug **ohne Orakel** finden könnte; ob das Ergebnis bei 750 bis 1300 Simulationen (Spiel im
   Browser) gleich ausfällt; ob es an einem guten Zug liegt oder an der Verwandtschaft von Orakel, Netz,
