@@ -58,8 +58,13 @@ Drei vorab festgelegte **Hauptvergleiche**, jeweils gegen beide Gegner (sechs Te
 
 **Grenze:** S − N umfasst die Anhebung **neu aufgenommener und bereits vorhandener** Kinder; P − A nur
 bereits vorhandene. Die beiden Effekte dürfen **nicht** voneinander abgezogen und als isolierter
-Gewichtungseffekt neuer Kinder ausgegeben werden. Auch sind die Vergleiche keine Summanden: Jeder Eingriff
-ändert den weiteren Partieverlauf und damit, welche Stellungen überhaupt vorkommen.
+Gewichtungseffekt neuer Kinder ausgegeben werden.
+
+**Additivität der Mittelwerte:** Weil alle Vergleiche dieselben vollständigen Vierergruppen verwenden, gilt für
+die mittleren Endstände exakt (N − A) + (S − N) = S − A. Daraus folgt **keine** Zerlegung in unabhängige
+Mechanismen und keine übertragbaren Anteile von Aufnahme und Gewicht: Jeder Eingriff ändert den weiteren
+Partieverlauf und damit, welche Stellungen überhaupt vorkommen, und S − N misst die Anhebung in Partien, die
+schon durch die Aufnahme verändert sind.
 
 **Ergänzend, ohne Signifikanzurteil (95 %):** S − A als **Replikation** von Stufe 1 mit neuen Seeds; S − P
 beschreibend; alles auch nach Farbe der KI.
@@ -135,9 +140,11 @@ Bedingung fehlschlägt. Übernommen aus `kandidaten-orakel.md` §9 und §12:
 
 10. **Erste Auslösestelle gleich in allen vier Armen.** Bis zum ersten Auslöser (Fall c, d oder d1) greift kein
     Arm ein, die Partien sind bis dahin in allen Armen identisch. Verlangt wird deshalb je Partienummer: gleiche
-    Züge bis zur ersten Auslösestelle, und dort gleicher Zug, Fall, Rang von *g* und *n* in A, N, P und S. Das
-    ersetzt die Bedingung „erster Auslöser S = ZS“ von Stufe 1. **Danach** müssen die Arme nicht mehr dieselben
-    Eingriffe auslösen, weil die Partien auseinanderlaufen.
+    Züge bis zur ersten Auslösestelle, also identische Stellung vor dem Eingriff, und dort in A, N, P und S
+    dieselbe **Zugnummer**, derselbe **Orakelzug** *g*, derselbe Fall und derselbe Rang von *g* und *n*. Der
+    anschließend von der KI **gespielte** Zug darf sich zwischen den Armen unterscheiden; genau das untersucht
+    der Versuch. Das ersetzt die Bedingung „erster Auslöser S = ZS“ von Stufe 1. **Danach** müssen die Arme
+    nicht mehr dieselben Eingriffe auslösen, weil die Partien auseinanderlaufen.
 11. **Eingriffsart je Arm stimmt** (im Lauf geprüft, an jedem Protokolleintrag): A nie aufgenommen und nie
     angehoben; N nur in d und d1 aufgenommen, nie angehoben; P nur in c angehoben, nie aufgenommen; S in d und d1
     aufgenommen, in c und d angehoben, in d1 nicht. Jede Abweichung macht den Lauf ungültig.
