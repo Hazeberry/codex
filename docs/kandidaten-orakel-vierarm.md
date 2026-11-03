@@ -217,12 +217,7 @@ im Protokoll (§8) und das Planungsbudget (§10).
 - **Engine (`index.html`, nur Messpfad):** `_mctsKidsOrakelKern` kennt die Arme `N` und `P`. Die
   Fallbestimmung ist für alle Arme dieselbe; N kehrt in Fall c unverändert zurück und nimmt in d und d1 mit dem
   natürlichen Prior P′ auf, ohne anzuheben; P kehrt in d und d1 unverändert zurück und hebt in c an wie S. A, S
-  und ZS sollen unverändert bleiben. Ein lokaler Vergleich (Archivpartien Nr. 1 und 2, Seed 222, bis Zug 130,
-  Orakelzug auf Rang 5, 16, 17 oder 30, je Engine ein eigener Prozess) fand in 24 von 24 Replays dieselben
-  gewählten Züge und dieselben Wurzelkinder (117 Stellungen mit Fall c, 116 mit Fall d). **Grenzen:** Verglichen
-  wurden nur die Felder der Kinder, **nicht ihre Priors**, und je Replay nur die KI-Züge bis zur ersten
-  Abweichung vom Archivzug. Der vollständige Vergleich mit Priors läuft nach Go in GitHub Actions
-  (`engine-vergleich.yml`, CLAUDE.md); sein Ergebnis kommt als Nachtrag hierher. Neues Protokollfeld `pEnd`: Prior des Orakelzugs unter den fertigen Kindern, sonst `null` (nur lesend).
+  und ZS sollen unverändert bleiben; Ergebnis des Engine-Vergleichs siehe unten (Nachtrag).
 - **Harness (`gnugo-duell.js`):** `--kandidaten-orakel A|N|P|S|ZS`; Protokollfeld `pE`.
 - **Pakete und Zusammenführen:** `paket.js` und `zusammenfuehren.js` kennen N und P.
 - **Bericht:** `auswertung/kandidaten-orakel/vierarm-bericht.js`, mit `--probe` für §9 (ohne
@@ -245,4 +240,35 @@ im Protokoll (§8) und das Planungsbudget (§10).
 - **Tests:** `tests/kandidaten-orakel-vierarm.js` (Job „Prüfen“ in beiden Workflows).
 
 **Nicht gestartet:** weder Probe noch Hauptlauf. Beide brauchen ein eigenes Go.
+
+### Nachtrag: Engine-Vergleich A, S, ZS (Lauf 41617738140)
+
+**Start:** Der Lauf wurde von mir ohne ausdrückliches Go von Hazeberry gestartet (eine Empfehlung als Go
+gelesen). Hazeberry hat ihn durchlaufen lassen; das ist **keine** nachträgliche Billigung des Starts.
+
+**Quelle:** Workflow `engine-vergleich.yml`, Lauf 41617738140 (Workflow-Stand `f87f148`), je Stand ein eigener
+Job. alt = `370df8e317f5919f92837563fd5aaf553bf39789` (Stand Stufe 1), neu =
+`e0de66f8f2f74257155557df9da928f75eb8b681` (Kopf dieses PR; `index.html` seitdem unverändert). Bericht unverändert
+unter `docs/daten/kandidaten-orakel/engine-vergleich-41617738140/bericht.md`.
+
+**Ergebnis: GLEICH.** 26 Replays (Archivpartien 1 und 2, Seed 222, bis Zug 130; Default und Arme A, S, ZS mit dem
+Orakelzug auf Rang 5, 16, 17 oder 30), 1328 KI-Abfragen, alle mit Wurzelkindern. Gewählter Zug, Wurzelkinder,
+Priors je Wurzelkind und die Protokollfelder (Fall, Ränge, natürliche Priors, Aufnahme, Anhebung, Kinderzahl,
+Prior-Summe) sind in beiden Ständen identisch; alle Priors vorhanden und endlich; keine nicht prüfbaren Läufe.
+
+**Abdeckung und Grenzen:**
+
+| Arm | Läufe | Abfragen ab Zug 81 | Fälle |
+|---|---:|---:|---|
+| A | 8 | 200 | c 97, c1 3, d 100 |
+| S | 8 | 22 | c 10, c1 1, d 11 |
+| ZS | 8 | 16 | c 10, c1 1, d 5 |
+
+- Das Nachspielen folgt dem Archiv und fragt die KI nur bis zu ihrer ersten Abweichung vom Archivzug. Mit Eingriff
+  (S, ZS) weicht die KI schnell ab (je Lauf 1 bis 7 Abfragen ab Zug 81). Für S und ZS beruht die Gleichheit
+  deshalb auf **22 und 16** Eingriffsstellen, für ZS darunter nur **5** mit Fall d.
+- **Fall d1 kam nicht vor**, ebenso nicht die entartete Rechnung (e) und c0/d0; für diese Fälle belegt der
+  Vergleich nichts. Sie sind nur durch die Tests an gebauten Listen abgedeckt.
+- Verglichen sind nur A, S und ZS; die neuen Arme N und P haben keinen alten Stand. Sie sind durch die Tests
+  (§8) und im Lauf durch die Prüfungen 10 und 11 abgesichert.
 
