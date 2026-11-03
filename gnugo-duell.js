@@ -454,7 +454,8 @@ async function partieSpielen(nr) {
           const p = E.kandidatenProtokoll ? E.kandidatenProtokoll() : null, k = extra.kandidatenOrakel;
           /* kompakt: ein Eintrag je Zug; p = null, wenn die Wurzel nicht neu gebildet wurde */
           kandProt.push(p ? {mc, f: wir === 1 ? 'S' : 'W', g: p.g, fall: p.fall, r: p.r, rn: p.rn, n: p.nIdx, pG: p.pG, pN: p.pN,
-                             auf: p.aufgenommen ? 1 : 0, ang: p.angehoben ? 1 : 0, k: p.kinder, b: p.besuche, i, gl: p.g === i ? 1 : 0}
+                             auf: p.aufgenommen ? 1 : 0, ang: p.angehoben ? 1 : 0, k: p.kinder, b: p.besuche, i, gl: p.g === i ? 1 : 0,
+                             ps: p.priorSumme, ...(p.priorFehler ? {pf: p.priorFehler} : {})}
                           : {mc, f: wir === 1 ? 'S' : 'W', g: k.g === undefined ? null : k.g, fall: 'kein-protokoll', i});
         }
         if (oz && opt.orakelZug && mc >= opt.orakelZug.ab) {
