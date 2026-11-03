@@ -4,7 +4,7 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 -->
 # Kandidaten-Orakel, Vierarm-Versuch: Aufnahme und Gewicht getrennt (Vorabfestlegung, Entwurf)
 
-**Stand: Vorabfestlegung gemergt (#270), Umsetzung nach Go von Hazeberry (§12); nichts gelaufen.** Ursprünglich: Entwurf, nichts umgesetzt. Umsetzung (Arme N und P in der Engine, Harness,
+**Stand: Vorabfestlegung gemergt (#270), Umsetzung gemergt (#271), technische Probe gültig (§13); Hauptlauf nicht gestartet.** Ursprünglich: Entwurf, nichts umgesetzt. Umsetzung (Arme N und P in der Engine, Harness,
 Protokoll, Workflows, Tests), technische Probe und Hauptlauf beginnen **jeweils** erst nach eigenem „Go“ von
 Hazeberry. Grundlage ist der abgeschlossene Versuch Stufe 1 (`kandidaten-orakel.md`, Ergebnis §13). Es gibt
 **keine automatische Folgeentscheidung**.
@@ -271,4 +271,53 @@ Prior-Summe) sind in beiden Ständen identisch; alle Priors vorhanden und endlic
   Vergleich nichts. Sie sind nur durch die Tests an gebauten Listen abgedeckt.
 - Verglichen sind nur A, S und ZS; die neuen Arme N und P haben keinen alten Stand. Sie sind durch die Tests
   (§8) und im Lauf durch die Prüfungen 10 und 11 abgesichert.
+
+## 13. Nachtrag: technische Probe (Lauf 41623472366)
+
+**Quelle:** Workflow `kandidaten-orakel-vierarm-probe.yml`, Lauf 41623472366 (Stand `bd93a21`), gestartet
+03.11.2026 10:56 UTC nach ausdrücklichem Go von Hazeberry, ein Durchgang. Bericht, Auswertung, Begleitdateien und
+Rohdaten unverändert aus `ergebnisse/kandidaten-orakel-vierarm-probe-lauf1` (Commit `331988e`) unter
+`docs/daten/kandidaten-orakel/vierarm-probe-lauf1/`. Die Zahlen unten stammen aus diesem Bericht; im Container
+wurde nichts nachgerechnet.
+
+Die Probe sagt **nichts** über die Wirkung (§9). Endstand-Unterschiede gibt der Bericht festgelegt nicht aus.
+
+### Technische Prüfungen: gültig
+
+| Prüfung | geprüft | Ergebnis |
+|---|---|---|
+| 1 Vollständigkeit (Seed 233, je Arm 8 Partien gegen GNU Go und 4 gegen Fuego) | 48 Partien | bestanden |
+| P Pflichtprotokoll und Endstand | 48 Partien | bestanden |
+| 3 Kontrolle Arm A gegen Archiv (Seed 222, Nr. 1 bis 4) | 4 Partien | bitgleich |
+| 4 Antwortquote des Orakels je Arm und Gegner | 6167 Abfragen | 100 % in allen acht |
+| 5 Fall d in beiden Farben | 48 Partien | GNU Go 459 / 753, Fuego 451 / 515 |
+| 7 Zählersummen | 48 Partien | bestanden |
+| 8 Prior-Summe je Eingriff | 6113 Einträge | größte Abweichung 6,7 · 10⁻¹⁶, Fehlerprotokoll leer |
+| 10 erste Auslösestelle in allen vier Armen gleich | 12 Vierergruppen | 0 abweichend |
+| 11 Eingriffsart je Arm | 6167 Einträge | 0 Abweichungen |
+
+Keine zulässigen Partieausfälle, keine nicht prüfbaren Einheiten. Fall d1 trat auf (GNU Go 6, Fuego 2), die
+entartete Rechnung (e) nicht.
+
+**Arme wie vorgesehen** (Anteile an den Auslösestellen des jeweiligen Arms): N nimmt neue Orakelzüge zu 100 % auf
+und hebt nie an; P hebt vorhandene Kinder zu 100 % an und nimmt nie auf; S hebt in Fall c zu 100 % an und nimmt
+neue Orakelzüge zu 100 % auf, angehoben zu 100 % (GNU Go) bzw. 99,6 % (Fuego); die fehlenden 0,4 % sind
+d1-Stellen, an denen die Anhebung festgelegt entfällt. Pässe vor der Suche (`kein-protokoll`): 4 bis 9 je Arm,
+davon nur in Fuego Arm A zweimal mit einem Zug des Orakels.
+
+### Laufzeit
+
+- Wanduhrzeit rund 13 Minuten (10:56 bis 11:09 UTC); Partiezeit zusammen 1,1 h.
+- Dauer je Partie, Median / Maximum: GNU Go 56,5 bis 67,7 s / höchstens 93,6 s; Fuego 98,8 bis 115,9 s /
+  höchstens 170,2 s.
+- **Hochrechnung Hauptlauf** (3840 Partien): aus dem Maximum plus 50 % GNU Go 74,9 h, Fuego 136,2 h, zusammen
+  **211 h**, dazu rund 1,5 h für Wiederholung und Kontrolle; unter dem Planungsbudget von rund 220 h, mit wenig
+  Abstand. Aus den Medianen rund **91 h**, verträglich mit Stufe 1 (65 h für drei Arme).
+- In Stufe 1 lag die längste Einzelpartie (351 s) über dem Maximum der Probe (172 s). Ein Fuego-Paket mit 20
+  solchen Partien bräuchte 117 Minuten und bliebe unter dem Schrittlimit von 240 Minuten.
+
+### Folge
+
+Aus der Probe ergibt sich kein technischer Einwand gegen den Hauptlauf. Umfang und Auswertung bleiben wie in §4,
+§5 und §7 festgelegt. Der Hauptlauf (Seeds 234 und 235) startet erst nach eigenem, ausdrücklichem Go.
 
