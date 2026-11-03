@@ -38,7 +38,7 @@ const ANKER = [
    '      endspielNetzWurzel(board, aiColor, mc, scored, koPoint);\n' +
    '      globalThis.__DIAG.nach = scored.map(s => s.m.idx); globalThis.__DIAG.netz = !!scored.__pNetz;'],
   ['  if (!root.kids.length) return null;',
-   '  if (!root.kids.length) return null;\n  if (globalThis.__DIAG) globalThis.__DIAG.kids = root.kids.map(k => k.idx);'],
+   '  if (!root.kids.length) return null;\n  if (globalThis.__DIAG) { globalThis.__DIAG.kids = root.kids.map(k => k.idx); globalThis.__DIAG.priors = root.kids.map(k => k.P); }'],
 ];
 
 function ladeEngine(htmlPfad) {
@@ -88,7 +88,7 @@ function replay(E, p, opt = {}) {
       const r = E.getAIMove(board, f, Array.from(hist), {...caps}, mc, 'hard', 1, ko, last, extra);
       const gewaehlt = r.type === 'stone' ? r.y * 19 + r.x : r.type === 'resign' ? -2 : -1;
       const d = globalThis.__DIAG || null;
-      zuege.push({mc, gespielt: archiv, gewaehlt, gleich: gewaehlt === archiv, info: r.info || null, vor: d && d.vor, nach: d && d.nach, netz: d ? d.netz : null, kids: d && d.kids, prot: E.kandidatenProtokoll ? E.kandidatenProtokoll() : null});
+      zuege.push({mc, gespielt: archiv, gewaehlt, gleich: gewaehlt === archiv, info: r.info || null, vor: d && d.vor, nach: d && d.nach, netz: d ? d.netz : null, kids: d && d.kids, priors: d && d.priors, prot: E.kandidatenProtokoll ? E.kandidatenProtokoll() : null});
       if (gewaehlt !== archiv) abweichung = {mc, gespielt: z, gewaehlt: gewaehlt < 0 ? 'pass' : zuGtp(gewaehlt)};
     }
     if (archiv < 0) ko = null;

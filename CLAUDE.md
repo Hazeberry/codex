@@ -41,6 +41,10 @@ Statusmeldungen kurz. Lizenz: PolyForm Noncommercial 1.0.0.
 - `tests/rahmen.js` schneidet die `<script>`-Blöcke aus `index.html` und reicht eine feste Liste
   interner Namen heraus. **Neue interne Funktionen, die ein Test braucht, dort ergänzen.**
 - Browser-Tests laufen mit Playwright (Chromium ist vorinstalliert).
+- **Engine-Vergleiche** (alter gegen neuer Stand, „bitgleich“ an Archivstellungen) laufen in GitHub Actions
+  über `engine-vergleich.yml`, je Stand in einem **eigenen Prozess**, und nur nach Go. Nie zwei Stände im
+  selben Node-Prozess laden: `ladeEngine` lädt per globalem `eval`, die Stände überschreiben sich. Lokal
+  bleiben nur die kurzen Tests (`tests/engine-vergleich.js`).
 - Jede Quelldatei trägt `Required Notice:` und die SPDX-Zeile im Kopf (`tests/lizenz.js`).
 - Neue Oberfläche ohne Inline-Handler (`addEventListener`, `textContent`). Dashboard-Tooltips
   stehen in HTML-Attributen: keine Anführungszeichen darin.
