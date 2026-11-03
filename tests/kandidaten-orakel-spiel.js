@@ -130,6 +130,8 @@ test('Probe-Bericht: gültig mit gebauten Daten; verletzte Bedingungen → KEIN 
   const mk = o => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'probe-')); baue(d, o); return B.bewerte(d, ARCH); };
   const ok = mk({}); pruefe(ok.gueltig, 'gültig: ' + ok.gruende.join(' | '));
   pruefe(/ms je Abfrage/.test(B.bericht(ok)) && !/Mittelwert der Differenz/.test(B.bericht(ok)), 'Bericht ohne Effekthöhe');
+  pruefe(/Auslöser je Partie \(c, d, d1\) \| Eingriffe je Partie/.test(B.bericht(ok)), 'Spalten Auslöser und Eingriffe getrennt beschriftet');
+  pruefe(ok.dauer.every(x => x.eingriffe === 0 && x.ausloeser === 1), 'gebaute Daten: 1 Auslöser (Fall d), 0 Eingriffe je Partie');
   pruefe(mk({ohneAntwort: 1}).gruende.some(g => /Antwortquote/.test(g)), 'Antwortquote unter 98 %');
   pruefe(mk({abweichung: true}).gruende.some(g => /Bedingung 4/.test(g)), 'Auslöser weichen ab');
   pruefe(mk({kontrolleKaputt: true}).gruende.some(g => /Bedingung 1/.test(g)), 'Kontrolle nicht bitgleich');
