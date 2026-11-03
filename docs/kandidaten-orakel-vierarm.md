@@ -4,7 +4,7 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 -->
 # Kandidaten-Orakel, Vierarm-Versuch: Aufnahme und Gewicht getrennt (Vorabfestlegung, Entwurf)
 
-**Stand: Vorabfestlegung gemergt (#270), Umsetzung gemergt (#271), technische Probe gültig (§13); Hauptlauf nicht gestartet.** Ursprünglich: Entwurf, nichts umgesetzt. Umsetzung (Arme N und P in der Engine, Harness,
+**Stand: Hauptlauf gelaufen und gültig (§14).** Ursprünglich: Entwurf, nichts umgesetzt. Umsetzung (Arme N und P in der Engine, Harness,
 Protokoll, Workflows, Tests), technische Probe und Hauptlauf beginnen **jeweils** erst nach eigenem „Go“ von
 Hazeberry. Grundlage ist der abgeschlossene Versuch Stufe 1 (`kandidaten-orakel.md`, Ergebnis §13). Es gibt
 **keine automatische Folgeentscheidung**.
@@ -320,4 +320,102 @@ davon nur in Fuego Arm A zweimal mit einem Zug des Orakels.
 
 Aus der Probe ergibt sich kein technischer Einwand gegen den Hauptlauf. Umfang und Auswertung bleiben wie in §4,
 §5 und §7 festgelegt. Der Hauptlauf (Seeds 234 und 235) startet erst nach eigenem, ausdrücklichem Go.
+
+## 14. Nachtrag: Ergebnis des Hauptlaufs (Lauf 41627980348)
+
+**Quelle:** Workflow `kandidaten-orakel-vierarm.yml`, Lauf 41627980348, Commit
+`8740574aa6f3d572b1d234d58202008d71404fb2`, gestartet 03.11.2026 11:29 UTC nach ausdrücklichem Go von Hazeberry,
+ein Durchgang ohne Fortsetzen. Bericht, Auswertung, Begleitdateien und Rohdaten unverändert aus
+`ergebnisse/kandidaten-orakel-vierarm-lauf1` (Commit `145ea20`) unter `docs/daten/kandidaten-orakel/vierarm-lauf1/`.
+Alle Zahlen stammen aus diesem Bericht; im Container wurde nichts nachgerechnet oder nachgespielt.
+
+### Gültigkeit
+
+**Gültig.** Alle technischen Prüfungen aus §7 bestanden:
+
+| Prüfung | geprüft | nicht prüfbar | Ergebnis |
+|---|---|---|---|
+| 1 Vollständigkeit | 3840 Partien | – | bestanden |
+| P Pflichtprotokoll und Endstand | 3836 Partien | 4 (zulässiger Ausfall) | bestanden |
+| 2 ≥ 98 % je Arm und Gegner ausgewertet | 8 Arme | – | bestanden (je 479 bzw. 480 von 480) |
+| 3 Kontrolle Seed 222, Nr. 1 bis 4 | 4 Partien | – | bitgleich |
+| 4 Antwortquote je Arm und Gegner | 514 616 Abfragen | – | 100 % in allen acht |
+| 5 Fall d in beiden Farben | 3836 Partien | 4 | bestanden |
+| 6 Wiederholungskontrolle | 24 Partienpaare | – | identisch |
+| 7 Zählersummen | 3836 Partien | 4 | bestanden |
+| 8 Prior-Summe je Eingriff | 508 984 Einträge | 4 Partien | größte Abweichung 8,9 · 10⁻¹⁶, Fehlerprotokoll leer |
+| 10 erste Auslösestelle in allen vier Armen gleich | 959 Vierergruppen | 1 (g127) | 0 abweichend |
+| 11 Eingriffsart je Arm | 514 616 Einträge | 4 Partien | 0 Abweichungen |
+
+**Zulässige Partieausfälle:** 4, alle gegen GNU Go, alle Partie Nr. 127 (KI Weiß), in **allen vier Armen**: Absturz
+des Gegners GNU Go (SIGSEGV bei `genmove B`). Dass derselbe Absturz in allen vier Armen auftritt, deutet auf eine
+Stellung vor dem ersten Eingriff, an der GNU Go 3.8 abstürzt; das ist eine **Hypothese**, nicht geprüft. Damit
+**479 vollständige Vierergruppen** gegen GNU Go, **480** gegen Fuego. Alle Vergleiche beruhen auf diesen Gruppen.
+
+### Hauptvergleiche (α = 0,05/6 je Test, Intervall 99,17 %)
+
+| Gegner | Vergleich | verwendete Paare | Differenz [99,17 %] | SD | p | Urteil |
+|---|---|---:|---|---:|---:|---|
+| GNU Go | N − A | 479 | +0,7 [−5,2; +6,6] | 49,0 | 0,76 | kein nachgewiesener Unterschied |
+| GNU Go | S − N | 479 | **+26,3** [+19,9; +32,6] | 52,2 | 2,9 · 10⁻²⁵ | S besser als N |
+| GNU Go | P − A | 479 | **+13,8** [+8,2; +19,5] | 46,8 | 2,5 · 10⁻¹⁰ | P besser als A |
+| Fuego (100 Spiele je Zug) | N − A | 480 | −0,9 [−6,9; +5,1] | 49,5 | 0,69 | kein nachgewiesener Unterschied |
+| Fuego (100 Spiele je Zug) | S − N | 480 | **+30,4** [+23,3; +37,5] | 58,7 | 1,6 · 10⁻²⁶ | S besser als N |
+| Fuego (100 Spiele je Zug) | P − A | 480 | **+11,7** [+5,5; +18,0] | 51,7 | 9,1 · 10⁻⁷ | P besser als A |
+
+Die gemessenen SD (46,8 bis 58,7) liegen unter den Planungswerten 59 und 85; die Intervalle sind schmaler als
+geplant.
+
+**Additivität der Mittelwerte** (§3): GNU Go (N − A) +0,7 + (S − N) +26,3 = +26,9 = S − A; Fuego −0,9 + 30,4 = +29,5
+= S − A. Daraus folgt keine Zerlegung in unabhängige Mechanismen.
+
+### Lesart (vorab festgelegt, §6)
+
+- **N − A, beide Gegner: kein nachgewiesener Unterschied.** Kein nachgewiesener Gewinn über +6,6 (GNU Go) bzw.
+  +5,1 Punkte (Fuego). Das heißt **nicht**, dass die Aufnahme wirkungslos oder gleichwertig ist; Gewinne bis zu
+  dieser Obergrenze sind nicht ausgeschlossen, Verluste bis −5,2 bzw. −6,9 ebenso wenig.
+- **S − N, beide Gegner: positiv.** Die zusätzliche Gewichtung trägt zum Gewinn bei. S − N umfasst die Anhebung
+  neu aufgenommener **und** bereits vorhandener Orakelzüge (§3).
+- **P − A, beide Gegner: positiv.** Auch die Gewichtung bereits verfügbarer Orakelzüge bietet
+  Verbesserungsspielraum.
+- S − N und P − A werden **nicht** voneinander abgezogen; ein isolierter Gewichtungseffekt neu aufgenommener
+  Kinder lässt sich daraus nicht ablesen.
+
+### Ergänzend, ohne Signifikanzurteil (95 %)
+
+| Gegner | S − A (Replikation) | S − P | Siege A / N / P / S (vollständige Gruppen) |
+|---|---|---|---|
+| GNU Go | +26,9 [+22,3; +31,6] | +13,1 [+8,3; +17,9] | 2,1 % / 1,9 % / 6,5 % / 8,8 % |
+| Fuego (100 Spiele je Zug) | +29,5 [+24,0; +35,0] | +17,7 [+12,3; +23,2] | 12,9 % / 14,4 % / 22,7 % / 35,0 % |
+
+- **Replikation:** S − A hat mit neuen Seeds dieselbe Richtung und Größenordnung wie in Stufe 1 (+24,7 und +36,0,
+  `kandidaten-orakel.md` §13); beschreibend, kein Test.
+- Nach Farbe der KI sind S − N, P − A und S − A in allen vier Gruppen positiv; N − A liegt in allen vier Gruppen
+  mit dem Intervall um null (Tabellen im Bericht).
+
+### Beschreibend: Protokoll (§8)
+
+- **Neu aufgenommene Orakelzüge in N** bekommen ihren natürlichen Prior (Median 0,017 gegen GNU Go, 0,010 gegen
+  Fuego), werden im Median 2- bzw. 1-mal besucht, in 19,4 % bzw. 23,0 % der Stellen gar nicht, und in 1,0 % bzw.
+  0,7 % gespielt. In S (angehoben, Median 0,218 bzw. 0,234) sind es 24 bzw. 25 Besuche und 32,3 % bzw. 25,9 %.
+- **Bereits vorhandene Orakelzüge** werden in A in 5,6 % bzw. 5,2 % der Stellen gespielt, in P nach der Anhebung
+  in 35,9 % bzw. 37,6 %.
+- Diese Zahlen beschreiben das Verhalten der Suche; sie ersetzen keinen kausalen Vergleich der Arme.
+
+### Laufzeit
+
+- Wanduhrzeit rund 4 h 40 min (11:29 bis 16:09 UTC); Partiezeit zusammen **83,5 h**, im Bereich der Erwartung aus
+  der Probe (rund 91 h) und weit unter dem Planungsbudget von rund 220 h.
+- Längste Einzelpartien: GNU Go 199,9 s, **Fuego 1117,8 s** (Arm P) und 1112,3 s (Arm S), also weit über dem
+  Maximum der Probe (170,2 s). Kein Paket kam an sein Zeitlimit. Die Ursache der langen Fuego-Partien ist nicht
+  untersucht.
+
+### Folge
+
+Keine Folge für das Spiel: Das Orakel ist ein Messmittel. Die Ergebnisse besagen unter den gemessenen Bedingungen
+(120 Simulationen, ohne Vorgabe, Zählung durch GNU Go Stufe 1), dass das Anbieten des Orakelzugs mit natürlichem
+Prior keinen nachgewiesenen Gewinn bringt, die Prior-Anhebung dagegen schon, auch bei bereits vorhandenen Kindern.
+Ob und wie sich das ohne Orakel nutzen lässt, ist eine neue Frage mit eigener Vorabfestlegung. Die Grenzen aus
+`kandidaten-orakel.md` §6 und §13 gelten weiter (Verwandtschaft mit GNU Go als Hypothese). Weitere Läufe sind
+nicht gestartet.
 
