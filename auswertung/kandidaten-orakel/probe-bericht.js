@@ -75,7 +75,10 @@ function bewerte(ordner, archivPfad) {
   for (const o of ['g', 'f']) for (const a of ARME) {
     const d = daten[o + a], ms = d.map(r => r.kandidatenOrakel && r.kandidatenOrakel.partieMs).filter(Number.isFinite);
     const q = d.reduce((x, r) => x + (r.kandidatenOrakel ? r.kandidatenOrakel.abfragen : 0), 0), qm = d.reduce((x, r) => x + (r.kandidatenOrakel ? r.kandidatenOrakel.abfrageMs : 0), 0);
-    dauer.push({o, a, n: d.length, med: median(ms), max: ms.length ? Math.max(...ms) : null, proAbfrage: q ? qm / q : null, eingriffe: d.length ? d.reduce((x, r) => x + r.kandidatenOrakel.ereignisse.filter(e => ERSTE.includes(e.fall)).length, 0) / d.length : null});
+    dauer.push({o, a, n: d.length, med: median(ms), max: ms.length ? Math.max(...ms) : null, proAbfrage: q ? qm / q : null, /* Auslöser = Fälle c, d, d1 (in jedem Arm gleich definiert, auch in A, wo nichts geschieht);
+       Eingriffe = tatsächlich aufgenommen oder angehoben (in A immer 0) */
+      ausloeser: d.length ? d.reduce((x, r) => x + r.kandidatenOrakel.ereignisse.filter(e => ERSTE.includes(e.fall)).length, 0) / d.length : null,
+      eingriffe: d.length ? d.reduce((x, r) => x + r.kandidatenOrakel.ereignisse.filter(e => e.auf || e.ang).length, 0) / d.length : null});
   }
   /* Streuung der Paardifferenz S − A je Gegner (nur die Streuung, nicht der Mittelwert) */
   const streu = {};
@@ -85,7 +88,12 @@ function bewerte(ordner, archivPfad) {
     streu[o] = {n: dif.length, sd: sd(dif)};
   }
   const maxMs = Math.max(0, ...dauer.map(x => x.max || 0));
-  return {gruende, gueltig: gruende.length === 0, dauer, quote, abf, ohne, faelle, paare, abw, ohneAusloeser, streu, kontrolleOk, maxMs};
+  /* „kein-protokoll“: getAIMove kam nicht bis zur Wurzel (Pass vor der Suche); aufgeschlüsselt nach
+     Zug der KI und Antwort des Orakels, damit die Fälle ohne Wirkung nachvollziehbar bleiben */
+  const ohneProt = {n: 0, kiPass: 0, orakelPass: 0};
+  for (const r of alle) for (const e of (r.kandidatenOrakel ? r.kandidatenOrakel.ereignisse : []))
+    if (e.fall === 'kein-protokoll') { ohneProt.n++; if (e.i === -1) ohneProt.kiPass++; if (e.g === -1) ohneProt.orakelPass++; }
+  return {gruende, gueltig: gruende.length === 0, dauer, quote, abf, ohne, faelle, paare, abw, ohneAusloeser, streu, kontrolleOk, maxMs, ohneProt};
 }
 
 function bericht(e) {
@@ -94,14 +102,16 @@ function bericht(e) {
   L.push(e.gueltig ? '**Gültig** (technische Bedingungen 1 bis 4 erfüllt; Bedingung 5 prüft Hazeberry mit dem Budget).' : '**KEIN URTEIL** – ungültig:', '');
   for (const g of e.gruende) L.push(`- ${g}`);
   if (!e.gueltig) L.push('');
-  L.push('## Dauer (Partie, Millisekunden) und Orakelabfragen', '', '| Gegner | Arm | Partien | Median | Maximum | ms je Abfrage | Eingriffe je Partie |', '|---|---|---:|---:|---:|---:|---:|');
-  for (const x of e.dauer) L.push(`| ${GEGNER[x.o]} | ${x.a} | ${x.n} | ${f1(x.med)} | ${f1(x.max)} | ${f1(x.proAbfrage)} | ${f1(x.eingriffe)} |`);
+  L.push('## Dauer (Partie, Millisekunden) und Orakelabfragen', '', '| Gegner | Arm | Partien | Median | Maximum | ms je Abfrage | Auslöser je Partie (c, d, d1) | Eingriffe je Partie |', '|---|---|---:|---:|---:|---:|---:|---:|');
+  for (const x of e.dauer) L.push(`| ${GEGNER[x.o]} | ${x.a} | ${x.n} | ${f1(x.med)} | ${f1(x.max)} | ${f1(x.proAbfrage)} | ${f1(x.ausloeser)} | ${f1(x.eingriffe)} |`);
+  L.push('', 'Auslöser: Fall c, d oder d1, in allen Armen gleich gezählt, auch in Arm A (dort ohne Eingriff). Eingriffe: Zug tatsächlich aufgenommen oder angehoben (Arm A: immer 0).');
   L.push('', `Größte Partiedauer der Probe: ${f1(e.maxMs)} ms (Grundlage für Bedingung 5: Maximum, nicht Mittel, plus 50 % Reserve).`, '');
   L.push(`Orakelantwort: ${e.abf - e.ohne} von ${e.abf} Abfragen beantwortet (${e.quote === null ? '–' : f1(e.quote * 100)} %).`, '');
   L.push('## Fälle nach Farbe (alle Arme, alle Abfragen)', '', '| Farbe | ' + [...new Set([...Object.keys(e.faelle.S), ...Object.keys(e.faelle.W)])].sort().join(' | ') + ' |');
   const ks = [...new Set([...Object.keys(e.faelle.S), ...Object.keys(e.faelle.W)])].sort();
   L.push('|---|' + ks.map(() => '---:').join('|') + '|');
   for (const f of ['S', 'W']) L.push(`| KI ${f === 'S' ? 'Schwarz' : 'Weiß'} | ` + ks.map(k => e.faelle[f][k] || 0).join(' | ') + ' |');
+  if (e.ohneProt.n) L.push('', `kein-protokoll: ${e.ohneProt.n} Abfragen ohne Protokoll (getAIMove endete vor der Wurzelbildung, also war kein Eingriff möglich); davon Zug der KI Pass ${e.ohneProt.kiPass}, Orakel ebenfalls Pass ${e.ohneProt.orakelPass}.`);
   L.push('', `Erster Auslöser S gegen ZS: ${e.paare} Paare, ${e.abw} abweichend, ${e.ohneAusloeser} ohne Auslöser in beiden.`, '');
   L.push(`Kontrolle Arm A gegen Archiv (Seed 222, Nr. 1 bis 4): ${e.kontrolleOk === null ? 'nicht geprüft' : e.kontrolleOk ? 'bitgleich' : 'NICHT bitgleich'}.`, '');
   L.push('## Streuung der Paardifferenz des Endstands (S − A), nur zur Planung', '');

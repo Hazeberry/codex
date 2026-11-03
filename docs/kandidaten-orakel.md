@@ -4,7 +4,10 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 -->
 # Kandidaten-Orakel: Bringt GNU Gos Zug als zusätzliches Wurzelkind etwas? (Vorabfestlegung, Entwurf)
 
-**Stand: Entwurf.** Nichts ist umgesetzt, nichts ist gelaufen. Die Umsetzung (ein Messschalter in der
+**Stand: Laufzeitprobe gelaufen und gültig (§11), Hauptversuch nicht gestartet.** Der folgende Absatz
+beschreibt den ursprünglichen Entwurf; den aktuellen Stand nennen §10 und §11.
+
+Ursprünglicher Stand: Entwurf, nichts umgesetzt, nichts gelaufen. Die Umsetzung (ein Messschalter in der
 Engine, eine Option im Harness, Workflows, Tests) und **jeder Lauf, auch die Laufzeitprobe**, beginnen
 erst nach ausdrücklichem „Go“ von Hazeberry. Dieses Dokument legt vorab fest, was gemessen wird, wie
 gelesen wird und was ein Nullergebnis nicht aussagt. Es gibt **keine automatische Folgeentscheidung**.
@@ -356,5 +359,114 @@ nur der kombinierte Eingriff, Hauptvergleich S − A.
   (Paarezahl und Budget hängen von ihr ab).
 
 Noch offen:
-1. **Zahl der Paare je Gegner** und das **Budget** (nach der Probe, siehe §5 und §7).
-2. **Go** für die Laufzeitprobe (eigenes Go nach geprüfter Umsetzung) und später für den Hauptversuch.
+1. ~~Zahl der Paare je Gegner und Budget~~: festgelegt in §11 (480 Paare je Gegner, 158 Runnerstunden).
+2. ~~Go für die Laufzeitprobe~~: gelaufen, gültig (§11). **Go für den Hauptversuch** steht aus; zuerst wird
+   der Workflow als PR zur Prüfung vorgelegt.
+
+## 11. Nachtrag: Laufzeitprobe (Lauf 41550610778) und Festlegung des Umfangs
+
+**Quelle:** Workflow `kandidaten-orakel-probe.yml`, Lauf 41550610778 (Stand `1c71b02`, 03.11.2026),
+Seed 230. Bericht und Rohdaten unter `docs/daten/kandidaten-orakel/probe-lauf1/`: `bericht.md` ist die
+unveränderte Ausgabe des Laufs, `bericht-nachgerechnet.md` dieselbe Auswertung derselben Rohdaten mit der
+korrigierten Beschriftung (siehe unten). Ergebnis: **gültig**, technische Bedingungen 1 bis 4 aus §7
+erfüllt; Bedingung 5 siehe unten.
+
+Die Probe sagt **nichts** über die Wirkung des Eingriffs (§7). Mittelwerte der Endstände werden weder
+berechnet noch berichtet; ihre Partien zählen nicht zum Hauptversuch.
+
+### Technische Bedingungen
+
+| Bedingung (§7) | Ergebnis |
+|---|---|
+| 1. Arm A reproduziert Seed 222, Nr. 1 bis 4 | bitgleich (Züge und Endstand) |
+| 2. Orakelantwort ≥ 98 % | 4678 von 4678 Abfragen (100 %), keine Neustarts nötig |
+| 3. Fall (d) in beiden Farben | KI Schwarz 681, KI Weiß 733 (alle Arme zusammen) |
+| 4. erster Auslöser S = ZS | 12 von 12 Paaren gleich (Zugnummer, Fall, Rang von *g* und *n*) |
+| 5. Hochrechnung unter dem Budget | erfüllt, mit knappem Abstand (unten) |
+
+### Dauer, Auslöser und Eingriffe
+
+| Gegner | Arm | Partien | Median (s) | Maximum (s) | ms je Abfrage | Auslöser je Partie (c, d, d1) | Eingriffe je Partie |
+|---|---|---:|---:|---:|---:|---:|---:|
+| GNU Go | A | 8 | 54,1 | 66,4 | 242,5 | 60,1 | 0 |
+| GNU Go | S | 8 | 55,6 | 75,4 | 230,9 | 48,3 | 48,3 |
+| GNU Go | ZS | 8 | 65,7 | 90,7 | 314,7 | 64,5 | 64,5 |
+| Fuego | A | 4 | 104,6 | 109,9 | 373,7 | 86,0 | 0 |
+| Fuego | S | 4 | 118,2 | 171,7 | 569,3 | 86,3 | 86,3 |
+| Fuego | ZS | 4 | 74,0 | 82,7 | 300,8 | 94,8 | 94,8 |
+
+**Korrektur der Beschriftung.** Der Bericht des Laufs nennt die vorletzte Spalte „Eingriffe je Partie“.
+Gezählt wurden dort aber **Auslöser**, also KI-Züge mit Fall c, d oder d1. Diese Zählung ist in allen
+Armen gleich definiert, auch in Arm A, wo bei einem Auslöser **nichts** geschieht. Die Zahlen 60,1 und 86
+für Arm A sind also keine Eingriffe. Tatsächliche Eingriffe (Zug aufgenommen oder angehoben) gibt es nur in
+S und ZS; dort fällt jeder Auslöser mit einem Eingriff zusammen, weil (c1) nicht als Auslöser zählt und
+(d1) eine Aufnahme ist. `probe-bericht.js` beschriftet die Spalte jetzt als „Auslöser je Partie (c, d,
+d1)“ und gibt die Eingriffe in einer eigenen Spalte aus. Dass die Auslöser je Partie zwischen den Armen
+verschieden sind, ist erwartet: Die Partien verlaufen nach dem ersten Eingriff verschieden.
+
+### Die 42 Abfragen ohne Protokoll
+
+In 42 von 4678 Abfragen (0,9 %) steht im Protokoll der Fall `kein-protokoll` (Arme A, S, ZS je Gegner:
+GNU Go 8, 8, 8; Fuego 4, 5, 9; dazu 4 in der Kontrolle, die nicht in den 4678 mitzählen). Die Ursache ist
+im Code und in den Rohdaten belegt:
+
+- Das Orakel wird **vor** `getAIMove` gefragt, die Abfrage wird also gezählt. Der Eingriff sitzt aber in
+  der Bildung der Wurzelkinder (`_mctsWurzelKinder`). Endet `getAIMove` **vor** der Suche, wird keine
+  Wurzel gebildet und `kandidatenProtokoll()` bleibt `null`. Das Harness schreibt dann `kein-protokoll`.
+- Vor der Suche endet `getAIMove` nur mit einem **Pass** (keine legalen Züge; alle Züge laut Benson
+  todgeboren; nur eigene Augen frei; Pass-Prüfung ohne lohnenden Zug oder mit unabwendbarem Gegnerzug)
+  oder mit Aufgabe (hier abgeschaltet).
+- **Alle 42** Fälle sind tatsächlich Pässe der KI (`i` = −1), und in **allen 42** hat auch das Orakel
+  gepasst (`g` = −1). 36 davon sind der letzte Zug der KI in der Partie, 6 liegen kurz davor im Endspiel
+  (Fuego, Arm S Partie 3 einmal, Arm ZS Partien 1 und 2 zusammen fünfmal). Welcher der Pass-Pfade griff,
+  hält das Protokoll nicht fest.
+
+**Folge:** In diesen 42 Abfragen war kein Eingriff möglich. Er wäre aber auch mit Wurzel nicht erfolgt:
+Ein Pass des Orakels ist Fall (a), und Fall (a) heißt in **keinem** Arm ein Eingriff. Die Fälle verzerren
+den Vergleich der Arme deshalb nicht. Die Übergabe nannte als Ursache „Wurzel nicht neu gebildet“. Das
+stimmt im Ergebnis, ist aber ungenau: Die Wurzel wird bei `wurzelFrisch` 1 in jedem gesuchten Zug neu
+gebildet. Es fehlte die Suche selbst, weil die KI vorher passte. Der Bericht nennt die Zahl jetzt mit
+Aufschlüsselung (Pass der KI, Pass des Orakels). Im Hauptversuch werden die Fälle ebenso gezählt und
+berichtet; ein Fall `kein-protokoll` mit einem Zug des Orakels (`g` ≥ 0) wäre dort ein Eingriff, der wegen
+des Passes der KI entfällt, in allen Armen nach derselben Regel.
+
+### Streuung (nur Planung)
+
+SD der Paardifferenz S − A: GNU Go 44,9 Punkte (8 Paare), Fuego 13,2 Punkte (4 Paare). Bei so wenigen
+Paaren ist das nur eine Größenordnung; nach §5 prüft die Probe nur, ob die Planungswerte um mehr als den
+Faktor 1,5 danebenliegen. GNU Go: 59 / 44,9 = 1,3, innerhalb. Fuego: 85 / 13,2 = 6,4, außerhalb, aber aus
+4 Paaren nicht belastbar (bei 4 Paaren ist die SD sehr unsicher). Die Planungswerte 59 und 85 bleiben;
+eine kleinere wahre SD macht die Intervalle nur schmaler.
+
+### Festlegung des Umfangs (Hazeberry, 03.11.2026)
+
+- **480 Paare je Gegner**, in allen drei Armen A, S und ZS dieselben Partienummern 1 bis 480 (240 je Farbe).
+  Das sind 3 × 480 = 1440 Partien je Gegner und **2880 Partien** insgesamt, ohne Kontrollen.
+- Seeds wie in §4 festgelegt: **231** gegen GNU Go, **232** gegen Fuego.
+- Erwartete Genauigkeit (§5, mit den Planungswerten): halbe Breite des 97,5-%-Intervalls 6,0 Punkte
+  (GNU Go) und 8,7 Punkte (Fuego); MDE₈₀ 8,3 und 12,0 Punkte.
+- **Budget: 158 Runnerstunden** als Planungsbudget, **nicht** als garantierte Obergrenze.
+
+### Bedingung 5: Hochrechnung gegen das Budget
+
+Nach §7 aus dem **Maximum** der Probe plus 50 % Reserve: GNU Go 90,7 s × 1,5 = 136,1 s, Fuego 171,7 s ×
+1,5 = 257,6 s je Partie.
+
+| Teil | Partien | Hochrechnung |
+|---|---:|---:|
+| GNU Go, 3 Arme × 480 | 1440 | 54,4 h |
+| Fuego, 3 Arme × 480 | 1440 | 103,0 h |
+| **Summe der Partien** | **2880** | **157,5 h** |
+| Wiederholungskontrolle (§9: je Arm und Gegner die Partien 1 bis 3 noch einmal) | 18 | 1,0 h |
+| Kontrolle gegen das Archiv (Seed 222, Nr. 1 bis 4) | 4 | 0,2 h |
+| Einrichten der Jobs (Probe: rund 15 s je GNU-Go-Job, 30 s je Fuego-Job), Fuego bauen | – | unter 1 h |
+
+**Bewertung.** Die Hochrechnung der Partien (157,5 h) liegt unter dem Budget (158 h); Bedingung 5 ist in
+ihrem Wortlaut erfüllt. Der Abstand ist mit 0,5 h aber **knapp**, weil das Budget gleich der Hochrechnung
+gewählt wurde. Mit Kontrollen und Einrichtung kommt die vorsichtige Rechnung auf **rund 159 bis 160 h**, gut
+1 % über dem Planungsbudget. Aus den **Medianen** der Probe ergäben sich rund 63 h für die Partien (GNU Go
+23,4 h, Fuego 39,6 h). Das ist eine Erwartung, keine Zusage: Wie lang die Partien im Hauptversuch dauern,
+ist nicht gemessen, und das Maximum aus 8 bzw. 4 Partien kann im Hauptversuch überschritten werden.
+Dagegen soll der Workflow des Hauptversuchs nach jeder Partie sichern und sich fortsetzen lassen (eigener PR,
+nur Vorbereitung; der Lauf braucht ein eigenes Go).
+
