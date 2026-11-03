@@ -228,6 +228,8 @@ im Protokoll (§8) und das Planungsbudget (§10).
 - **Bericht:** `auswertung/kandidaten-orakel/vierarm-bericht.js`, mit `--probe` für §9 (ohne
   Endstand-Unterschiede). Prüft §7 Punkt 1 bis 11 (9 über `zusammenfuehren.js`); Hauptvergleiche mit
   α = 0,05/6; Additivität der Mittelwerte als Zeile; Protokoll getrennt nach c und d/d1, Farbe und Phase.
+- **Protokoll je Farbe und Spielphase:** natürlicher und endgültiger Prior (Median, Quartile), Aufnahme,
+  Anhebung, Anteil Kind, null Besuche, Besuche (Median, Quartile) und gespielt, getrennt nach Fall c und d/d1.
 - **Prüfungen und Ausfälle im Bericht (Vorgabe Hazeberry, 03.11.2026):** Der Bericht führt jede technische
   Prüfung als eigene Zeile mit geprüften und **nicht prüfbaren** Einheiten und dem Ergebnis; „bestanden“ gilt
   nur für die geprüften Einheiten. **Zulässige Partieausfälle** (abgebrochene Partien) stehen in einem eigenen

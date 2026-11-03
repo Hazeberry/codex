@@ -135,6 +135,9 @@ test('Bericht Probe: gültig, nur Technik, keine Endstand-Unterschiede; Protokol
   const t = B.bericht(e);
   pruefe(!/Hauptvergleiche/.test(t) && !/Ergänzend/.test(t) && /keine\*\* Endstand-Unterschiede/.test(t), 'keine Effekte in der Probe');
   pruefe(/schon Kind \(c\)/.test(t) && /neu \(d, d1\)/.test(t) && /Nach Farbe und Spielphase/.test(t), 'Protokoll getrennt');
+  const ph = B.protokoll(e).phasen, z = ph.find(x => x.o === 'g' && x.a === 'S' && x.gruppe === 'neu (d, d1)' && x.f === 'S' && x.ph === '81–160');
+  pruefe(z && z.n === 4 && z.pG[1] === 0.05 && z.pE[1] === 0.2 && z.besuche[1] === 3, 'Quartile von Prior und Besuchen je Farbe und Phase: ' + JSON.stringify(z));
+  pruefe(/\| natürlicher Prior \| endgültiger Prior \| aufgenommen \| angehoben \| Kind \| null Besuche \(von Kind\) \| Besuche Median \[Quartile\] \| gespielt \|/.test(t.slice(t.indexOf('### Nach Farbe und Spielphase'))), 'Spalten in der Tabelle nach Farbe und Phase');
 });
 
 test('Bericht Hauptlauf: sechs Tests mit 99,17 %, Additivität der Mittelwerte, vollständige Vierergruppen', () => {

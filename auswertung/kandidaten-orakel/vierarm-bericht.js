@@ -208,7 +208,8 @@ function protokoll(e) {
     for (const f of ['S', 'W']) for (const [ph, von, bis] of PHASEN) {
       const t = ev.filter(x => x.f === f && x.mc >= von && x.mc <= bis), tk = t.filter(x => x.b && x.b.g !== null && x.b.g !== undefined);
       phasen.push({o, a, gruppe, f, ph, n: t.length, auf: t.filter(x => x.auf).length, ang: t.filter(x => x.ang).length,
-        kind: tk.length, null: tk.filter(x => x.b.g === 0).length, gespielt: t.filter(x => x.gl).length});
+        pG: quartile(t.map(x => x.pG).filter(Number.isFinite)), pE: quartile(t.map(x => x.pE).filter(Number.isFinite)),
+        kind: tk.length, null: tk.filter(x => x.b.g === 0).length, besuche: quartile(tk.map(x => x.b.g)), gespielt: t.filter(x => x.gl).length});
     }
   }
   return {zeilen, phasen};
@@ -331,8 +332,8 @@ function bericht(e) {
     '| Gegner | Arm | Gruppe | Stellen | natürlicher Prior | endgültiger Prior | aufgenommen | angehoben | Kind | null Besuche (von Kind) | Besuche Median [Quartile] | gespielt |',
     '|---|---|---|---:|---|---|---:|---:|---:|---:|---|---:|');
   for (const z of p.zeilen) L.push(`| ${GEGNER[z.o]} | ${z.a} | ${z.gruppe} | ${z.n} | ${q3(z.pG)} | ${q3(z.pE)} | ${pz(z.auf, z.n)} | ${pz(z.ang, z.n)} | ${pz(z.kind, z.n)} | ${pz(z.null, z.kind)} | ${k1(z.besuche[1])} [${k1(z.besuche[0])}; ${k1(z.besuche[2])}] | ${pz(z.gespielt, z.n)} |`);
-  L.push('', '### Nach Farbe und Spielphase', '', '| Gegner | Arm | Gruppe | KI | Zug | Stellen | aufgenommen | angehoben | null Besuche (von Kind) | gespielt |', '|---|---|---|---|---|---:|---:|---:|---:|---:|');
-  for (const z of p.phasen) L.push(`| ${GEGNER[z.o]} | ${z.a} | ${z.gruppe} | ${z.f === 'S' ? 'Schwarz' : 'Weiß'} | ${z.ph} | ${z.n} | ${pz(z.auf, z.n)} | ${pz(z.ang, z.n)} | ${pz(z.null, z.kind)} | ${pz(z.gespielt, z.n)} |`);
+  L.push('', '### Nach Farbe und Spielphase', '', '| Gegner | Arm | Gruppe | KI | Zug | Stellen | natürlicher Prior | endgültiger Prior | aufgenommen | angehoben | Kind | null Besuche (von Kind) | Besuche Median [Quartile] | gespielt |', '|---|---|---|---|---|---:|---|---|---:|---:|---:|---:|---|---:|');
+  for (const z of p.phasen) L.push(`| ${GEGNER[z.o]} | ${z.a} | ${z.gruppe} | ${z.f === 'S' ? 'Schwarz' : 'Weiß'} | ${z.ph} | ${z.n} | ${q3(z.pG)} | ${q3(z.pE)} | ${pz(z.auf, z.n)} | ${pz(z.ang, z.n)} | ${pz(z.kind, z.n)} | ${pz(z.null, z.kind)} | ${k1(z.besuche[1])} [${k1(z.besuche[0])}; ${k1(z.besuche[2])}] | ${pz(z.gespielt, z.n)} |`);
   L.push('');
   if (e.probe) return L.join('\n') + '\n';
 
