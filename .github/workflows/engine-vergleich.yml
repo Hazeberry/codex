@@ -1,0 +1,133 @@
+name: Engine-Vergleich
+
+# Nur von Hand, nur nach ausdrücklichem „Go“. Vergleicht zwei Stände von index.html an denselben
+# Archivstellungen (auswertung/engine-vergleich.js): Züge, Wurzelkinder mit Priors und Protokollfälle.
+# Je Stand ein eigener Job und damit ein eigener Prozess: ladeEngine lädt die Engine per globalem eval,
+# zwei Stände im selben Node-Prozess können sich gegenseitig überschreiben (CLAUDE.md).
+# Das Werkzeug (Skript, Archiv) kommt immer aus dem Stand, auf dem der Workflow läuft; aus den beiden
+# verglichenen Ständen wird nur index.html genommen. Vor „GLEICH“ prüft der Vergleich, dass jede KI-Abfrage
+# mit Wurzelkindern vorhandene, endliche Priors hat und dass jeder Arm die verlangten Fälle abdeckt; sonst
+# KEIN URTEIL. Ergebnis: Artefakt und Zusammenfassung mit Tabelle je Replay (KI-Abfragen, erste
+# Archivabweichung); rot bei VERSCHIEDEN oder KEIN URTEIL. Schreibt nichts ins Repo.
+on:
+  workflow_dispatch:
+    inputs:
+      alt:
+        description: 'Alter Stand (Commit, Branch oder Tag)'
+        required: true
+      neu:
+        description: 'Neuer Stand (Commit, Branch oder Tag)'
+        required: true
+      partien:
+        description: 'Archivpartien (leeres-brett-g-D, Seed 222), mit Komma'
+        required: false
+        default: '1,2'
+      bis:
+        description: 'Nachspielen bis Zug'
+        required: false
+        default: '130'
+      raenge:
+        description: 'Rang des Orakelzugs in der Liste, mit Komma'
+        required: false
+        default: '5,16,17,30'
+      arme:
+        description: 'Arme des Kandidaten-Orakels, mit Komma (leer = nur Default)'
+        required: false
+        default: 'A,S,ZS'
+      faelle:
+        description: 'Fälle, die je Arm mindestens einmal vorkommen müssen (Abdeckung), mit Komma'
+        required: false
+        default: 'c,d'
+
+concurrency:
+  group: engine-vergleich
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  stand:
+    name: Stand ${{ matrix.seite }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        seite: [alt, neu]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.seite == 'alt' && inputs.alt || inputs.neu }}
+          path: stand
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Nachspielen
+        timeout-minutes: 100
+        env:
+          SEITE: ${{ matrix.seite }}
+          PARTIEN: ${{ inputs.partien }}
+          BIS: ${{ inputs.bis }}
+          RAENGE: ${{ inputs.raenge }}
+          ARME: ${{ inputs.arme }}
+          FAELLE: ${{ inputs.faelle }}
+        run: |
+          status=0
+          mkdir -p ergebnis
+          git -C stand rev-parse HEAD > "ergebnis/$SEITE.sha"
+          node auswertung/engine-vergleich.js --dump --html stand/index.html --aus "ergebnis/$SEITE.json" \
+            --partien "$PARTIEN" --bis "$BIS" --raenge "$RAENGE" --arme "$ARME" --faelle "$FAELLE" || status=$?
+          echo "Stand $SEITE ($(cat "ergebnis/$SEITE.sha")): Status $status"
+          exit "$status"
+
+      - name: Ergebnis sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: engine-vergleich-${{ matrix.seite }}
+          path: ergebnis/
+          if-no-files-found: warn
+          retention-days: 30
+
+  vergleich:
+    name: Vergleich
+    needs: stand
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: engine-vergleich-*
+          path: ergebnis
+          merge-multiple: true
+
+      - name: Vergleichen (rot bei Abweichung)
+        run: |
+          status=0
+          node auswertung/engine-vergleich.js --vergleich ergebnis/alt.json ergebnis/neu.json --bericht ergebnis/bericht.md || status=$?
+          { echo "Alt: $(cat ergebnis/alt.sha)  Neu: $(cat ergebnis/neu.sha)"; echo; cat ergebnis/bericht.md; } >> "$GITHUB_STEP_SUMMARY"
+          cat ergebnis/bericht.md
+          exit "$status"
+
+      - name: Bericht sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: engine-vergleich-bericht
+          path: ergebnis/bericht.md
+          if-no-files-found: warn
+          retention-days: 30
