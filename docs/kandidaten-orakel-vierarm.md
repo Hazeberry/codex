@@ -217,9 +217,10 @@ im Protokoll (§8) und das Planungsbudget (§10).
 - **Engine (`index.html`, nur Messpfad):** `_mctsKidsOrakelKern` kennt die Arme `N` und `P`. Die
   Fallbestimmung ist für alle Arme dieselbe; N kehrt in Fall c unverändert zurück und nimmt in d und d1 mit dem
   natürlichen Prior P′ auf, ohne anzuheben; P kehrt in d und d1 unverändert zurück und hebt in c an wie S. A, S
-  und ZS sind unverändert: An den Archivpartien Nr. 1 bis 4 (Zug 81 bis 160, Orakelzug auf Rang 2, 5, 12, 16,
-  17, 25, 40) gaben alte und neue Engine für A, S und ZS dieselben Züge und Kinder (Vergleich lokal, nicht im
-  Repo). Neues Protokollfeld `pEnd`: Prior des Orakelzugs unter den fertigen Kindern, sonst `null` (nur lesend).
+  und ZS sind unverändert: An den Archivpartien Nr. 1 und 2 (Seed 222, Zug 81 bis 130, Orakelzug auf Rang 5,
+  16, 17 oder 30; dabei 117 Stellungen mit Fall c und 116 mit Fall d) gaben die Engine von Stufe 1 (`370df8e`) und
+  die neue für A, S und ZS in 24 von 24 Replays dieselben Züge, Kinder und Priors (Vergleich lokal, je Engine
+  ein eigener Prozess, nicht im Repo). Neues Protokollfeld `pEnd`: Prior des Orakelzugs unter den fertigen Kindern, sonst `null` (nur lesend).
 - **Harness (`gnugo-duell.js`):** `--kandidaten-orakel A|N|P|S|ZS`; Protokollfeld `pE`.
 - **Pakete und Zusammenführen:** `paket.js` und `zusammenfuehren.js` kennen N und P.
 - **Bericht:** `auswertung/kandidaten-orakel/vierarm-bericht.js`, mit `--probe` für §9 (ohne
