@@ -47,6 +47,12 @@
                           den Zug, der statt unseres gespielt wird. getAIMove
                           läuft trotzdem; seine Wahl wird nur verglichen)
                          [--orakel-zug-stufe S] (Stufe dieses GNU Go, Standard 10)
+                         [--kandidaten-orakel A|S|ZS] [--kandidaten-ab AB] (Kandidaten-Orakel,
+                          docs/kandidaten-orakel.md, Stufe 1: dasselbe zweite GNU Go
+                          (Stufe --orakel-zug-stufe) wird in jedem unserer Züge ab mc ≥ AB
+                          (Standard 80) VOR der Suche nach seinem Zug gefragt. A: nur Protokoll;
+                          S: der Zug wird als Wurzelkind mit Spitzenprior aufgenommen; ZS: Kontrolle
+                          mit dem Rang-Nachbarn. Unser Zug wird nie ersetzt. Nicht mit --orakel-zug)
                          [--gegner gnugo|fuego|ki] (Standard gnugo; fuego und ki:
                           siehe unten)
                          [--fuego pfad] (Standard fuego-bin/fuego, gebaut mit
@@ -113,7 +119,7 @@ const {spawn} = require('child_process');
 const a = process.argv.slice(2);
 const opt = {partien: 10, seed: 1, stufe: 10, ki: {}, kiStufen: {}, roh: null, gnugo: '/usr/games/gnugo',
              maxZuege: 400, von: 1, vorgabe: 0, schaetzung: [], gnugoAufgabe: 1, orakel: 0,
-             orakelZug: null, orakelZugStufe: 10,
+             orakelZug: null, orakelZugStufe: 10, kandidatenOrakel: null, kandidatenAb: 80,
              gegner: 'gnugo', fuego: path.join(__dirname, 'fuego-bin', 'fuego'), fuegoSpiele: 1000,
              gegnerHtml: null, gegnerKi: ''};
 for (let i = 0; i < a.length; i++) {
@@ -139,6 +145,10 @@ for (let i = 0; i < a.length; i++) {
       i++; break;
     }
     case '--orakel-zug-stufe': opt.orakelZugStufe = +v; i++; break;
+    case '--kandidaten-orakel':
+      if (!['A', 'S', 'ZS'].includes(v)) { console.error(`--kandidaten-orakel A|S|ZS erwartet (Stufe 1 der Vorabfestlegung docs/kandidaten-orakel.md): ${v}`); process.exit(2); }
+      opt.kandidatenOrakel = v; i++; break;
+    case '--kandidaten-ab': opt.kandidatenAb = +v; i++; break;
     case '--gegner':
       if (v !== 'gnugo' && v !== 'fuego' && v !== 'ki') { console.error(`--gegner erwartet gnugo, fuego oder ki: ${v}`); process.exit(2); }
       opt.gegner = v; i++; break;
@@ -170,6 +180,9 @@ if (opt.gegner === 'ki' && !(opt.gegnerHtml && fs.existsSync(opt.gegnerHtml))) {
   console.error(`--gegner ki braucht --gegner-html mit einer vorhandenen Datei: ${opt.gegnerHtml}`); process.exit(2);
 }
 
+if (opt.kandidatenOrakel && opt.orakelZug) { console.error('--kandidaten-orakel und --orakel-zug schließen sich aus (das eine fragt nur, das andere ersetzt den Zug)'); process.exit(2); }
+if (!(Number.isInteger(opt.kandidatenAb) && opt.kandidatenAb >= 0)) { console.error(`--kandidaten-ab erwartet eine ganze Zahl ≥ 0: ${opt.kandidatenAb}`); process.exit(2); }
+
 /* ── Engine laden, wie weiterspielen.js; dazu ein Setzer für die
       Modulzustände, die über Partien hinweg nicht weiterleben dürfen. ── */
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
@@ -181,6 +194,7 @@ globalThis.document = {getElementById: () => null};
   + 'bensonClassify,_bnDead,BOARD_SIZE,NEIGHBORS,setzeKrisenDauer,setzeLebensurteil,'
   + 'neuePartie(){_mctsSavedRoot=null;_hopelessStreak=0;_allDeadStreak=0;_lastMsPerSim=null;},'
   + 'baumVerwerfen(){_mctsSavedRoot=null;},'
+  + 'kandidatenProtokoll:typeof leseKandidatenOrakel==="function"?leseKandidatenOrakel:null,'
   + 'wurzel:typeof leseWurzelWaechter==="function"?leseWurzelWaechter:null};');
 const E = globalThis.__D;
 const {urteilAusGtp} = require('./auswertung/lebensurteil.js');
@@ -365,7 +379,8 @@ async function partieSpielen(nr) {
   /* Orakel-Test: ein weiteres GNU Go, spielt jeden Zug mit und liefert unseren
      Zug (reg_genmove) ab der Zugzahl AB. Eigener Zufallsstrom für die Wahl mit
      ANTEIL < 1, damit unser Math.random unberührt bleibt. */
-  const oz = opt.orakelZug ? gnugoMitNeustart(seed + 60000, opt.orakelZugStufe) : null;
+  const oz = (opt.orakelZug || opt.kandidatenOrakel) ? gnugoMitNeustart(seed + 60000, opt.orakelZugStufe) : null;
+  const kandProt = [], kandStat = {abfragen: 0, ohneAntwort: 0, abfrageMs: 0}, kandT0 = Date.now();
   const orakelZug = {gelegenheiten: 0, eingesetzt: 0, gleich: 0, paesse: 0};
   const zufallOrakel = mulberry32(seed + 70000);
   E.setzeLebensurteil(null);
@@ -421,11 +436,28 @@ async function partieSpielen(nr) {
           E.setzeLebensurteil(u);
           orakel.zuege++; orakel.tot += u.toteSteine.length; orakel.krit += u.krit.length;
         }
-        const r = E.getAIMove(board, f, Array.from(hist), {...caps}, mc, 'hard', 1, ko, last);
+        let extra;
+        if (oz && opt.kandidatenOrakel && mc >= opt.kandidatenAb) {
+          /* Kandidaten-Orakel: Zug des zweiten GNU Go VOR der Suche (ändert unseren Zufallsstrom nicht) */
+          kandStat.abfragen++;
+          let gi; const tq = Date.now();
+          try { const a = vonGtp(await oz.frage(`reg_genmove ${farbe}`)); gi = a < 0 ? -1 : a; }
+          catch (e) { kandStat.ohneAntwort++; gi = undefined; }
+          kandStat.abfrageMs += Date.now() - tq;
+          extra = {kandidatenOrakel: {arm: opt.kandidatenOrakel, g: gi}};
+        }
+        const r = E.getAIMove(board, f, Array.from(hist), {...caps}, mc, 'hard', 1, ko, last, extra);
         if (r.type === 'resign') { aufgabe = f; break; }
         i = r.type === 'stone' ? r.y * 19 + r.x : -1;
         const m = /MCTS (\d+) Sims/.exec(r.info || ''); if (m) sims.push(+m[1]);
-        if (oz && mc >= opt.orakelZug.ab) {
+        if (extra) {
+          const p = E.kandidatenProtokoll ? E.kandidatenProtokoll() : null, k = extra.kandidatenOrakel;
+          /* kompakt: ein Eintrag je Zug; p = null, wenn die Wurzel nicht neu gebildet wurde */
+          kandProt.push(p ? {mc, f: wir === 1 ? 'S' : 'W', g: p.g, fall: p.fall, r: p.r, rn: p.rn, n: p.nIdx, pG: p.pG, pN: p.pN,
+                             auf: p.aufgenommen ? 1 : 0, ang: p.angehoben ? 1 : 0, k: p.kinder, b: p.besuche, i, gl: p.g === i ? 1 : 0}
+                          : {mc, f: wir === 1 ? 'S' : 'W', g: k.g === undefined ? null : k.g, fall: 'kein-protokoll', i});
+        }
+        if (oz && opt.orakelZug && mc >= opt.orakelZug.ab) {
           orakelZug.gelegenheiten++;
           if (opt.orakelZug.anteil >= 1 || zufallOrakel() < opt.orakelZug.anteil) {
             const oi = vonGtp(await oz.frage(`reg_genmove ${farbe}`));
@@ -503,7 +535,8 @@ async function partieSpielen(nr) {
                                                  ki: opt.gegnerKi, schiedsrichterStufe: opt.stufe}} : {}),
             ...(MIT_STUFEN ? {kiStufen: opt.kiStufen, phasenwechsel} : {}),
             ...(o ? {orakel: {stufe: opt.orakel, ...orakel, neustarts: o.neustarts()}} : {}),
-            ...(oz ? {orakelZug: {ab: opt.orakelZug.ab, anteil: opt.orakelZug.anteil, stufe: opt.orakelZugStufe, ...orakelZug, neustarts: oz.neustarts()}} : {}),
+            ...(oz && opt.orakelZug ? {orakelZug: {ab: opt.orakelZug.ab, anteil: opt.orakelZug.anteil, stufe: opt.orakelZugStufe, ...orakelZug, neustarts: oz.neustarts()}} : {}),
+            ...(oz && opt.kandidatenOrakel ? {kandidatenOrakel: {arm: opt.kandidatenOrakel, ab: opt.kandidatenAb, stufe: opt.orakelZugStufe, ...kandStat, neustarts: oz.neustarts(), partieMs: Date.now() - kandT0, ereignisse: kandProt}} : {}),
             wurzel: E.wurzel ? E.wurzel(true) : undefined,
             zuege};
   } finally { g.ende(); if (fu) fu.ende(); if (o) o.ende(); if (oz) oz.ende(); E.setzeLebensurteil(null); }

@@ -302,7 +302,7 @@ Start und eine Meldung mit Grund):
 5. Hochrechnung der Laufzeit des Hauptversuchs aus dem Maximum der Probe (nicht aus dem Mittel), plus
    50 % Reserve, bleibt unter dem Budget, das Hazeberry nach der Probe nennt.
 
-## 8. Umsetzung (beschrieben, nicht umgesetzt)
+## 8. Umsetzung (Stufe 1 umgesetzt, nicht gelaufen)
 
 - **Engine:** ein Messschalter, **Standard aus**, nur über `extra` erreichbar (wie die Passregel), nie in
   der Oberfläche und nie im Browser gesetzt. Die Zahl entscheidet über den Arm; der Orakelzug kommt als
@@ -338,7 +338,23 @@ nicht identisch; Zählersummen der Fälle gehen nicht auf. Die Gültigkeit häng
 Festgehalten (Präferenz von Hazeberry): **Stufe 1 mit beiden Gegnern** (GNU Go und Fuego), Arme A, S, ZS,
 nur der kombinierte Eingriff, Hauptvergleich S − A.
 
+**Stand: Stufe 1 umgesetzt (Go von Hazeberry), nichts gelaufen.** Umgesetzt und getestet:
+- `index.html`: Messschalter `extra.kandidatenOrakel = {arm, g}` (nur Stufe „hard“, nur über `extra`,
+  Standard aus). Ohne `extra` ist `getAIMove` unverändert; Arm A ändert nur das Protokoll.
+  Zusätzliche Protokollfälle gegenüber §3: `x` (keine Antwort des Orakels), `c0`/`d0` (kein Rang-Nachbar),
+  `e` (entartete Prior-Rechnung) – alle ohne Eingriff, also bitgleich zum Default.
+  Protokollfelder je KI-Zug: `arm, g, fall, r, rn, nIdx, pG, pN, aufgenommen, angehoben, kinder, besuche`.
+- `gnugo-duell.js`: `--kandidaten-orakel A|S|ZS`, `--kandidaten-ab` (Standard 80); das Orakel wird vor
+  `getAIMove` gefragt (`reg_genmove`, zieht, legt nicht); Ergebnisfeld `kandidatenOrakel` mit Protokoll,
+  Abfragen, fehlenden Antworten, Neustarts, Abfragezeit und Partiedauer. Unser Zug wird nie ersetzt.
+- `spielen.sh`: `DUELL_ZUSATZ` für weitere Optionen (leer = unverändert).
+- Tests: `tests/kandidaten-orakel.js` (Rechenbeispiel, Bit-Identität zum Default, alle Fälle und Randfälle,
+  darunter gleiche Scores und Zusatzkind bereits mit höchstem Prior), `tests/kandidaten-orakel-spiel.js`
+  (Replay in echten Stellungen für Schwarz und Weiß, Harness mit Attrappe, Bericht, Workflow).
+- Workflow `kandidaten-orakel-probe.yml` und Bericht `auswertung/kandidaten-orakel/probe-bericht.js` für
+  die Laufzeitprobe (§7). **Nicht gestartet.** Der Hauptversuch-Workflow wird erst nach der Probe geschrieben
+  (Paarezahl und Budget hängen von ihr ab).
+
 Noch offen:
 1. **Zahl der Paare je Gegner** und das **Budget** (nach der Probe, siehe §5 und §7).
-2. **Go** für die Umsetzung (Schalter, Harness, Workflows, Tests, §8) und danach, getrennt davon, für die
-   Laufzeitprobe. Bis dahin ist nichts umgesetzt und nichts gelaufen.
+2. **Go** für die Laufzeitprobe (eigenes Go nach geprüfter Umsetzung) und später für den Hauptversuch.
