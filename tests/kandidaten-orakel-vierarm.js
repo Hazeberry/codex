@@ -115,12 +115,13 @@ function partie(nr, arm, opt = {}) {
   const versatz = {A: 0, N: 2, P: 1, S: 4}[arm];
   return {nr, wirFarbe: f, endstand: versatz + (nr % 5), gewonnen: nr % 3 === 0, zuegeAnzahl: 86, zuege: Array.from({length: 86}, (_, k) => 'D' + (k % 19 + 1)),
     ...(opt.abgebrochen ? {abgebrochen: 'GNU Go beendet', endstand: undefined} : {}),
-    kandidatenOrakel: {arm, ab: 80, abfragen: 3, ohneAntwort: 0, abfrageMs: 10, partieMs: 1000 * nr, ereignisse: ev}};
+    ...(opt.ohneProt ? {} : {kandidatenOrakel: {arm, ab: 80, abfragen: 3, ohneAntwort: 0, abfrageMs: 10, partieMs: 1000 * nr, ereignisse: ev}})};
 }
 function baue(n, opt = {}) {
   const d = temp();
   for (const o of ['g', 'f']) for (const arm of B.ARME) {
-    const l = []; for (let nr = 1; nr <= (typeof n === 'object' ? n[o] : n); nr++) l.push(partie(nr, arm, {...opt, abgebrochen: opt.abgebrochen && o === 'f' && arm === 'P' && nr === 4}));
+    const l = []; for (let nr = 1; nr <= (typeof n === 'object' ? n[o] : n); nr++) l.push(partie(nr, arm, {...opt, abgebrochen: opt.abgebrochen && o === 'f' && arm === 'P' && nr === 4,
+      ohneProt: opt.ohneProt && o === 'g' && arm === 'N' && nr === 3}));
     fs.writeFileSync(path.join(d, `${o}-${arm}.jsonl`), l.map(x => JSON.stringify(x) + '\n').join(''));
     fs.writeFileSync(path.join(d, `wiederholung-${o}-${arm}.jsonl`), l.filter(x => x.nr <= 3).map(x => JSON.stringify(x) + '\n').join(''));
   }
@@ -149,6 +150,22 @@ test('Bericht Hauptlauf: sechs Tests mit 99,17 %, Additivität der Mittelwerte, 
   const t = B.bericht(e);
   pruefe(/99,17 %/.test(t) && /keine Zerlegung in unabhängige Mechanismen/.test(t) && /\*\*99 vollständige Vierergruppen\*\*/.test(t), 'Bericht');
   pruefe(Math.abs(B.ALPHA_PRIMAER - 0.05 / 6) < 1e-15, 'α = 0,05/6');
+});
+
+test('Fehlendes Pflichtprotokoll → KEIN URTEIL (Probe und Hauptlauf); zulässige Ausfälle getrennt, nicht prüfbare Gruppen ausdrücklich', () => {
+  for (const [probe, n] of [[true, {g: 8, f: 4}], [false, {g: 8, f: 8}]]) {
+    const e = B.bewerte(baue(n, {ohneProt: true}), ARCH, n, probe);
+    pruefe(!e.gueltig && e.gruende.some(g => /Bedingung P: .*Nr\. 3: Pflichtprotokoll fehlt/.test(g)), (probe ? 'Probe' : 'Hauptlauf') + ': ' + e.gruende.join(' | '));
+    pruefe(e.ausfaelle.length === 0, 'fehlendes Protokoll ist kein zulässiger Ausfall');
+  }
+  const p = B.bewerte(baue({g: 8, f: 4}, {abgebrochen: true}), ARCH, {g: 8, f: 4}, true);
+  pruefe(p.gueltig && p.ausfaelle.length === 1 && p.ausl.f.nichtPruefbar.join() === '4', 'Probe: Ausfall berichtet, Gruppe f4 nicht prüfbar: ' + p.gruende.join(' | '));
+  const t = B.bericht(p), i = t.indexOf('## Technische Prüfungen'), j = t.indexOf('## Zulässige Partieausfälle');
+  pruefe(i >= 0 && j > i && /\| 10 \| erste Auslösestelle.*\| 1 Vierergruppen \(Ausfall in einem Arm\): f4 \| bestanden \|/.test(t), 'Prüfung 10 mit nicht prüfbarer Gruppe');
+  pruefe(/\| Fuego \(100 Spiele je Zug\) \| P \| 4 \| Schwarz \| abgebrochen: GNU Go beendet \|/.test(t.slice(j)), 'Ausfall im eigenen Abschnitt');
+  const h = B.bewerte(baue(100, {abgebrochen: true}), ARCH, {g: 100, f: 100}, false);
+  pruefe(h.gueltig && h.pruefungen.find(x => x.nr === '2').ok && h.pruefungen.find(x => x.nr === '10').nichtPruefbar.includes('f4'), 'Hauptlauf: zulässiger Ausfall getrennt von bestandenen Prüfungen');
+  pruefe(h.pruefungen.every(x => x.ok) && h.pruefungen.map(x => x.nr).join() === '1,P,2,3,4,5,6,7,8,10,11', 'alle Prüfungen in fester Reihenfolge');
 });
 
 test('Bericht: Verletzungen → KEIN URTEIL ohne Effekt (Bedingung 10, 11, Ausfälle, Kontrolle)', () => {

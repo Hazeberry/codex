@@ -228,6 +228,15 @@ im Protokoll (§8) und das Planungsbudget (§10).
 - **Bericht:** `auswertung/kandidaten-orakel/vierarm-bericht.js`, mit `--probe` für §9 (ohne
   Endstand-Unterschiede). Prüft §7 Punkt 1 bis 11 (9 über `zusammenfuehren.js`); Hauptvergleiche mit
   α = 0,05/6; Additivität der Mittelwerte als Zeile; Protokoll getrennt nach c und d/d1, Farbe und Phase.
+- **Prüfungen und Ausfälle im Bericht (Vorgabe Hazeberry, 03.11.2026):** Der Bericht führt jede technische
+  Prüfung als eigene Zeile mit geprüften und **nicht prüfbaren** Einheiten und dem Ergebnis; „bestanden“ gilt
+  nur für die geprüften Einheiten. **Zulässige Partieausfälle** (abgebrochene Partien) stehen in einem eigenen
+  Abschnitt und nie unter „bestanden“; im Hauptlauf zählen sie gegen die 98 % je Arm. Eine nicht abgebrochene
+  Partie ohne Protokoll des Orakels oder ohne Endstand ist **kein** zulässiger Ausfall, sondern ein technischer
+  Fehler (Prüfung P „Pflichtprotokoll“) und ergibt **KEIN URTEIL**, in der Probe wie im Hauptlauf.
+  Vierergruppen mit einem zulässigen Ausfall sind für Prüfung 10 nicht prüfbar und werden mit Nummer genannt;
+  gibt es je Gegner keine prüfbare Gruppe, ist der Lauf ungültig. In der Wiederholungskontrolle zählt eine nicht
+  prüfbare Partie wie bisher als nicht bestanden.
 - **Workflows (nur von Hand):** `kandidaten-orakel-vierarm-probe.yml` (Seed 233, 4 × 8 + 4 × 4 Partien,
   Kontrolle) und `kandidaten-orakel-vierarm.yml` (Seeds 234 und 235, 4 × 16 und 4 × 24 Pakete, Wiederholung,
   Kontrolle), Aufbau wie `kandidaten-orakel-haupt.yml`.

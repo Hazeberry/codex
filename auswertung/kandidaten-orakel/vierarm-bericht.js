@@ -34,9 +34,13 @@ const lies = d => {
   const roh = fs.readFileSync(d);
   return (/\.gz$/.test(d) ? zlib.gunzipSync(roh) : roh).toString('utf8').split('\n').filter(Boolean).map(l => JSON.parse(l));
 };
+/* Status einer Partie: ok (ausgewertet), ausfall (zulässiger Partieausfall: abgebrochen, zählt gegen die
+   98 %), technisch (Pflichtprotokoll oder Endstand fehlt ohne Abbruch: technischer Fehler, macht den Lauf
+   ungültig), fehlt (Nummer nicht gespielt: unvollständig). */
+const status = r => !r ? 'fehlt' : r.abgebrochen ? 'ausfall' : (!r.kandidatenOrakel || !Number.isFinite(r.endstand)) ? 'technisch' : 'ok';
 const ausfallGrund = r => !r ? 'fehlt' : r.abgebrochen ? 'abgebrochen: ' + String(r.abgebrochen).slice(0, 80)
-  : !Number.isFinite(r.endstand) ? 'kein Endstand' : !r.kandidatenOrakel ? 'ohne Protokoll des Orakels' : null;
-const ausgewertet = r => ausfallGrund(r) === null;
+  : !r.kandidatenOrakel ? 'Pflichtprotokoll fehlt' : !Number.isFinite(r.endstand) ? 'kein Endstand' : null;
+const ausgewertet = r => status(r) === 'ok';
 const gleichePartie = (a, b) => JSON.stringify(a.zuege) === JSON.stringify(b.zuege) && a.endstand === b.endstand;
 const ersterAusloeser = r => r.kandidatenOrakel.ereignisse.find(e => AUSLOESER.includes(e.fall));
 
@@ -50,94 +54,144 @@ function eingriffOk(arm, e) {
   return false;
 }
 
+/* Jede technische Prüfung: Nummer, Name, geprüfte Einheiten, nicht prüfbare Einheiten (mit Grund), Ergebnis,
+   Gründe bei Nichtbestehen. Zulässige Partieausfälle stehen getrennt (ausfaelle) und nie unter „bestanden“. */
 function bewerte(ordner, archivPfad, nJe, probe) {
-  const gruende = [], daten = {}, karten = {};
+  const pruefungen = [], daten = {}, karten = {};
+  const pr = (nr, name, geprueft, nichtPruefbar, fehler) => pruefungen.push({nr, name, geprueft, nichtPruefbar, ok: fehler.length === 0, fehler});
   let vollstaendig = true;
   for (const o of Object.keys(GEGNER)) for (const a of ARME) {
     daten[o + a] = lies(path.join(ordner, `${o}-${a}.jsonl`));
     karten[o + a] = new Map(daten[o + a].map(r => [r.nr, r]));
   }
-  /* Vollständigkeit (1) und, im Hauptlauf, 98 % ausgewertet (2) */
-  for (const o of Object.keys(GEGNER)) for (const a of ARME) {
-    const n = nJe[o], d = daten[o + a], m = new Set(d.map(r => r.nr));
-    const fehlt = []; for (let nr = 1; nr <= n; nr++) if (!m.has(nr)) fehlt.push(nr);
-    if (fehlt.length) { vollstaendig = false; gruende.push(`${GEGNER[o]} Arm ${a}: ${fehlt.length} von ${n} Partien fehlen (unvollständig, fortsetzbar)`); }
-    if (d.some(r => !(r.nr >= 1 && r.nr <= n)) || m.size !== d.length) gruende.push(`${GEGNER[o]} Arm ${a}: Partien außerhalb 1 bis ${n} oder doppelt`);
-    if (d.some(r => r.wirFarbe && r.wirFarbe !== (r.nr % 2 === 0 ? 'S' : 'W'))) gruende.push(`${GEGNER[o]} Arm ${a}: Farbe passt nicht zur Partienummer`);
-    if (d.some(r => r.kandidatenOrakel && r.kandidatenOrakel.arm !== a)) gruende.push(`${GEGNER[o]} Arm ${a}: Partie eines anderen Arms in der Datei`);
-    const aus = d.filter(ausgewertet).length;
-    if (!probe && aus < Math.ceil(MIN_ANTEIL * n)) gruende.push(`${GEGNER[o]} Arm ${a}: ${aus} von ${n} Partien ausgewertet (verlangt ≥ ${Math.ceil(MIN_ANTEIL * n)})`);
-  }
+  const alle = Object.keys(GEGNER).flatMap(o => ARME.flatMap(a => daten[o + a].map(r => ({o, a, r}))));
+
+  /* zulässige Partieausfälle (getrennt berichtet) */
+  const ausfaelle = alle.filter(x => status(x.r) === 'ausfall').map(x => ({gegner: x.o, arm: x.a, nr: x.r.nr, farbe: x.r.nr % 2 === 0 ? 'S' : 'W', grund: ausfallGrund(x.r)}));
+
+  /* 1. Vollständigkeit */
+  { const f = [];
+    for (const o of Object.keys(GEGNER)) for (const a of ARME) {
+      const n = nJe[o], d = daten[o + a], m = new Set(d.map(r => r.nr));
+      const fehlt = []; for (let nr = 1; nr <= n; nr++) if (!m.has(nr)) fehlt.push(nr);
+      if (fehlt.length) { vollstaendig = false; f.push(`${GEGNER[o]} Arm ${a}: ${fehlt.length} von ${n} Partien fehlen (unvollständig, fortsetzbar)`); }
+      if (d.some(r => !(r.nr >= 1 && r.nr <= n)) || m.size !== d.length) f.push(`${GEGNER[o]} Arm ${a}: Partien außerhalb 1 bis ${n} oder doppelt`);
+      if (d.some(r => r.wirFarbe && r.wirFarbe !== (r.nr % 2 === 0 ? 'S' : 'W'))) f.push(`${GEGNER[o]} Arm ${a}: Farbe passt nicht zur Partienummer`);
+      if (d.some(r => r.kandidatenOrakel && r.kandidatenOrakel.arm !== a)) f.push(`${GEGNER[o]} Arm ${a}: Partie eines anderen Arms in der Datei`);
+    }
+    pr('1', 'Vollständigkeit (jede Nummer genau einmal, Farbe nach Nummer)', `${alle.length} Partien`, '–', f); }
+
+  /* Pflichtprotokoll: jede nicht abgebrochene Partie mit Protokoll des Orakels und Endstand */
+  { const t = alle.filter(x => status(x.r) === 'technisch');
+    pr('P', 'Pflichtprotokoll und Endstand je nicht abgebrochener Partie', `${alle.length - ausfaelle.length} Partien`, ausfaelle.length ? `${ausfaelle.length} (zulässiger Ausfall)` : '–',
+       t.map(x => `${GEGNER[x.o]} Arm ${x.a} Nr. ${x.r.nr}: ${ausfallGrund(x.r)} (technischer Fehler, kein zulässiger Ausfall)`)); }
+
+  /* 2. mindestens 98 % ausgewertet je Arm (nur Hauptlauf) */
+  if (!probe) { const f = [];
+    for (const o of Object.keys(GEGNER)) for (const a of ARME) {
+      const n = nJe[o], aus = daten[o + a].filter(ausgewertet).length;
+      if (aus < Math.ceil(MIN_ANTEIL * n)) f.push(`${GEGNER[o]} Arm ${a}: ${aus} von ${n} Partien ausgewertet (verlangt ≥ ${Math.ceil(MIN_ANTEIL * n)})`);
+    }
+    pr('2', 'mindestens 98 % je Arm und Gegner ausgewertet', `${Object.keys(GEGNER).length * ARME.length} Arme`, '–', f); }
+
   /* 3. Kontrolle gegen das Archiv */
   const kontrolle = lies(path.join(ordner, 'kontrolle.jsonl'));
   const arch = archivPfad ? lies(archivPfad).filter(r => r.nr >= 1 && r.nr <= 4) : [];
   const kontrolleOk = arch.length === 4 && kontrolle.length === 4 && arch.every(r => { const k = kontrolle.find(x => x.nr === r.nr); return k && gleichePartie(k, r); });
-  if (!kontrolleOk) gruende.push('Bedingung 3: Arm A reproduziert die vier archivierten Partien (Seed 222, Nr. 1 bis 4) nicht bitgleich');
+  pr('3', 'Kontrolle Arm A gegen Archiv (Seed 222, Nr. 1 bis 4)', `${kontrolle.length} Partien`, '–', kontrolleOk ? [] : ['Arm A reproduziert die vier archivierten Partien nicht bitgleich (oder sie fehlen)']);
+
   /* 4. Antwortquote je Arm und Gegner */
   const quoten = {};
-  for (const o of Object.keys(GEGNER)) for (const a of ARME) {
-    const d = daten[o + a].filter(r => r.kandidatenOrakel);
-    const abf = d.reduce((x, r) => x + r.kandidatenOrakel.abfragen, 0), ohne = d.reduce((x, r) => x + r.kandidatenOrakel.ohneAntwort, 0);
-    quoten[o + a] = {abf, ohne, quote: abf ? 1 - ohne / abf : null};
-    if (!abf || 1 - ohne / abf < MIN_ANTEIL) gruende.push(`${GEGNER[o]} Arm ${a}: Antwortquote des Orakels ${abf ? ((1 - ohne / abf) * 100).toFixed(1) : '–'} % (verlangt ≥ 98 %)`);
-  }
-  /* 5, 7, 8, 11: Fälle, Zählersummen, Prior-Summe, Eingriffsart */
-  let zaehlFehler = 0, artFehler = 0, priorGeprueft = 0, priorMax = 0;
-  const faelle = {}, priorFehler = [], artBeispiele = [];
+  { const f = [];
+    for (const o of Object.keys(GEGNER)) for (const a of ARME) {
+      const d = daten[o + a].filter(r => r.kandidatenOrakel);
+      const abf = d.reduce((x, r) => x + r.kandidatenOrakel.abfragen, 0), ohne = d.reduce((x, r) => x + r.kandidatenOrakel.ohneAntwort, 0);
+      quoten[o + a] = {abf, ohne, quote: abf ? 1 - ohne / abf : null};
+      if (!abf || 1 - ohne / abf < MIN_ANTEIL) f.push(`${GEGNER[o]} Arm ${a}: Antwortquote ${abf ? ((1 - ohne / abf) * 100).toFixed(1) : '–'} % (verlangt ≥ 98 %)`);
+    }
+    const abf = Object.values(quoten).reduce((x, q) => x + q.abf, 0);
+    pr('4', 'Antwortquote des Orakels ≥ 98 % je Arm und Gegner', `${abf} Abfragen`, '–', f); }
+
+  /* 5, 7, 8, 11: Fälle, Zählersummen, Prior-Summe, Eingriffsart — an Partien mit Pflichtprotokoll */
+  let zaehlGeprueft = 0, artGeprueft = 0, priorGeprueft = 0, priorMax = 0;
+  const faelle = {}, priorFehler = [], artFehler = [], zaehlFehler = [];
   for (const o of Object.keys(GEGNER)) {
     faelle[o] = {S: {}, W: {}};
     for (const a of ARME) for (const r of daten[o + a]) {
-      if (!r.kandidatenOrakel) continue;
+      if (!ausgewertet(r)) continue;
       const k = r.kandidatenOrakel, ev = k.ereignisse;
-      if (ausgewertet(r) && (ev.length !== k.abfragen || JSON.stringify(ev.map(e => e.mc)) !== JSON.stringify(kiAmZug(r, k.ab))
-          || ev.filter(e => e.fall === 'x').length !== k.ohneAntwort || ev.some(e => !FAELLE.includes(e.fall)))) zaehlFehler++;
+      zaehlGeprueft++;
+      if (ev.length !== k.abfragen || JSON.stringify(ev.map(e => e.mc)) !== JSON.stringify(kiAmZug(r, k.ab))
+          || ev.filter(e => e.fall === 'x').length !== k.ohneAntwort || ev.some(e => !FAELLE.includes(e.fall))) zaehlFehler.push(`${GEGNER[o]} Arm ${a} Nr. ${r.nr}`);
       for (const e of ev) {
-        if (ausgewertet(r)) { const t = faelle[o][e.f]; if (t) t[e.fall] = (t[e.fall] || 0) + 1; }
-        if (!eingriffOk(a, e)) { artFehler++; if (artBeispiele.length < 20) artBeispiele.push({gegner: o, arm: a, nr: r.nr, mc: e.mc, fall: e.fall, auf: e.auf || 0, ang: e.ang || 0}); }
+        const t = faelle[o][e.f]; if (t) t[e.fall] = (t[e.fall] || 0) + 1;
+        artGeprueft++;
+        if (!eingriffOk(a, e)) artFehler.push({gegner: o, arm: a, nr: r.nr, mc: e.mc, fall: e.fall, auf: e.auf || 0, ang: e.ang || 0});
         const eingriff = !!(e.auf || e.ang), hat = Number.isFinite(e.ps);
         if (hat) { priorGeprueft++; priorMax = Math.max(priorMax, Math.abs(e.ps - 1)); }
         if ((eingriff && !hat) || (hat && Math.abs(e.ps - 1) > PRIOR_TOL) || e.pf)
           priorFehler.push({gegner: o, arm: a, nr: r.nr, farbe: e.f, mc: e.mc, fall: e.fall, eingriff, summe: hat ? e.ps : null, priors: e.pf || null});
       }
     }
-    for (const f of ['S', 'W']) if (!(faelle[o][f].d > 0)) gruende.push(`Bedingung 5: ${GEGNER[o]}: Fall d tritt mit der KI als ${f === 'S' ? 'Schwarz' : 'Weiß'} nicht auf`);
   }
-  if (zaehlFehler) gruende.push(`Bedingung 7: Zählersummen gehen in ${zaehlFehler} Partien nicht auf`);
+  const nAusf = ausfaelle.length ? `${ausfaelle.length} Partien (zulässiger Ausfall)` : '–';
+  { const f = []; for (const o of Object.keys(GEGNER)) for (const c of ['S', 'W']) if (!(faelle[o][c].d > 0)) f.push(`${GEGNER[o]}: Fall d tritt mit der KI als ${c === 'S' ? 'Schwarz' : 'Weiß'} nicht auf`);
+    pr('5', 'Fall d je Gegner in beiden Farben', `${zaehlGeprueft} Partien`, nAusf, f); }
+  pr('7', 'Zählersummen (Eintrag je Abfrage, Abfrage je KI-Zug ab Zug 81, Fälle bekannt)', `${zaehlGeprueft} Partien`, nAusf,
+     zaehlFehler.length ? [`Zählersummen gehen in ${zaehlFehler.length} Partien nicht auf: ${zaehlFehler.slice(0, 10).join('; ')}`] : []);
   const priorFehlerEingriff = priorFehler.filter(x => x.eingriff).length;
-  if (priorFehlerEingriff) gruende.push(`Bedingung 8: Prior-Summe: ${priorFehlerEingriff} Eingriffe ohne Summe oder mit Abweichung > 1e-9`);
-  if (artFehler) gruende.push(`Bedingung 11: ${artFehler} Protokolleinträge mit falscher Eingriffsart für ihren Arm`);
-  /* 10. erste Auslösestelle in allen vier Armen gleich (identische Stellung davor, gleiche Zugnummer, gleicher Orakelzug, Fall, Ränge) */
+  pr('8', 'Prior-Summe 1 je Eingriff (Abweichung ≤ 1e-9)', `${priorGeprueft} Einträge`, nAusf, priorFehlerEingriff ? [`${priorFehlerEingriff} Eingriffe ohne Summe oder mit Abweichung > 1e-9`] : []);
+  pr('11', 'Eingriffsart je Arm an jedem Protokolleintrag', `${artGeprueft} Einträge`, nAusf, artFehler.length ? [`${artFehler.length} Einträge mit falscher Eingriffsart`] : []);
+
+  /* 10. erste Auslösestelle in allen vier Armen gleich; Gruppen mit einem zulässigen Ausfall sind nicht prüfbar */
   const ausl = {};
-  for (const o of Object.keys(GEGNER)) {
-    let gruppen = 0, abw = 0, ohne = 0, nichtPruefbar = 0;
-    for (let nr = 1; nr <= nJe[o]; nr++) {
-      const rs = ARME.map(a => karten[o + a].get(nr));
-      if (rs.some(r => !r)) continue;
-      if (rs.some(r => !r.kandidatenOrakel)) { nichtPruefbar++; continue; }
-      gruppen++;
-      const es = rs.map(ersterAusloeser);
-      if (es.every(e => !e)) { ohne++; continue; }
-      const e0 = es[0];
-      const gleich = es.every(e => e && e0 && e.mc === e0.mc && e.g === e0.g && e.fall === e0.fall && e.r === e0.r && e.rn === e0.rn)
-        && rs.every(r => JSON.stringify(r.zuege.slice(0, e0.mc)) === JSON.stringify(rs[0].zuege.slice(0, e0.mc)));
-      if (!gleich) abw++;
+  { const f = [];
+    for (const o of Object.keys(GEGNER)) {
+      let gruppen = 0, abw = 0, ohne = 0; const nichtPruefbar = [];
+      for (let nr = 1; nr <= nJe[o]; nr++) {
+        const rs = ARME.map(a => karten[o + a].get(nr));
+        if (rs.some(r => !r)) continue;                         /* fehlt: unter 1 */
+        if (rs.some(r => !ausgewertet(r))) { nichtPruefbar.push(nr); continue; }
+        gruppen++;
+        const es = rs.map(ersterAusloeser);
+        if (es.every(e => !e)) { ohne++; continue; }
+        const e0 = es[0];
+        const gleich = es.every(e => e && e0 && e.mc === e0.mc && e.g === e0.g && e.fall === e0.fall && e.r === e0.r && e.rn === e0.rn)
+          && rs.every(r => JSON.stringify(r.zuege.slice(0, e0.mc)) === JSON.stringify(rs[0].zuege.slice(0, e0.mc)));
+        if (!gleich) abw++;
+      }
+      ausl[o] = {gruppen, abw, ohne, nichtPruefbar};
+      if (abw) f.push(`${GEGNER[o]}: erste Auslösestelle in ${abw} von ${gruppen} Vierergruppen nicht gleich`);
+      if (!gruppen) f.push(`${GEGNER[o]}: keine prüfbare Vierergruppe`);
     }
-    ausl[o] = {gruppen, abw, ohne, nichtPruefbar};
-    if (abw) gruende.push(`Bedingung 10: ${GEGNER[o]}: erste Auslösestelle in ${abw} von ${gruppen} Vierergruppen nicht gleich`);
-  }
-  /* 6. Wiederholungskontrolle (nur Hauptlauf) */
+    const np = Object.keys(GEGNER).flatMap(o => ausl[o].nichtPruefbar.map(nr => `${o}${nr}`));
+    pr('10', 'erste Auslösestelle in allen vier Armen gleich', `${Object.keys(GEGNER).reduce((x, o) => x + ausl[o].gruppen, 0)} Vierergruppen`,
+       np.length ? `${np.length} Vierergruppen (Ausfall in einem Arm): ${np.join(', ')}` : '–', f); }
+
+  /* 6. Wiederholungskontrolle (nur Hauptlauf); abgebrochen = nicht prüfbar = nicht bestanden (§7) */
   const wiederholung = {};
-  if (!probe) for (const o of Object.keys(GEGNER)) for (const a of ARME) {
-    const w = new Map(lies(path.join(ordner, `wiederholung-${o}-${a}.jsonl`)).map(r => [r.nr, r]));
-    const ok = WIEDERHOLT.every(nr => { const x = karten[o + a].get(nr), y = w.get(nr); return ausgewertet(x) && ausgewertet(y) && gleichePartie(x, y); });
-    wiederholung[o + a] = ok;
-    if (!ok) gruende.push(`Bedingung 6: ${GEGNER[o]} Arm ${a}: Partien 1 bis 3 beim zweiten Spielen nicht identisch (oder fehlen, oder abgebrochen)`);
-  }
+  if (!probe) { const f = [], np = [];
+    for (const o of Object.keys(GEGNER)) for (const a of ARME) {
+      const w = new Map(lies(path.join(ordner, `wiederholung-${o}-${a}.jsonl`)).map(r => [r.nr, r]));
+      let ok = true;
+      for (const nr of WIEDERHOLT) {
+        const x = karten[o + a].get(nr), y = w.get(nr);
+        if (!ausgewertet(x) || !ausgewertet(y)) { ok = false; np.push(`${GEGNER[o]} Arm ${a} Nr. ${nr}`); continue; }
+        if (!gleichePartie(x, y)) ok = false;
+      }
+      wiederholung[o + a] = ok;
+      if (!ok) f.push(`${GEGNER[o]} Arm ${a}: Partien 1 bis 3 beim zweiten Spielen nicht identisch oder nicht prüfbar`);
+    }
+    pr('6', 'Wiederholungskontrolle (Partien 1 bis 3 je Arm und Gegner)', `${Object.keys(GEGNER).length * ARME.length * WIEDERHOLT.length} Partienpaare`,
+       np.length ? `${np.length} (fehlt oder abgebrochen; zählt als nicht bestanden): ${np.join('; ')}` : '–', f); }
+
+  pruefungen.sort((x, y) => (x.nr === 'P' ? 1.5 : +x.nr) - (y.nr === 'P' ? 1.5 : +y.nr));
+  const gruende = pruefungen.filter(x => !x.ok).flatMap(x => x.fehler.map(t => `Bedingung ${x.nr}: ${t}`));
   /* vollständige Vierergruppen */
   const voll = {};
   for (const o of Object.keys(GEGNER)) { voll[o] = new Set(); for (let nr = 1; nr <= nJe[o]; nr++) if (ARME.every(a => ausgewertet(karten[o + a].get(nr)))) voll[o].add(nr); }
   return {gruende, gueltig: gruende.length === 0, vollstaendig, probe, nJe, daten, karten, quoten, faelle, ausl, wiederholung, kontrolleOk,
-          zaehlFehler, artFehler, artBeispiele, priorFehler, priorMax, priorGeprueft, voll};
+          pruefungen, ausfaelle, artFehler, artBeispiele: artFehler.slice(0, 20), priorFehler, priorMax, priorGeprueft, voll};
 }
 
 /* ---- Beschreibung des Protokolls (§8): getrennt nach schon Kind (c) und neu aufgenommen (d, d1) ---- */
@@ -232,16 +286,27 @@ function bericht(e) {
     L.push('**KEIN URTEIL** – ungültig:', ''); for (const g of e.gruende) L.push(`- ${g}`); L.push('');
     if (!e.vollstaendig) L.push('Der Lauf ist **unvollständig**. Fortsetzen: Workflow erneut starten mit `fortsetzen_aus` = Nummer dieses Laufs; fertige Partien werden nicht neu gerechnet.', '');
     L.push('Bei ungültigem Lauf wird kein Effekt ausgegeben.', '');
-  } else L.push(e.probe ? '**Gültig** (Bedingungen 3, 4, 5, 7, 8, 10, 11 aus §7 erfüllt, alle Nummern gespielt).' : '**Gültig.** Alle Bedingungen aus §7 erfüllt.', '');
+  } else L.push(e.probe ? '**Gültig**: alle technischen Prüfungen der Probe bestanden (Tabelle).' : '**Gültig**: alle technischen Prüfungen bestanden (Tabelle).', '');
   if (e.probe) L.push('Die Probe gibt **keine** Endstand-Unterschiede aus (§9).', '');
 
-  L.push('## Technik', '', '| Gegner | Arm | Antwortquote | erste Auslösestelle gleich |' + (e.probe ? '' : ' Wiederholung |'), '|---|---|---:|---|' + (e.probe ? '' : '---|'));
+  L.push('## Technische Prüfungen', '', '„Bestanden“ gilt nur für die geprüften Einheiten. Nicht prüfbare Einheiten stehen in der eigenen Spalte; zulässige Partieausfälle folgen getrennt im nächsten Abschnitt.', '',
+    '| Nr. | Prüfung | geprüft | nicht prüfbar | Ergebnis |', '|---|---|---|---|---|');
+  for (const x of e.pruefungen) L.push(`| ${x.nr} | ${x.name} | ${x.geprueft} | ${x.nichtPruefbar} | ${x.ok ? 'bestanden' : '**NICHT bestanden**'} |`);
+  L.push('', '## Zulässige Partieausfälle', '');
+  if (!e.ausfaelle.length) L.push('Keine.', '');
+  else {
+    L.push(`${e.ausfaelle.length} Partien abgebrochen. Sie sind **keine** bestandene oder gescheiterte technische Prüfung, zählen ${e.probe ? 'in der Probe nur als Bericht' : 'gegen die 98 % je Arm (Prüfung 2)'} und machen die betroffenen Vierergruppen für Prüfung 10 nicht prüfbar.`, '',
+      '| Gegner | Arm | Partie | KI | Grund |', '|---|---|---:|---|---|');
+    for (const x of e.ausfaelle) L.push(`| ${GEGNER[x.gegner]} | ${x.arm} | ${x.nr} | ${x.farbe === 'S' ? 'Schwarz' : 'Weiß'} | ${x.grund.replace(/\|/g, '/')} |`);
+    L.push('');
+  }
+  L.push('### Einzelheiten', '', '| Gegner | Arm | Antwortquote | erste Auslösestelle |' + (e.probe ? '' : ' Wiederholung |'), '|---|---|---:|---|' + (e.probe ? '' : '---|'));
   for (const o of Object.keys(GEGNER)) for (const a of ARME) {
     const q = e.quoten[o + a], au = e.ausl[o];
-    L.push(`| ${GEGNER[o]} | ${a} | ${q.quote === null ? '–' : pz(q.abf - q.ohne, q.abf)} (${q.abf - q.ohne}/${q.abf}) | ${a === 'A' ? `${au.gruppen} Vierergruppen, ${au.abw} abweichend, ${au.ohne} ohne Auslöser` : ''} |` + (e.probe ? '' : ` ${e.wiederholung[o + a] ? 'identisch' : 'NICHT identisch'} |`));
+    L.push(`| ${GEGNER[o]} | ${a} | ${q.quote === null ? '–' : pz(q.abf - q.ohne, q.abf)} (${q.abf - q.ohne}/${q.abf}) | ${a === 'A' ? `${au.gruppen} geprüft, ${au.abw} abweichend, ${au.ohne} ohne Auslöser, ${au.nichtPruefbar.length} nicht prüfbar` : ''} |` + (e.probe ? '' : ` ${e.wiederholung[o + a] ? 'identisch' : 'NICHT identisch oder nicht prüfbar'} |`));
   }
   L.push('', `Kontrolle Arm A gegen Archiv (Seed 222, Nr. 1 bis 4): ${e.kontrolleOk ? 'bitgleich' : 'NICHT bitgleich'}.`, '');
-  L.push(`Eingriffsart je Arm (Bedingung 11): ${e.artFehler} Abweichungen.` + (e.artBeispiele.length ? ' Beispiele: ' + e.artBeispiele.map(x => `${x.gegner}-${x.arm} Nr. ${x.nr} Zug ${x.mc} Fall ${x.fall} auf ${x.auf} ang ${x.ang}`).join('; ') : ''), '');
+  L.push(`Eingriffsart je Arm (Prüfung 11): ${e.artFehler.length} Abweichungen.` + (e.artBeispiele.length ? ' Beispiele: ' + e.artBeispiele.map(x => `${x.gegner}-${x.arm} Nr. ${x.nr} Zug ${x.mc} Fall ${x.fall} auf ${x.auf} ang ${x.ang}`).join('; ') : ''), '');
   L.push(`Prior-Summe zur Laufzeit: ${e.priorGeprueft} Einträge geprüft, größte Abweichung ${e.priorMax.toExponential(2).replace('.', ',')}; Fehlerprotokoll ${e.priorFehler.length} Einträge, davon ${e.priorFehler.filter(x => x.eingriff).length} bei einem Eingriff.`, '');
   if (e.priorFehler.length) {
     L.push('| Gegner | Arm | Partie | KI | Zug | Fall | Eingriff | Summe |', '|---|---|---:|---|---:|---|---|---|');
@@ -307,6 +372,6 @@ if (require.main === module) {
   const e = bewerte(pos[0], pos[1], nJe, probe), t = bericht(e);
   if (wert('--bericht')) fs.writeFileSync(wert('--bericht'), t); else process.stdout.write(t);
   if (wert('--json')) fs.writeFileSync(wert('--json'), JSON.stringify({gueltig: e.gueltig, vollstaendig: e.vollstaendig, gruende: e.gruende, priorFehler: e.priorFehler,
-    artBeispiele: e.artBeispiele, auswertung: e.gueltig && !probe ? auswerten(e) : null}, null, 1));
+    pruefungen: e.pruefungen, ausfaelle: e.ausfaelle, artBeispiele: e.artBeispiele, auswertung: e.gueltig && !probe ? auswerten(e) : null}, null, 1));
   process.exit(e.gueltig ? 0 : 1);
 }
