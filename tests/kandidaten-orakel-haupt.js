@@ -212,8 +212,10 @@ test('Bericht: nur vollständige Paare; Ausfälle nach Arm, Gegner und Farbe', (
   pruefeGleich(a.f.ausfaelle.SW.ausgefallen, 0, 'S, KI Weiß: 0');
   pruefeGleich(a.f.ausfaelle.AS.nurAnderer, 1, 'A, Schwarz: 1 Partie nur wegen S nicht im Paar'); pruefeGleich(a.f.ausfaelle.ZSS.nurAnderer, 1, 'ZS ebenso');
   pruefeGleich(a.f.arme.A.siege.n, 99, 'Siege nur in vollständigen Paaren');
+  pruefeGleich(JSON.stringify(a.f.ausfaelle.SS.gruende), JSON.stringify({'abgebrochen: GNU Go beendet': 1}), 'Ausfallgrund');
   const t = B.bericht(e, a);
-  pruefe(/## Ausfälle und vollständige Paare/.test(t) && /Fuego: 99 vollständige Paare von 100/.test(t) && /\| Fuego \| S \| Schwarz \| 50\/50 \| 1 \(1\) \| 0 \| 4 \|/.test(t), 'Ausfalltabelle im Bericht');
+  pruefe(/## Ausfälle und vollständige Paare/.test(t) && /\| Fuego \| S \| Schwarz \| 50\/50 \| 1 \(1\) \| 0 \| 4 \| abgebrochen: GNU Go beendet \(1\) \|/.test(t)
+    && /\*\*99 vollständige Paare\*\* von 100 verwendet/.test(t) && /\| Fuego \| 99 \|/.test(t), 'Ausfalltabelle im Bericht');
 });
 
 test('Bericht: jede Verletzung → KEIN URTEIL mit Grund und ohne Effekt', () => {

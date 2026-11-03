@@ -89,6 +89,9 @@ function gepaart(diffs, alpha) {
 }
 
 /* ---- Hilfen ---- */
+/* Grund, warum eine Partie nicht ausgewertet ist (null = ausgewertet) */
+const ausfallGrund = r => !r ? 'fehlt' : r.abgebrochen ? 'abgebrochen: ' + String(r.abgebrochen).slice(0, 80)
+  : !Number.isFinite(r.endstand) ? 'kein Endstand' : !r.kandidatenOrakel ? 'ohne Protokoll des Orakels' : null;
 const ausgewertet = r => r && !r.abgebrochen && Number.isFinite(r.endstand) && !!r.kandidatenOrakel;
 const kiAmZug = (r, ab) => { const s = []; for (let mc = ab; mc < r.zuegeAnzahl; mc++) if ((mc % 2 === 0) === (r.wirFarbe === 'S')) s.push(mc); return s; };
 const ersterAusloeser = r => r.kandidatenOrakel.ereignisse.find(e => AUSLOESER.includes(e.fall));
@@ -253,8 +256,10 @@ function beschreibe(e) {
       const nummern = []; for (let nr = 1; nr <= e.n; nr++) if ((nr % 2 === 0 ? 'S' : 'W') === f) nummern.push(nr);
       const eigen = nummern.filter(nr => !ausgewertet(K(a).get(nr)));
       const fremd = nummern.filter(nr => ausgewertet(K(a).get(nr)) && !e.voll[o].has(nr));
+      const gruende = {};
+      for (const nr of eigen) { const g = ausfallGrund(K(a).get(nr)); gruende[g] = (gruende[g] || 0) + 1; }
       ausfaelle[a + f] = {gespielt: nummern.filter(nr => K(a).has(nr)).length, soll: nummern.length,
-        abgebrochen: eigen.filter(nr => K(a).get(nr) && K(a).get(nr).abgebrochen).length, ausgefallen: eigen.length, nurAnderer: fremd.length, nummern: eigen};
+        abgebrochen: eigen.filter(nr => K(a).get(nr) && K(a).get(nr).abgebrochen).length, ausgefallen: eigen.length, nurAnderer: fremd.length, nummern: eigen, gruende};
     }
     aus[o] = {primaer, urteil, SZS: vergleich(K('S'), K('ZS'), ALPHA_ERG, V), ZSA: vergleich(K('ZS'), K('A'), ALPHA_ERG, V), farben, arme,
               vollePaare: e.voll[o].size, ausfaelle};
@@ -303,15 +308,17 @@ function bericht(e, a) {
   if (!e.gueltig) return L.join('\n') + '\n';
 
   L.push('## Ausfälle und vollständige Paare', '', 'Ausgewertet werden nur **vollständige Paare**: Partienummern, die in allen drei Armen eines Gegners ausgewertet sind. Alle Vergleiche nutzen dieselben Nummern.', '',
-    '| Gegner | Arm | KI | gespielt | nicht ausgewertet (davon abgebrochen) | nur wegen Ausfall in anderem Arm nicht im Paar | Nummern der eigenen Ausfälle |', '|---|---|---|---:|---:|---:|---|');
+    '| Gegner | Arm | KI | gespielt | nicht ausgewertet (davon abgebrochen) | nur wegen Ausfall in anderem Arm nicht im Paar | Nummern der eigenen Ausfälle | Gründe |', '|---|---|---|---:|---:|---:|---|---|');
   for (const o of Object.keys(GEGNER)) for (const x of ARME) for (const f of ['S', 'W']) {
     const z = a[o].ausfaelle[x + f];
-    L.push(`| ${GEGNER[o]} | ${x} | ${f === 'S' ? 'Schwarz' : 'Weiß'} | ${z.gespielt}/${z.soll} | ${z.ausgefallen} (${z.abgebrochen}) | ${z.nurAnderer} | ${z.nummern.join(', ') || '–'} |`);
+    const gr = Object.entries(z.gruende).map(([g, k]) => `${g.replace(/\|/g, '/')} (${k})`).join('; ') || '–';
+    L.push(`| ${GEGNER[o]} | ${x} | ${f === 'S' ? 'Schwarz' : 'Weiß'} | ${z.gespielt}/${z.soll} | ${z.ausgefallen} (${z.abgebrochen}) | ${z.nurAnderer} | ${z.nummern.join(', ') || '–'} | ${gr} |`);
   }
   L.push('');
-  for (const o of Object.keys(GEGNER)) L.push(`- ${GEGNER[o]}: ${a[o].vollePaare} vollständige Paare von ${e.n}.`);
+  for (const o of Object.keys(GEGNER)) L.push(`- ${GEGNER[o]}: **${a[o].vollePaare} vollständige Paare** von ${e.n} verwendet; alle Intervalle und Tests unten sind aus diesen Paaren berechnet.`);
+  L.push('', 'Eine eigene Schwelle für vollständige Paare gibt es nicht; die Gültigkeit hängt an der 98-%-Regel je Arm (Festlegung Hazeberry, 03.11.2026).');
   L.push('', '## Primärer Endpunkt: Endstand S − A (gepaart, α = 0,025 je Gegner, Intervall 97,5 %)', '',
-    '| Gegner | Paare | Differenz S − A [97,5 %] | SD | t | p (zweiseitig) | Urteil |', '|---|---:|---|---:|---:|---:|---|');
+    '| Gegner | verwendete Paare | Differenz S − A [97,5 %] | SD | t | p (zweiseitig) | Urteil |', '|---|---:|---|---:|---:|---:|---|');
   for (const o of Object.keys(GEGNER)) {
     const p = a[o].primaer;
     L.push(`| ${GEGNER[o]} | ${p.n} | ${iv(p)} | ${k1(p.sd)} | ${k1(p.t)} | ${fp(p.p)} | ${a[o].urteil} |`);
@@ -320,7 +327,7 @@ function bericht(e, a) {
   for (const o of Object.keys(GEGNER)) if (a[o].urteil === 'kein nachgewiesener Unterschied')
     L.push(`- ${GEGNER[o]}: kein nachgewiesener Gewinn über ${vz1(a[o].primaer.hi)} Punkte (Obergrenze des 97,5-%-Intervalls). Das heißt nicht „kein Effekt“ (§6).`);
   L.push('', '## Ergänzend, ohne Signifikanzurteil (95 %)', '',
-    '| Gegner | Vergleich | Paare | Differenz [95 %] | Vorzeichen (besser/schlechter, p) | Siege: nur erster / nur zweiter (McNemar p) |', '|---|---|---:|---|---|---|');
+    '| Gegner | Vergleich | verwendete Paare | Differenz [95 %] | Vorzeichen (besser/schlechter, p) | Siege: nur erster / nur zweiter (McNemar p) |', '|---|---|---:|---|---|---|');
   for (const o of Object.keys(GEGNER)) for (const [txt, v] of [['S − ZS', a[o].SZS], ['ZS − A', a[o].ZSA], ['S − A', a[o].primaer]]) {
     const w = txt === 'S − A' ? vergleich(e.karten[o + 'S'], e.karten[o + 'A'], ALPHA_ERG, r => e.voll[o].has(r.nr)) : v;
     L.push(`| ${GEGNER[o]} | ${txt} | ${w.n} | ${iv(w)} | ${w.vz.besser}/${w.vz.schlechter}, ${fp(w.vz.p)} | ${w.siege.nurX}/${w.siege.nurY} (${fp(w.siege.p)}) |`);
