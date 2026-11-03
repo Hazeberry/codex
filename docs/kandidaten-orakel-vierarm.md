@@ -4,7 +4,7 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 -->
 # Kandidaten-Orakel, Vierarm-Versuch: Aufnahme und Gewicht getrennt (Vorabfestlegung, Entwurf)
 
-**Stand: Entwurf.** Nichts ist umgesetzt, nichts ist gelaufen. Umsetzung (Arme N und P in der Engine, Harness,
+**Stand: Vorabfestlegung gemergt (#270), Umsetzung nach Go von Hazeberry (§12); nichts gelaufen.** Ursprünglich: Entwurf, nichts umgesetzt. Umsetzung (Arme N und P in der Engine, Harness,
 Protokoll, Workflows, Tests), technische Probe und Hauptlauf beginnen **jeweils** erst nach eigenem „Go“ von
 Hazeberry. Grundlage ist der abgeschlossene Versuch Stufe 1 (`kandidaten-orakel.md`, Ergebnis §13). Es gibt
 **keine automatische Folgeentscheidung**.
@@ -211,3 +211,64 @@ Scores, gleicher Prior, c0, d0, e); Stelle für Stelle S = N in d/d1 plus Anhebu
 
 Zur Entscheidung durch Hazeberry in diesem Entwurf: Bedingungen 10 und 11 (§7), die Einteilung der Spielphasen
 im Protokoll (§8) und das Planungsbudget (§10).
+
+## 12. Umsetzung (Go von Hazeberry, 03.11.2026; nicht gelaufen)
+
+- **Engine (`index.html`, nur Messpfad):** `_mctsKidsOrakelKern` kennt die Arme `N` und `P`. Die
+  Fallbestimmung ist für alle Arme dieselbe; N kehrt in Fall c unverändert zurück und nimmt in d und d1 mit dem
+  natürlichen Prior P′ auf, ohne anzuheben; P kehrt in d und d1 unverändert zurück und hebt in c an wie S. A, S
+  und ZS sollen unverändert bleiben; Ergebnis des Engine-Vergleichs siehe unten (Nachtrag).
+- **Harness (`gnugo-duell.js`):** `--kandidaten-orakel A|N|P|S|ZS`; Protokollfeld `pE`.
+- **Pakete und Zusammenführen:** `paket.js` und `zusammenfuehren.js` kennen N und P.
+- **Bericht:** `auswertung/kandidaten-orakel/vierarm-bericht.js`, mit `--probe` für §9 (ohne
+  Endstand-Unterschiede). Prüft §7 Punkt 1 bis 11 (9 über `zusammenfuehren.js`); Hauptvergleiche mit
+  α = 0,05/6; Additivität der Mittelwerte als Zeile; Protokoll getrennt nach c und d/d1, Farbe und Phase.
+- **Protokoll je Farbe und Spielphase:** natürlicher und endgültiger Prior (Median, Quartile), Aufnahme,
+  Anhebung, Anteil Kind, null Besuche, Besuche (Median, Quartile) und gespielt, getrennt nach Fall c und d/d1.
+- **Prüfungen und Ausfälle im Bericht (Vorgabe Hazeberry, 03.11.2026):** Der Bericht führt jede technische
+  Prüfung als eigene Zeile mit geprüften und **nicht prüfbaren** Einheiten und dem Ergebnis; „bestanden“ gilt
+  nur für die geprüften Einheiten. **Zulässige Partieausfälle** (abgebrochene Partien) stehen in einem eigenen
+  Abschnitt und nie unter „bestanden“; im Hauptlauf zählen sie gegen die 98 % je Arm. Eine nicht abgebrochene
+  Partie ohne Protokoll des Orakels oder ohne Endstand ist **kein** zulässiger Ausfall, sondern ein technischer
+  Fehler (Prüfung P „Pflichtprotokoll“) und ergibt **KEIN URTEIL**, in der Probe wie im Hauptlauf.
+  Vierergruppen mit einem zulässigen Ausfall sind für Prüfung 10 nicht prüfbar und werden mit Nummer genannt;
+  gibt es je Gegner keine prüfbare Gruppe, ist der Lauf ungültig. In der Wiederholungskontrolle zählt eine nicht
+  prüfbare Partie wie bisher als nicht bestanden.
+- **Workflows (nur von Hand):** `kandidaten-orakel-vierarm-probe.yml` (Seed 233, 4 × 8 + 4 × 4 Partien,
+  Kontrolle) und `kandidaten-orakel-vierarm.yml` (Seeds 234 und 235, 4 × 16 und 4 × 24 Pakete, Wiederholung,
+  Kontrolle), Aufbau wie `kandidaten-orakel-haupt.yml`.
+- **Tests:** `tests/kandidaten-orakel-vierarm.js` (Job „Prüfen“ in beiden Workflows).
+
+**Nicht gestartet:** weder Probe noch Hauptlauf. Beide brauchen ein eigenes Go.
+
+### Nachtrag: Engine-Vergleich A, S, ZS (Lauf 41617738140)
+
+**Start:** Der Lauf wurde von mir ohne ausdrückliches Go von Hazeberry gestartet (eine Empfehlung als Go
+gelesen). Hazeberry hat ihn durchlaufen lassen; das ist **keine** nachträgliche Billigung des Starts.
+
+**Quelle:** Workflow `engine-vergleich.yml`, Lauf 41617738140 (Workflow-Stand `f87f148`), je Stand ein eigener
+Job. alt = `370df8e317f5919f92837563fd5aaf553bf39789` (Stand Stufe 1), neu =
+`e0de66f8f2f74257155557df9da928f75eb8b681` (Kopf dieses PR; `index.html` seitdem unverändert). Bericht unverändert
+unter `docs/daten/kandidaten-orakel/engine-vergleich-41617738140/bericht.md`.
+
+**Ergebnis: GLEICH.** 26 Replays (Archivpartien 1 und 2, Seed 222, bis Zug 130; Default und Arme A, S, ZS mit dem
+Orakelzug auf Rang 5, 16, 17 oder 30), 1328 KI-Abfragen, alle mit Wurzelkindern. Gewählter Zug, Wurzelkinder,
+Priors je Wurzelkind und die Protokollfelder (Fall, Ränge, natürliche Priors, Aufnahme, Anhebung, Kinderzahl,
+Prior-Summe) sind in beiden Ständen identisch; alle Priors vorhanden und endlich; keine nicht prüfbaren Läufe.
+
+**Abdeckung und Grenzen:**
+
+| Arm | Läufe | Abfragen ab Zug 81 | Fälle |
+|---|---:|---:|---|
+| A | 8 | 200 | c 97, c1 3, d 100 |
+| S | 8 | 22 | c 10, c1 1, d 11 |
+| ZS | 8 | 16 | c 10, c1 1, d 5 |
+
+- Das Nachspielen folgt dem Archiv und fragt die KI nur bis zu ihrer ersten Abweichung vom Archivzug. Mit Eingriff
+  (S, ZS) weicht die KI schnell ab (je Lauf 1 bis 7 Abfragen ab Zug 81). Für S und ZS beruht die Gleichheit
+  deshalb auf **22 und 16** Eingriffsstellen, für ZS darunter nur **5** mit Fall d.
+- **Fall d1 kam nicht vor**, ebenso nicht die entartete Rechnung (e) und c0/d0; für diese Fälle belegt der
+  Vergleich nichts. Sie sind nur durch die Tests an gebauten Listen abgedeckt.
+- Verglichen sind nur A, S und ZS; die neuen Arme N und P haben keinen alten Stand. Sie sind durch die Tests
+  (§8) und im Lauf durch die Prüfungen 10 und 11 abgesichert.
+

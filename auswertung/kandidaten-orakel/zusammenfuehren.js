@@ -32,9 +32,9 @@ function fuehreZusammen(stand, roh, metaZiel) {
     const zeilen = fs.readFileSync(path.join(stand, p), 'utf8').split('\n').filter(z => z.trim());
     let recs;
     try { recs = zeilen.map(z => JSON.parse(z)); } catch (e) { fehler.push(`${p}: Zeile ist kein JSON`); continue; }
-    const m = /^([gf])-(A|S|ZS)-(\d+)\.jsonl$/.exec(p);
+    const m = /^([gf])-(A|N|P|S|ZS)-(\d+)\.jsonl$/.exec(p);
     if (m) (arme[`${m[1]}-${m[2]}`] = arme[`${m[1]}-${m[2]}`] || []).push(...recs.map((r, k) => ({nr: r.nr, z: zeilen[k]})));
-    else if (/^(wiederholung-[gf]-(A|S|ZS)|kontrolle)\.jsonl$/.test(p)) fs.copyFileSync(path.join(stand, p), path.join(roh, p));
+    else if (/^(wiederholung-[gf]-(A|N|P|S|ZS)|kontrolle)\.jsonl$/.test(p)) fs.copyFileSync(path.join(stand, p), path.join(roh, p));
     else fehler.push(`${p}: unbekannter Dateiname`);
   }
   for (const [name, l] of Object.entries(arme)) {
