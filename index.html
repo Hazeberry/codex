@@ -4463,10 +4463,22 @@ function _kandKind(e, P) { return {idx: e.m.idx, x: e.m.x, y: e.m.y, P, N: 0, W:
    größter Prior (g oder Nachbar), d Aufnahme als Kind K+1 mit Spitzenprior, d1 Aufnahme ohne
    Anhebung (g oder Nachbar hätte schon mit natürlichem Prior den größten). Arm A greift nie ein. */
 function _mctsKidsOrakel(list, K, o) {
+  const kids = _mctsKidsOrakelKern(list, K, o), p = _kandProt;
+  /* Laufzeitprüfung der Prior-Summe (docs/kandidaten-orakel.md §9, §12): nur lesen, die Kinder bleiben
+     unverändert. Bei einer Abweichung über 1e-9 hält das Protokoll alle Priors fest (Fehlerprotokoll). */
+  if (p && kids) {
+    let s = 0;
+    for (let i = 0; i < kids.length; i++) s += kids[i].P;
+    p.priorSumme = s;
+    p.priorFehler = Math.abs(s - 1) > 1e-9 ? kids.map(k => [k.idx, k.P]) : null;
+  }
+  return kids;
+}
+function _mctsKidsOrakelKern(list, K, o) {
   const basis = _mctsKids(list, K), n = basis.length;
   const arm = o.arm === 'S' || o.arm === 'ZS' ? o.arm : 'A';
   const g = Number.isInteger(o.g) ? o.g : null;
-  const prot = _kandProt = {arm, g, fall: null, r: 0, rn: 0, nIdx: -1, pG: null, pN: null, aufgenommen: false, angehoben: false, kinder: n, besuche: null};
+  const prot = _kandProt = {arm, g, fall: null, r: 0, rn: 0, nIdx: -1, pG: null, pN: null, aufgenommen: false, angehoben: false, kinder: n, besuche: null, priorSumme: null, priorFehler: null};
   if (g === null) { prot.fall = 'x'; return basis; }
   if (g < 0) { prot.fall = 'a'; return basis; }
   const r = list.findIndex(s => s.m.idx === g) + 1;

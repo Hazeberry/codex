@@ -183,4 +183,30 @@ test('Randfall gleicher Prior beim Vergleich: R(c) ≥ M gilt auch bei Gleichhei
   pruefe(KI._kandMax([NaN, 0.5, 0], 0).ok === false, 'NaN: kein Eingriff');
 });
 
+test('Laufzeitprüfung der Prior-Summe: Protokoll führt die Summe der Kinder, Fehlerprotokoll nur bei Abweichung > 1e-9, Kinder unverändert', () => {
+  const faelle = [
+    [liste(absteigend(60)), [-1, null, 9999, 100, 104, 115, 129, 159]],
+    [liste(absteigend(60), {100: 0.2, 103: 0.3, 125: 0.4, 130: 0.1}), [100, 104, 125, 129]],
+    [liste([...new Array(16).fill(500), ...new Array(14).fill(400)]), [119]],
+    [liste(new Array(30).fill(500)), [119]],
+    [liste(absteigend(17)), [116]],
+  ];
+  let n = 0;
+  for (const [l, gs] of faelle) for (const g of gs) for (const arm of ['A', 'S', 'ZS']) {
+    const kids = KI._mctsKidsOrakel(l, K, {arm, g}), prot = KI.leseKandidatenOrakel();
+    let soll = 0; for (const k of kids) soll += k.P;
+    pruefe(Object.is(prot.priorSumme, soll), `${arm}, g = ${g}, Fall ${prot.fall}: Summe im Protokoll = Summe der Kinder`);
+    pruefe(Math.abs(prot.priorSumme - 1) <= 1e-9 && prot.priorFehler === null, `${arm}, g = ${g}: Summe 1, kein Fehlereintrag`);
+    n++;
+  }
+  pruefe(n >= 40, 'genug Fälle');
+  const l = liste(absteigend(60));
+  pruefeGleich(JSON.stringify(KI._mctsKidsOrakel(l, K, {arm: 'A', g: 129})), JSON.stringify(standardKinder(l)), 'Arm A mit Summenprüfung bitgleich zum Default');
+  return mit(0, () => {
+    KI._mctsKidsOrakel(l, K, {arm: 'S', g: 129});
+    const p = KI.leseKandidatenOrakel();
+    pruefe(p.fall === 'e' && Math.abs(p.priorSumme - 1) <= 1e-9, 'entartete Rechnung: Summe des Rang-Priors protokolliert');
+  });
+});
+
 laufeTests('Kandidaten-Orakel').then(ok => process.exit(ok ? 0 : 1));

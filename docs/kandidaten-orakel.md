@@ -346,7 +346,8 @@ nur der kombinierte Eingriff, Hauptvergleich S − A.
   Standard aus). Ohne `extra` ist `getAIMove` unverändert; Arm A ändert nur das Protokoll.
   Zusätzliche Protokollfälle gegenüber §3: `x` (keine Antwort des Orakels), `c0`/`d0` (kein Rang-Nachbar),
   `e` (entartete Prior-Rechnung) – alle ohne Eingriff, also bitgleich zum Default.
-  Protokollfelder je KI-Zug: `arm, g, fall, r, rn, nIdx, pG, pN, aufgenommen, angehoben, kinder, besuche`.
+  Protokollfelder je KI-Zug: `arm, g, fall, r, rn, nIdx, pG, pN, aufgenommen, angehoben, kinder, besuche`;
+  seit §12 dazu `priorSumme` und `priorFehler` (Laufzeitprüfung der Prior-Summe, nur lesend).
 - `gnugo-duell.js`: `--kandidaten-orakel A|S|ZS`, `--kandidaten-ab` (Standard 80); das Orakel wird vor
   `getAIMove` gefragt (`reg_genmove`, zieht, legt nicht); Ergebnisfeld `kandidatenOrakel` mit Protokoll,
   Abfragen, fehlenden Antworten, Neustarts, Abfragezeit und Partiedauer. Unser Zug wird nie ersetzt.
@@ -359,7 +360,8 @@ nur der kombinierte Eingriff, Hauptvergleich S − A.
   (Paarezahl und Budget hängen von ihr ab).
 
 Noch offen:
-1. ~~Zahl der Paare je Gegner und Budget~~: festgelegt in §11 (480 Paare je Gegner, 158 Runnerstunden).
+1. ~~Zahl der Paare je Gegner und Budget~~: festgelegt in §11 (480 Paare je Gegner; Budget zuerst 158, dann
+   rund 160 Runnerstunden, siehe §12).
 2. ~~Go für die Laufzeitprobe~~: gelaufen, gültig (§11). **Go für den Hauptversuch** steht aus; zuerst wird
    der Workflow als PR zur Prüfung vorgelegt.
 
@@ -445,7 +447,8 @@ eine kleinere wahre SD macht die Intervalle nur schmaler.
 - Seeds wie in §4 festgelegt: **231** gegen GNU Go, **232** gegen Fuego.
 - Erwartete Genauigkeit (§5, mit den Planungswerten): halbe Breite des 97,5-%-Intervalls 6,0 Punkte
   (GNU Go) und 8,7 Punkte (Fuego); MDE₈₀ 8,3 und 12,0 Punkte.
-- **Budget: 158 Runnerstunden** als Planungsbudget, **nicht** als garantierte Obergrenze.
+- **Budget: 158 Runnerstunden** als Planungsbudget, **nicht** als garantierte Obergrenze. (Später am selben Tag
+  auf **rund 160 Runnerstunden** aktualisiert, siehe §12.)
 
 ### Bedingung 5: Hochrechnung gegen das Budget
 
@@ -529,11 +532,13 @@ Ungültig („KEIN URTEIL“, Lauf rot, **kein** Effekt im Bericht), wenn eine d
 
 1. Je Arm und Gegner liegt jede Nummer 1 bis 480 genau einmal vor, mit der Farbe nach der Nummer.
    **Konkretisierung:** „gleiche Zahl je Farbe“ bezieht sich auf die **gespielten** Partien (240 je Farbe);
-   abgebrochene Partien zählen gegen die 98 %, nicht gegen die Farbgleichheit.
-2. Je Arm und Gegner sind mindestens 471 von 480 Partien ausgewertet (98 %). Abgebrochene Partien fallen
-   samt ihren Partnern aus den Paarvergleichen.
+   abgebrochene Partien zählen gegen die 98 %, nicht gegen die Farbgleichheit. Ausfälle werden je Arm,
+   Gegner und Farbe ausgewiesen (Festlegung Hazeberry, 03.11.2026).
+2. Je Arm und Gegner sind mindestens 471 von 480 Partien ausgewertet (98 %). Ausgewertet werden nur
+   vollständige Paare (unten, Auswertung).
 3. Kontrolle: Arm A reproduziert Seed 222, Nr. 1 bis 4 bitgleich (Züge und Endstand).
-4. Antwortquote des Orakels ≥ 98 %, **Konkretisierung:** je Arm und Gegner, nicht nur insgesamt.
+4. Antwortquote des Orakels ≥ 98 %, **Konkretisierung:** je Arm und Gegner, nicht nur insgesamt
+   (bestätigt von Hazeberry, 03.11.2026).
 5. Fall (d) tritt je Gegner in beiden Farben auf.
 6. Erster Auslöser von S und ZS gleich (Zugnummer, Fall, Rang von *g* und *n*) in allen Paaren.
 7. Wiederholungskontrolle: Partien 1 bis 3 je Arm und Gegner beim zweiten Spielen identisch (Züge und
@@ -543,17 +548,30 @@ Ungültig („KEIN URTEIL“, Lauf rot, **kein** Effekt im Bericht), wenn eine d
    (genau die Zugnummern), Zahl der Fälle `x` gleich der Zahl fehlender Antworten, nur bekannte Fälle. (An den
    40 Partien der Probe nachgeprüft: stimmt in allen.)
 9. Gleicher Stand der Quellen in allen Paketen (Begleitdateien).
+10. **Prior-Summe zur Laufzeit:** Jeder Eingriff (aufgenommen oder angehoben) trägt die Summe der Priors
+    seiner Wurzelkinder im Protokoll, und sie weicht um höchstens 10⁻⁹ von 1 ab. Ein Eingriff ohne Summe oder
+    mit größerer Abweichung macht den Lauf ungültig.
 
-**Prior-Summe 1 (Konkretisierung, zur Entscheidung durch Hazeberry).** §9 nennt „die Prior-Summe eines
-Eingriffs ist nicht 1 (Abweichung > 10⁻⁹)“ als Ungültigkeitsgrund. Das Protokoll eines Zuges führt die
-Summe nicht, und sie nachträglich hineinzuschreiben wäre eine Änderung an `index.html`. Vorgeschlagen ist
-deshalb: Die Summe wird durch die Tests gesichert (`tests/kandidaten-orakel.js` prüft sie für alle Fälle,
-Randfälle und echte Stellungen), und der Job `pruefen` muss grün sein, bevor eine Partie läuft. Das ist eine
-Prüfung des Codes, keine Prüfung jedes einzelnen Eingriffs im Lauf. Soll sie im Lauf geprüft werden, braucht
-es ein weiteres Protokollfeld in `index.html` (Schalter bleibt aus, Default bitgleich) mit eigenem Go.
+**Laufzeitprüfung der Prior-Summe (Go von Hazeberry, 03.11.2026).** Umgesetzt im Messpfad von `index.html`:
+`_mctsKidsOrakel` ruft die bisherige Rechnung (jetzt `_mctsKidsOrakelKern`) auf und **liest** danach die
+Priors der fertigen Kinder. Es schreibt `priorSumme` (Summe in der Reihenfolge der Kinder) ins Protokoll und,
+bei einer Abweichung über 10⁻⁹, `priorFehler` mit allen Kindern als `[Feld, Prior]`. Die Kinder selbst
+ändert es nicht. Ohne `extra` läuft dieser Pfad nie; Arm A bleibt bitgleich zum Default (Tests). Das
+Harness übernimmt die Summe als `ps` und die Fehlerliste als `pf` in jeden Protokolleintrag.
+**Fehlerprotokoll:** Der Bericht listet jede Abweichung über 10⁻⁹, auch ohne Eingriff, und jeden Eingriff
+ohne Summe mit Gegner, Arm, Partie, Farbe, Zug, Fall und Summe; die vollständige Liste mit allen Priors steht
+in `auswertung.json`. Ungültig machen nur Fehler bei einem Eingriff (§9); eine Abweichung ohne Eingriff wird
+protokolliert und im Bericht genannt. Dazu die größte gemessene Abweichung über alle Einträge.
+**Grenze der Tests:** Eine Abweichung lässt sich mit gültigen Eingaben nicht erzeugen, weil die Rechnung
+mathematisch auf 1 normiert. Der Fehlerpfad ist deshalb am Bericht mit gebauten Daten geprüft, an der Engine
+nur der Normalfall (alle Fälle und Arme: Summe protokolliert, gleich der Summe der Kinder, kein Fehlereintrag).
 
 ### Auswertung (`auswertung/kandidaten-orakel/haupt-bericht.js`, nur bei Gültigkeit)
 
+- **Vollständige Paare (Festlegung Hazeberry, 03.11.2026):** Alle Vergleiche nutzen nur Partienummern, die in
+  **allen drei Armen** eines Gegners ausgewertet sind. Damit beruhen S − A, S − ZS und ZS − A auf denselben
+  Nummern. Ausfälle stehen in einer eigenen Tabelle je Gegner, Arm und Farbe: gespielt, nicht ausgewertet
+  (davon abgebrochen), nur wegen eines Ausfalls in einem anderen Arm nicht im Paar, und die Nummern.
 - **Primär, je Gegner:** Endstand S − A, gepaart nach Partienummer, zweiseitiger gepaarter t-Test,
   α = 0,025, Intervall zu 97,5 % mit dem t-Quantil (bei 480 Paaren 2,2485 statt z = 2,2414 aus §5; der
   Unterschied ist ohne praktische Folge). Urteil: „S besser als A“ oder „S schlechter als A“ bei p < 0,025,
@@ -570,6 +588,10 @@ gebaute Daten.
 
 ### Aufwand
 
-Wie in §11: vorsichtig rund 158 bis 160 Runnerstunden, nach den Medianen der Probe rund 65. Die Wanduhrzeit
+**Planungsbudget: rund 160 Runnerstunden** (aktualisiert von Hazeberry, 03.11.2026; Planungsbudget, keine
+garantierte Obergrenze). Die vorsichtige Rechnung aus §11 (Maximum der Probe plus 50 %, mit Kontrollen und
+Einrichtung) ergibt rund 159 bis 160 h und liegt damit im Budget, ohne Reserve darüber. Nach den Medianen der
+Probe wären es rund 65 h. Die Laufzeitprüfung der Prior-Summe kostet je Zug eine Summe über 16 oder 17
+Zahlen und fällt nicht ins Gewicht. Die Wanduhrzeit
 hängt davon ab, wie viele Jobs GitHub gleichzeitig laufen lässt. Bei 20 gleichzeitigen Jobs wären es nach
 den Medianen grob 3 bis 4 Stunden, vorsichtig rund 8. Das ist eine Hypothese, nicht gemessen.

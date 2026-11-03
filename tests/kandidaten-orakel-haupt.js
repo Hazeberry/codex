@@ -105,6 +105,8 @@ test('paket.js mit spielen.sh und Attrappe: Partie 2 im eigenen Prozess gleich w
   pruefeGleich(s.status, 0, 'spielen.sh: ' + s.stderr.slice(-300));
   const a = JSON.parse(zeilen(einzeln)[0]), b = zeilen(durch).map(z => JSON.parse(z)).find(x => x.nr === 2);
   pruefe(a.kandidatenOrakel && a.kandidatenOrakel.arm === 'S' && a.kandidatenOrakel.ereignisse.length > 0, 'Protokoll des Kandidaten-Orakels vorhanden');
+  const mitProt = a.kandidatenOrakel.ereignisse.filter(e => e.fall !== 'kein-protokoll');
+  pruefe(mitProt.length > 0 && mitProt.every(e => Number.isFinite(e.ps) && Math.abs(e.ps - 1) <= 1e-9 && !e.pf), 'Harness: Prior-Summe je Zug protokolliert, überall 1');
   pruefeGleich(JSON.stringify(a.zuege), JSON.stringify(b.zuege), 'gleiche Züge');
   pruefeGleich(a.endstand, b.endstand, 'gleicher Endstand');
   pruefeGleich(JSON.stringify(a.kandidatenOrakel.ereignisse), JSON.stringify(b.kandidatenOrakel.ereignisse), 'gleiches Protokoll');
@@ -145,23 +147,28 @@ const N = 4;
 function partie(nr, arm, opt = {}) {
   const f = nr % 2 === 0 ? 'S' : 'W', mcs = f === 'S' ? [80, 82] : [81, 83];
   const ev = mcs.map((mc, k) => ({mc, f, g: 5, fall: k === 0 ? 'd' : 'a', r: k === 0 ? 30 : null, rn: k === 0 ? 31 : null,
-    auf: k === 0 && arm !== 'A' ? 1 : 0, ang: k === 0 && arm !== 'A' ? 1 : 0, i: 5, gl: 1}));
+    auf: k === 0 && arm !== 'A' ? 1 : 0, ang: k === 0 && arm !== 'A' ? 1 : 0, i: 5, gl: 1, ps: 1}));
   if (opt.ausloeser) ev[0].rn = 32;
+  if (opt.priorFehler) { ev[0].ps = 1 + 1e-6; ev[0].pf = [[5, 0.5], [6, 0.500001]]; }
+  if (opt.priorFehlt) delete ev[0].ps;
+  if (opt.priorOhneEingriff) ev[1].ps = 1 + 1e-6;
   if (opt.zaehl) ev.pop();
   const zuege = Array.from({length: 84}, (_, k) => 'D' + (k % 19 + 1));
   return {nr, wirFarbe: f, endstand: (arm === 'S' ? 3 : 0) + nr, gewonnen: nr % 3 === 0, zuegeAnzahl: 84, zuege,
     ...(opt.abgebrochen ? {abgebrochen: 'GNU Go beendet', endstand: undefined} : {}),
     kandidatenOrakel: {arm, ab: 80, abfragen: opt.zaehl ? 2 : ev.length, ohneAntwort: opt.ohneAntwort ? 1 : 0, abfrageMs: 10, partieMs: 1000 * nr, ereignisse: ev}};
 }
-function baue(opt = {}) {
+function baue(opt = {}, n = N) {
   const d = temp();
   for (const o of ['g', 'f']) for (const arm of ['A', 'S', 'ZS']) {
     const l = [];
-    for (let nr = 1; nr <= N; nr++) {
+    for (let nr = 1; nr <= n; nr++) {
       if (opt.fehlt && o === 'g' && arm === 'S' && nr === 4) continue;
       l.push(partie(nr, arm, {
         ausloeser: opt.ausloeser && arm === 'ZS' && nr === 2, zaehl: opt.zaehl && o === 'f' && arm === 'A' && nr === 1,
-        ohneAntwort: opt.ohneAntwort && o === 'g' && arm === 'A', abgebrochen: opt.abgebrochen && o === 'f' && arm === 'S' && nr === 4}));
+        ohneAntwort: opt.ohneAntwort && o === 'g' && arm === 'A', abgebrochen: opt.abgebrochen && o === 'f' && arm === 'S' && nr === 4,
+        priorFehler: opt.priorFehler && o === 'g' && arm === 'S' && nr === 2, priorFehlt: opt.priorFehlt && o === 'f' && arm === 'ZS' && nr === 3,
+        priorOhneEingriff: opt.priorOhneEingriff && o === 'g' && arm === 'A' && nr === 1}));
     }
     fs.writeFileSync(path.join(d, `${o}-${arm}.jsonl`), l.map(x => JSON.stringify(x) + '\n').join(''));
     const w = l.filter(x => x.nr <= 3).map(x => opt.wiederholung && o === 'g' && arm === 'S' && x.nr === 2 ? {...x, endstand: x.endstand + 1} : x);
@@ -185,10 +192,35 @@ test('Bericht: gültig mit gebauten Daten; primärer Endpunkt S − A mit 97,5 %
   pruefe(/Auslöser je Partie \(c, d, d1\)/.test(t) && /Prior-Summe 1/.test(t), 'Beschriftung und Hinweis zur Prior-Summe');
 });
 
+test('Bericht: Prior-Summe zur Laufzeit; Abweichung ohne Eingriff wird protokolliert, macht aber nicht ungültig', () => {
+  const ok = B.bewerte(baue(), ARCH, N);
+  pruefe(ok.priorGeprueft > 0 && ok.priorMax === 0 && ok.priorFehler.length === 0, 'gebaute Daten: alle Summen 1');
+  const f = B.bewerte(baue({priorFehler: true}), ARCH, N);
+  pruefe(!f.gueltig && f.priorFehler.length === 1 && f.priorFehler[0].priors.length === 2 && f.priorFehler[0].nr === 2, 'Fehlerprotokoll mit Priors, ungültig');
+  pruefe(/Fehlerprotokoll: 1 Einträge, davon 1 bei einem Eingriff/.test(B.bericht(f, null)) && /\| GNU Go \| S \| 2 \|/.test(B.bericht(f, null)), 'Fehlerprotokoll im Bericht');
+  const o = B.bewerte(baue({priorOhneEingriff: true}), ARCH, N);
+  pruefe(o.gueltig && o.priorFehler.length === 1 && !o.priorFehler[0].eingriff, 'ohne Eingriff: protokolliert, gültig');
+});
+
+test('Bericht: nur vollständige Paare; Ausfälle nach Arm, Gegner und Farbe', () => {
+  const e = B.bewerte(baue({abgebrochen: true}, 100), ARCH, 100);
+  pruefe(e.gueltig, 'ein Ausfall von 100 bleibt gültig: ' + e.gruende.join(' | '));
+  const a = B.beschreibe(e);
+  pruefeGleich(a.f.vollePaare, 99, 'Fuego: 99 vollständige Paare'); pruefeGleich(a.g.vollePaare, 100, 'GNU Go: 100');
+  pruefeGleich(a.f.primaer.n, 99, 'S − A auf 99'); pruefeGleich(a.f.ZSA.n, 99, 'ZS − A auch auf 99 (Partie 4 fehlt nur in S)'); pruefeGleich(a.f.SZS.n, 99, 'S − ZS auf 99');
+  pruefeGleich(a.f.ausfaelle.SS.ausgefallen, 1, 'S, KI Schwarz: 1 Ausfall'); pruefeGleich(a.f.ausfaelle.SS.abgebrochen, 1, 'davon abgebrochen');
+  pruefeGleich(a.f.ausfaelle.SW.ausgefallen, 0, 'S, KI Weiß: 0');
+  pruefeGleich(a.f.ausfaelle.AS.nurAnderer, 1, 'A, Schwarz: 1 Partie nur wegen S nicht im Paar'); pruefeGleich(a.f.ausfaelle.ZSS.nurAnderer, 1, 'ZS ebenso');
+  pruefeGleich(a.f.arme.A.siege.n, 99, 'Siege nur in vollständigen Paaren');
+  const t = B.bericht(e, a);
+  pruefe(/## Ausfälle und vollständige Paare/.test(t) && /Fuego: 99 vollständige Paare von 100/.test(t) && /\| Fuego \| S \| Schwarz \| 50\/50 \| 1 \(1\) \| 0 \| 4 \|/.test(t), 'Ausfalltabelle im Bericht');
+});
+
 test('Bericht: jede Verletzung → KEIN URTEIL mit Grund und ohne Effekt', () => {
   const faelle = [
     ['fehlt', /fehlen \(unvollständig, fortsetzbar\)/], ['ausloeser', /Bedingung 4/], ['zaehl', /Zählersummen/],
-    ['ohneAntwort', /Antwortquote/], ['wiederholung', /Wiederholungskontrolle/], ['kontrolle', /Bedingung 1/], ['abgebrochen', /ausgewertet/]];
+    ['ohneAntwort', /Antwortquote/], ['wiederholung', /Wiederholungskontrolle/], ['kontrolle', /Bedingung 1/], ['abgebrochen', /ausgewertet/],
+    ['priorFehler', /Prior-Summe: 1 Eingriffe/], ['priorFehlt', /Prior-Summe: 1 Eingriffe/]];
   for (const [k, re] of faelle) {
     const e = B.bewerte(baue({[k]: true}), ARCH, N);
     pruefe(!e.gueltig && e.gruende.some(g => re.test(g)), `${k}: ${e.gruende.join(' | ')}`);

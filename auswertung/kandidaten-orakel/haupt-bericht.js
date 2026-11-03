@@ -13,8 +13,9 @@
 
    Auswertung nur bei Gültigkeit:
    - primär je Gegner: Endstand S − A, gepaart nach Partienummer, zweiseitiger gepaarter t-Test,
-     α = 0,025, Intervall zu 97,5 % (t-Verteilung). Paare mit abgebrochener Partie fallen samt Partner
-     heraus.
+     α = 0,025, Intervall zu 97,5 % (t-Verteilung). Ausgewertet werden nur vollständige Paare:
+     Partienummern, die in allen drei Armen ausgewertet sind; alle Vergleiche nutzen dieselben Nummern.
+     Ausfälle stehen je Arm, Gegner und Farbe im Bericht.
    - ergänzend, ohne Signifikanzurteil: S − ZS und ZS − A (95 %), Vorzeichentest, Siege (Clopper-Pearson
      95 %, exakter McNemar), alles auch nach Farbe getrennt; Fälle, Auslöser, Eingriffe, Dauer.
 
@@ -26,7 +27,7 @@ const {vorzeichenP} = require('../messung-zusatz.js');
 const ARME = ['A', 'S', 'ZS'], GEGNER = {g: 'GNU Go', f: 'Fuego'};
 const AUSLOESER = ['c', 'd', 'd1'];
 const FAELLE = ['a', 'b', 'c', 'c0', 'c1', 'd', 'd0', 'd1', 'e', 'x', 'kein-protokoll'];
-const ALPHA_PRIMAER = 0.025, ALPHA_ERG = 0.05, MIN_ANTEIL = 0.98, WIEDERHOLT = [1, 2, 3];
+const PRIOR_TOL = 1e-9, ALPHA_PRIMAER = 0.025, ALPHA_ERG = 0.05, MIN_ANTEIL = 0.98, WIEDERHOLT = [1, 2, 3];
 
 const lies = d => {
   if (!fs.existsSync(d)) return [];
@@ -148,6 +149,22 @@ function bewerte(ordner, archivPfad, n = 480) {
   }
   if (zaehlFehler) gruende.push(`Zählersummen gehen in ${zaehlFehler} Partien nicht auf (Einträge, Abfragen, KI-Züge oder Fälle)`);
 
+  /* 5b. Prior-Summe zur Laufzeit (§9): jeder Eingriff mit protokollierter Summe, Abweichung ≤ 1e-9.
+     Fehlerprotokoll: jede Abweichung (auch ohne Eingriff) und jeder Eingriff ohne Summe. */
+  const priorFehler = [];
+  let priorMax = 0, priorGeprueft = 0;
+  for (const o of Object.keys(GEGNER)) for (const a of ARME) for (const r of daten[o + a]) {
+    if (!r.kandidatenOrakel) continue;
+    for (const e of r.kandidatenOrakel.ereignisse) {
+      const eingriff = !!(e.auf || e.ang), hat = Number.isFinite(e.ps);
+      if (hat) { priorGeprueft++; priorMax = Math.max(priorMax, Math.abs(e.ps - 1)); }
+      if ((eingriff && !hat) || (hat && Math.abs(e.ps - 1) > PRIOR_TOL) || e.pf)
+        priorFehler.push({gegner: o, arm: a, nr: r.nr, farbe: e.f, mc: e.mc, fall: e.fall, eingriff, summe: hat ? e.ps : null, priors: e.pf || null});
+    }
+  }
+  const priorFehlerEingriff = priorFehler.filter(x => x.eingriff).length;
+  if (priorFehlerEingriff) gruende.push(`Prior-Summe: ${priorFehlerEingriff} Eingriffe ohne Summe oder mit Abweichung > 1e-9 (Fehlerprotokoll im Bericht)`);
+
   /* 7. Erster Auslöser S gegen ZS (Bedingung 4) */
   const ausl = {};
   for (const o of Object.keys(GEGNER)) {
@@ -174,12 +191,20 @@ function bewerte(ordner, archivPfad, n = 480) {
     if (!ok) gruende.push(`Wiederholungskontrolle: ${GEGNER[o]} Arm ${a}: Partien 1 bis 3 beim zweiten Spielen nicht identisch (oder fehlen, oder abgebrochen)`);
   }
 
-  return {gruende, gueltig: gruende.length === 0, vollstaendig, n, daten, karten, quoten, faelle, ausl, wiederholung, kontrolleOk, zaehlFehler};
+    /* Vollständige Paare: Nummern, die in allen drei Armen eines Gegners ausgewertet sind */
+  const voll = {};
+  for (const o of Object.keys(GEGNER)) {
+    voll[o] = new Set();
+    for (let nr = 1; nr <= n; nr++) if (ARME.every(a => ausgewertet(karten[o + a].get(nr)))) voll[o].add(nr);
+  }
+  return {gruende, gueltig: gruende.length === 0, vollstaendig, n, daten, karten, quoten, faelle, ausl, wiederholung, kontrolleOk, zaehlFehler,
+          priorFehler, priorMax, priorGeprueft, voll};
 }
 
 /* ---- Auswertung (nur bei Gültigkeit aufgerufen) ---- */
 function vergleich(X, Y, alpha, filter = () => true) {
-  /* Differenz X − Y je Partienummer, beide ausgewertet */
+  /* Differenz X − Y je Partienummer, beide ausgewertet; der Aufrufer schränkt über filter auf die
+     vollständigen Paare ein (alle drei Arme ausgewertet) */
   const diffs = [], vz = {besser: 0, schlechter: 0};
   let b = 0, c = 0, nS = 0;
   for (const [nr, x] of X) {
@@ -199,12 +224,12 @@ function siegrate(M, filter = () => true) {
 function beschreibe(e) {
   const aus = {};
   for (const o of Object.keys(GEGNER)) {
-    const K = a => e.karten[o + a];
-    const primaer = vergleich(K('S'), K('A'), ALPHA_PRIMAER);
+    const K = a => e.karten[o + a], V = r => e.voll[o].has(r.nr);
+    const primaer = vergleich(K('S'), K('A'), ALPHA_PRIMAER, V);
     const urteil = !(primaer.p < ALPHA_PRIMAER) ? 'kein nachgewiesener Unterschied' : primaer.mittel > 0 ? 'S besser als A' : 'S schlechter als A';
     const farben = {};
     for (const f of ['S', 'W']) {
-      const fl = r => r.wirFarbe === f;
+      const fl = r => r.wirFarbe === f && V(r);
       farben[f] = {SA: vergleich(K('S'), K('A'), ALPHA_ERG, fl), SZS: vergleich(K('S'), K('ZS'), ALPHA_ERG, fl), ZSA: vergleich(K('ZS'), K('A'), ALPHA_ERG, fl),
                    siege: Object.fromEntries(ARME.map(a => [a, siegrate(K(a), fl)]))};
     }
@@ -219,9 +244,20 @@ function beschreibe(e) {
         ohneProt: ev.filter(x => x.fall === 'kein-protokoll').length, ohneProtMitZug: ev.filter(x => x.fall === 'kein-protokoll' && x.g !== null && x.g >= 0).length,
         zuege: d.length ? d.reduce((x, r) => x + r.zuegeAnzahl, 0) / d.length : NaN,
         medianS: ms.length ? (ms.length % 2 ? ms[ms.length >> 1] : (ms[ms.length / 2 - 1] + ms[ms.length / 2]) / 2) / 1000 : NaN, maxS: ms.length ? ms[ms.length - 1] / 1000 : NaN, summeH: ms.reduce((x, y) => x + y, 0) / 3600000,
-        siege: siegrate(K(a))};
+        siege: siegrate(K(a), V)};
     }
-    aus[o] = {primaer, urteil, SZS: vergleich(K('S'), K('ZS'), ALPHA_ERG), ZSA: vergleich(K('ZS'), K('A'), ALPHA_ERG), farben, arme};
+    /* Ausfälle je Arm und Farbe: nicht ausgewertet (abgebrochen oder ohne Endstand) und Partien, die
+       nur wegen eines Ausfalls in einem anderen Arm nicht in die Paare eingehen */
+    const ausfaelle = {};
+    for (const a of ARME) for (const f of ['S', 'W']) {
+      const nummern = []; for (let nr = 1; nr <= e.n; nr++) if ((nr % 2 === 0 ? 'S' : 'W') === f) nummern.push(nr);
+      const eigen = nummern.filter(nr => !ausgewertet(K(a).get(nr)));
+      const fremd = nummern.filter(nr => ausgewertet(K(a).get(nr)) && !e.voll[o].has(nr));
+      ausfaelle[a + f] = {gespielt: nummern.filter(nr => K(a).has(nr)).length, soll: nummern.length,
+        abgebrochen: eigen.filter(nr => K(a).get(nr) && K(a).get(nr).abgebrochen).length, ausgefallen: eigen.length, nurAnderer: fremd.length, nummern: eigen};
+    }
+    aus[o] = {primaer, urteil, SZS: vergleich(K('S'), K('ZS'), ALPHA_ERG, V), ZSA: vergleich(K('ZS'), K('A'), ALPHA_ERG, V), farben, arme,
+              vollePaare: e.voll[o].size, ausfaelle};
   }
   return aus;
 }
@@ -242,8 +278,7 @@ function bericht(e, a) {
     if (!e.vollstaendig) L.push('Der Lauf ist **unvollständig**. Fortsetzen: Workflow erneut starten mit `fortsetzen_aus` = Nummer dieses Laufs; fertige Partien werden nicht neu gerechnet.', '');
     L.push('Bei ungültigem Lauf wird kein Effekt ausgegeben.', '');
   } else {
-    L.push(`**Gültig.** ${e.n} Paare je Gegner; Kontrolle gegen das Archiv bitgleich; Wiederholungskontrolle identisch; Zählersummen stimmen; erster Auslöser S = ZS in allen Paaren.`, '');
-    L.push('Die Prior-Summe 1 je Eingriff wird nicht im Protokoll geführt; sie ist durch die Tests im Job „Prüfen“ gesichert, der vor allen Partien grün sein muss (§12).', '');
+    L.push(`**Gültig.** ${e.n} Partienummern je Arm und Gegner gespielt; Kontrolle gegen das Archiv bitgleich; Wiederholungskontrolle identisch; Zählersummen stimmen; Prior-Summe 1 in jedem Eingriff; erster Auslöser S = ZS in allen Paaren.`, '');
   }
   L.push('## Technische Kennzahlen', '', '| Gegner | Arm | Antwortquote | Wiederholung | erster Auslöser S/ZS |', '|---|---|---:|---|---|');
   for (const o of Object.keys(GEGNER)) for (const x of ARME) {
@@ -251,6 +286,13 @@ function bericht(e, a) {
     L.push(`| ${GEGNER[o]} | ${x} | ${q.quote === null ? '–' : pz(q.quote)} (${q.abf - q.ohne}/${q.abf}) | ${e.wiederholung[o + x] ? 'identisch' : 'NICHT identisch'} | ${x === 'S' ? `${au.paare} Paare, ${au.abw} abweichend, ${au.ohne} ohne Auslöser` : ''} |`);
   }
   L.push('', `Kontrolle Arm A gegen Archiv (Seed 222, Nr. 1 bis 4): ${e.kontrolleOk ? 'bitgleich' : 'NICHT bitgleich'}.`, '');
+  L.push('### Prior-Summe zur Laufzeit', '', `Geprüft: ${e.priorGeprueft} Protokolleinträge mit Summe; größte Abweichung von 1: ${e.priorMax.toExponential(2).replace('.', ',')} (Grenze 1e-9). Fehlerprotokoll: ${e.priorFehler.length} Einträge, davon ${e.priorFehler.filter(x => x.eingriff).length} bei einem Eingriff.`, '');
+  if (e.priorFehler.length) {
+    L.push('| Gegner | Arm | Partie | KI | Zug | Fall | Eingriff | Summe |', '|---|---|---:|---|---:|---|---|---|');
+    for (const x of e.priorFehler.slice(0, 30)) L.push(`| ${GEGNER[x.gegner]} | ${x.arm} | ${x.nr} | ${x.farbe} | ${x.mc} | ${x.fall} | ${x.eingriff ? 'ja' : 'nein'} | ${x.summe === null ? 'fehlt' : String(x.summe)} |`);
+    if (e.priorFehler.length > 30) L.push('', `… ${e.priorFehler.length - 30} weitere, vollständig in auswertung.json (mit allen Priors).`);
+    L.push('');
+  }
   L.push('### Fälle nach Farbe (alle Arme)', '');
   for (const o of Object.keys(GEGNER)) {
     const ks = FAELLE.filter(k => e.faelle[o].S[k] || e.faelle[o].W[k]);
@@ -260,7 +302,15 @@ function bericht(e, a) {
   }
   if (!e.gueltig) return L.join('\n') + '\n';
 
-  L.push('## Primärer Endpunkt: Endstand S − A (gepaart, α = 0,025 je Gegner, Intervall 97,5 %)', '',
+  L.push('## Ausfälle und vollständige Paare', '', 'Ausgewertet werden nur **vollständige Paare**: Partienummern, die in allen drei Armen eines Gegners ausgewertet sind. Alle Vergleiche nutzen dieselben Nummern.', '',
+    '| Gegner | Arm | KI | gespielt | nicht ausgewertet (davon abgebrochen) | nur wegen Ausfall in anderem Arm nicht im Paar | Nummern der eigenen Ausfälle |', '|---|---|---|---:|---:|---:|---|');
+  for (const o of Object.keys(GEGNER)) for (const x of ARME) for (const f of ['S', 'W']) {
+    const z = a[o].ausfaelle[x + f];
+    L.push(`| ${GEGNER[o]} | ${x} | ${f === 'S' ? 'Schwarz' : 'Weiß'} | ${z.gespielt}/${z.soll} | ${z.ausgefallen} (${z.abgebrochen}) | ${z.nurAnderer} | ${z.nummern.join(', ') || '–'} |`);
+  }
+  L.push('');
+  for (const o of Object.keys(GEGNER)) L.push(`- ${GEGNER[o]}: ${a[o].vollePaare} vollständige Paare von ${e.n}.`);
+  L.push('', '## Primärer Endpunkt: Endstand S − A (gepaart, α = 0,025 je Gegner, Intervall 97,5 %)', '',
     '| Gegner | Paare | Differenz S − A [97,5 %] | SD | t | p (zweiseitig) | Urteil |', '|---|---:|---|---:|---:|---:|---|');
   for (const o of Object.keys(GEGNER)) {
     const p = a[o].primaer;
@@ -272,7 +322,7 @@ function bericht(e, a) {
   L.push('', '## Ergänzend, ohne Signifikanzurteil (95 %)', '',
     '| Gegner | Vergleich | Paare | Differenz [95 %] | Vorzeichen (besser/schlechter, p) | Siege: nur erster / nur zweiter (McNemar p) |', '|---|---|---:|---|---|---|');
   for (const o of Object.keys(GEGNER)) for (const [txt, v] of [['S − ZS', a[o].SZS], ['ZS − A', a[o].ZSA], ['S − A', a[o].primaer]]) {
-    const w = txt === 'S − A' ? vergleich(e.karten[o + 'S'], e.karten[o + 'A'], ALPHA_ERG) : v;
+    const w = txt === 'S − A' ? vergleich(e.karten[o + 'S'], e.karten[o + 'A'], ALPHA_ERG, r => e.voll[o].has(r.nr)) : v;
     L.push(`| ${GEGNER[o]} | ${txt} | ${w.n} | ${iv(w)} | ${w.vz.besser}/${w.vz.schlechter}, ${fp(w.vz.p)} | ${w.siege.nurX}/${w.siege.nurY} (${fp(w.siege.p)}) |`);
   }
   L.push('', '### Nach Farbe der KI (95 %, beschreibend)', '', '| Gegner | KI | S − A | S − ZS | ZS − A | Siege A | Siege S | Siege ZS |', '|---|---|---|---|---|---|---|---|');
@@ -281,14 +331,14 @@ function bericht(e, a) {
     L.push(`| ${GEGNER[o]} | ${f === 'S' ? 'Schwarz' : 'Weiß'} | ${iv(x.SA)} (${x.SA.n}) | ${iv(x.SZS)} | ${iv(x.ZSA)} | ${sg(x.siege.A)} | ${sg(x.siege.S)} | ${sg(x.siege.ZS)} |`);
   }
   L.push('', '## Beschreibung je Arm', '',
-    '| Gegner | Arm | ausgewertet | abgebrochen | Siege [95 %] | Züge Ø | Auslöser je Partie (c, d, d1) | Eingriffe je Partie | gespielt = Orakelzug bei Auslöser | kein-protokoll (davon Orakel mit Zug) | Dauer Median / Max (s) | Partiezeit (h) |',
+    '| Gegner | Arm | ausgewertet | abgebrochen | Siege in vollständigen Paaren [95 %] | Züge Ø | Auslöser je Partie (c, d, d1) | Eingriffe je Partie | gespielt = Orakelzug bei Auslöser | kein-protokoll (davon Orakel mit Zug) | Dauer Median / Max (s) | Partiezeit (h) |',
     '|---|---|---:|---:|---|---:|---:|---:|---:|---|---|---:|');
   let summe = 0;
   for (const o of Object.keys(GEGNER)) for (const x of ARME) {
     const r = a[o].arme[x]; summe += r.summeH;
     L.push(`| ${GEGNER[o]} | ${x} | ${r.partien} | ${r.abgebrochen} | ${pz(r.siege.n ? r.siege.k / r.siege.n : NaN)} [${pz(r.siege.ci[0])}; ${pz(r.siege.ci[1])}] | ${k1(r.zuege)} | ${k1(r.ausloeser)} | ${k1(r.eingriffe)} | ${pz(r.gleichG)} | ${r.ohneProt} (${r.ohneProtMitZug}) | ${k1(r.medianS)} / ${k1(r.maxS)} | ${k1(r.summeH)} |`);
   }
-  L.push('', `Summe der Partiezeit (ohne Einrichten der Jobs und Kontrollen): ${k1(summe)} h (Planungsbudget 158 h).`, '');
+  L.push('', `Summe der Partiezeit (ohne Einrichten der Jobs und Kontrollen): ${k1(summe)} h (Planungsbudget rund 160 h).`, '');
   return L.join('\n') + '\n';
 }
 
@@ -301,6 +351,7 @@ if (require.main === module) {
   const n = wert('--n') ? +wert('--n') : 480;
   const e = bewerte(pos[0], pos[1], n), aus = e.gueltig ? beschreibe(e) : null, t = bericht(e, aus);
   if (wert('--bericht')) fs.writeFileSync(wert('--bericht'), t); else process.stdout.write(t);
-  if (wert('--json')) fs.writeFileSync(wert('--json'), JSON.stringify({gueltig: e.gueltig, vollstaendig: e.vollstaendig, gruende: e.gruende, auswertung: aus}, null, 1));
+  if (wert('--json')) fs.writeFileSync(wert('--json'), JSON.stringify({gueltig: e.gueltig, vollstaendig: e.vollstaendig, gruende: e.gruende,
+    priorFehler: e.priorFehler, priorMax: e.priorMax, auswertung: aus}, (k, v) => v instanceof Set ? [...v] : v, 1));
   process.exit(e.gueltig ? 0 : 1);
 }
