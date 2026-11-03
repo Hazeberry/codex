@@ -5,8 +5,10 @@ name: Engine-Vergleich
 # Je Stand ein eigener Job und damit ein eigener Prozess: ladeEngine lädt die Engine per globalem eval,
 # zwei Stände im selben Node-Prozess können sich gegenseitig überschreiben (CLAUDE.md).
 # Das Werkzeug (Skript, Archiv) kommt immer aus dem Stand, auf dem der Workflow läuft; aus den beiden
-# verglichenen Ständen wird nur index.html genommen. Ergebnis: Artefakt und Zusammenfassung,
-# rot bei Abweichung. Schreibt nichts ins Repo.
+# verglichenen Ständen wird nur index.html genommen. Vor „GLEICH“ prüft der Vergleich, dass jede KI-Abfrage
+# mit Wurzelkindern vorhandene, endliche Priors hat und dass jeder Arm die verlangten Fälle abdeckt; sonst
+# KEIN URTEIL. Ergebnis: Artefakt und Zusammenfassung mit Tabelle je Replay (KI-Abfragen, erste
+# Archivabweichung); rot bei VERSCHIEDEN oder KEIN URTEIL. Schreibt nichts ins Repo.
 on:
   workflow_dispatch:
     inputs:
@@ -32,6 +34,10 @@ on:
         description: 'Arme des Kandidaten-Orakels, mit Komma (leer = nur Default)'
         required: false
         default: 'A,S,ZS'
+      faelle:
+        description: 'Fälle, die je Arm mindestens einmal vorkommen müssen (Abdeckung), mit Komma'
+        required: false
+        default: 'c,d'
 
 concurrency:
   group: engine-vergleich
@@ -71,12 +77,13 @@ jobs:
           BIS: ${{ inputs.bis }}
           RAENGE: ${{ inputs.raenge }}
           ARME: ${{ inputs.arme }}
+          FAELLE: ${{ inputs.faelle }}
         run: |
           status=0
           mkdir -p ergebnis
           git -C stand rev-parse HEAD > "ergebnis/$SEITE.sha"
           node auswertung/engine-vergleich.js --dump --html stand/index.html --aus "ergebnis/$SEITE.json" \
-            --partien "$PARTIEN" --bis "$BIS" --raenge "$RAENGE" --arme "$ARME" || status=$?
+            --partien "$PARTIEN" --bis "$BIS" --raenge "$RAENGE" --arme "$ARME" --faelle "$FAELLE" || status=$?
           echo "Stand $SEITE ($(cat "ergebnis/$SEITE.sha")): Status $status"
           exit "$status"
 

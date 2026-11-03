@@ -15,12 +15,14 @@ const SKRIPT = path.join(wurzel, 'auswertung/engine-vergleich.js');
 
 test('Stand gegen sich selbst gleich (eigene Prozesse); Abweichungen und andere Einstellungen erkannt', () => {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'engvgl-'));
-  const args = aus => [SKRIPT, '--dump', '--html', path.join(wurzel, 'index.html'), '--aus', aus, '--partien', '2', '--bis', '84', '--raenge', '30', '--arme', 'A,S'];
+  const args = aus => [SKRIPT, '--dump', '--html', path.join(wurzel, 'index.html'), '--aus', aus, '--partien', '2', '--bis', '84', '--raenge', '5,30', '--arme', 'A,S'];
   for (const s of ['a', 'b']) pruefeGleich(spawnSync(process.execPath, args(path.join(d, s + '.json')), {encoding: 'utf8', timeout: 240000}).status, 0, 'Dump ' + s);
   const a = JSON.parse(fs.readFileSync(path.join(d, 'a.json'), 'utf8')), b = JSON.parse(fs.readFileSync(path.join(d, 'b.json'), 'utf8'));
-  pruefeGleich(a.laeufe.length, 3, 'Default plus zwei Arme');
+  pruefeGleich(a.laeufe.length, 5, 'Default plus zwei Arme × zwei Ränge');
   const v = V.vergleiche(a, b);
-  pruefe(v.gleich && /\*\*Gleich\.\*\*/.test(V.bericht(v, a)), 'gleich');
+  pruefe(v.gleich && v.urteil === 'GLEICH' && /\*\*GLEICH\.\*\*/.test(V.bericht(v, a)), 'gleich: ' + v.vor.join(' | ') + JSON.stringify(v.abdeckung));
+  const t = V.bericht(v, a);
+  pruefe(/\| KI-Abfragen alt \/ neu \| davon ab Zug 81 \| erste Archivabweichung \(alt\)/.test(t) && /Nicht prüfbare Läufe:\*\* keine/.test(t), 'Tabelle je Replay und nicht prüfbare Läufe');
   pruefe(a.laeufe.every(x => x.zuege.every(z => !z[2] || (Array.isArray(z[3]) && z[3].length === z[2].length))), 'Priors je Wurzelkind erfasst');
   const c = JSON.parse(JSON.stringify(b)), l = c.laeufe[2], k = l.zuege.findIndex(z => z[3] && z[3].length);
   l.zuege[k][3][0] += 1e-15;
@@ -29,7 +31,15 @@ test('Stand gegen sich selbst gleich (eigene Prozesse); Abweichungen und andere 
   const z = JSON.parse(JSON.stringify(b)); z.laeufe[0].zuege[0][1] = -7;
   pruefe(!V.vergleiche(a, z).gleich, 'anderer Zug erkannt');
   const e = JSON.parse(JSON.stringify(b)); e.einstellungen.bis = 90;
-  pruefe(V.vergleiche(a, e).gruende.some(g => /Einstellungen/.test(g)), 'andere Einstellungen erkannt');
+  pruefe(V.vergleiche(a, e).vor.some(g => /Einstellungen/.test(g)) && V.vergleiche(a, e).urteil === 'KEIN URTEIL', 'andere Einstellungen erkannt');
+  const nf = JSON.parse(JSON.stringify(b)), zz = nf.laeufe[0].zuege.find(q => Array.isArray(q[3])); zz[3][0] = null;
+  pruefeGleich(V.vergleiche(a, nf).urteil, 'KEIN URTEIL', 'nicht endlicher Prior → KEIN URTEIL');
+  const ohnePr = JSON.parse(JSON.stringify(b)); ohnePr.laeufe[0].zuege.find(q => Array.isArray(q[3]))[3] = undefined;
+  const oa = JSON.parse(JSON.stringify(a)); oa.laeufe[0].zuege.find(q => Array.isArray(q[3]))[3] = undefined;
+  pruefeGleich(V.vergleiche(oa, ohnePr).urteil, 'KEIN URTEIL', 'fehlende Priors auf beiden Seiten → KEIN URTEIL, nicht GLEICH');
+  const fd = JSON.parse(JSON.stringify(a)), fe = JSON.parse(JSON.stringify(b)); fd.einstellungen.faelle = fe.einstellungen.faelle = ['c', 'd', 'd1'];
+  const vd = V.vergleiche(fd, fe);
+  pruefe(vd.urteil === 'KEIN URTEIL' && vd.abdeckung.some(x => x.fehlt.includes('d1')), 'fehlende Abdeckung (d1) → KEIN URTEIL');
   const r = spawnSync(process.execPath, [SKRIPT, '--vergleich', path.join(d, 'a.json'), path.join(d, 'b.json')], {encoding: 'utf8'});
   pruefeGleich(r.status, 0, 'Exit 0 bei Gleichheit');
 });
