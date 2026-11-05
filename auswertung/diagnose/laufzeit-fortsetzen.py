@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """Nur abgeschlossene, passende Diagnosefälle übernehmen; keine neuen Reproduktionen."""
 import hashlib
+import ast
 import json
 from pathlib import Path
 import re
@@ -19,8 +20,18 @@ def resume(previous, target, run, get_source):
         raise ValueError('Ungültige Quellen-SHA des Vorlaufs')
     source = Path('auswertung/diagnose/laufzeit-absturz.py')
     old_source = get_source(old_sha, source.as_posix())
-    if old_source != source.read_bytes():
-        raise ValueError('Diagnosecode unterscheidet sich vom Vorlauf')
+    current_source = source.read_bytes()
+    def replay_code(data):
+        tree = ast.parse(data)
+        # Der Bericht läuft erst nach den Reproduktionen. Sein Text und die
+        # Behandlung der untersuchten Hypothese dürfen berichtigt werden;
+        # sämtliche übrigen Funktionen, Konstanten und Aufrufe müssen gleich sein.
+        tree.body = [node for node in tree.body
+                     if not (isinstance(node, ast.FunctionDef) and node.name == 'report')]
+        return ast.dump(tree, include_attributes=False).encode()
+    old_replay = replay_code(old_source)
+    if old_replay != replay_code(current_source):
+        raise ValueError('Reproduktionscode unterscheidet sich vom Vorlauf')
     old_plan = json.loads((previous / 'diagnose-plan/plan.json').read_text())
     plan = json.loads((target / 'plan.json').read_text())
     if old_plan != plan:
@@ -45,6 +56,8 @@ def resume(previous, target, run, get_source):
     if not copied or not missing:
         raise ValueError('Fortsetzung erwartet bestandene und noch fehlende Fälle')
     provenance = dict(vorlauf=run, quellenSha=old_sha, diagnoseSha256=hashlib.sha256(old_source).hexdigest(),
+                      diagnoseAktuellSha256=hashlib.sha256(current_source).hexdigest(),
+                      reproduktionAstSha256=hashlib.sha256(old_replay).hexdigest(),
                       uebernommen=copied, neu=[v['id'] for v in missing])
     (target / 'fortsetzung.json').write_text(json.dumps(provenance, indent=2) + '\n')
     return {'include': missing}

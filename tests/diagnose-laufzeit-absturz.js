@@ -42,6 +42,11 @@ with tempfile.TemporaryDirectory() as tmp:
     assert len(matrix['include'])==5
     assert cases[1]['id'] not in [c['id'] for c in matrix['include']]
     assert (target/cases[1]['id']/'trace.jsonl').exists()
+    target2 = root/'target2'; target2.mkdir()
+    (target2/'plan.json').write_text(json.dumps(plan))
+    changed_report = src.replace(b'    all_ok = True', b'    all_ok = False')
+    assert changed_report != src
+    assert len(resume.resume(previous,target2,'123',lambda sha,path:changed_report)['include'])==5
     for run,getter in [('invalid',lambda sha,path:src),('123',lambda sha,path:b'anders')]:
         try: resume.resume(previous,target,run,getter)
         except ValueError: pass

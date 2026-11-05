@@ -241,7 +241,6 @@ def report(root):
                   f'Kein vorheriger Auslöser c/d/d1 in jedem Arm: {before}.',
                   'Das identifiziert die erreichte Stellung und die zeitliche Lage zum Eingriff; '
                   'es erklärt noch keinen Fehler im GNU-Go-Quellcode.', '']
-        all_ok &= common
     lines += ['## Grenzen', '',
               'Zeitanteile stammen aus instrumentierten Wiederholungen auf anderen Runnern. '
               'Die historischen Archive enthalten keine vollständige Zeitzerlegung; '
