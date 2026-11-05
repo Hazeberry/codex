@@ -1,0 +1,1965 @@
+#!/usr/bin/env node
+// Required Notice: Copyright (c) 2026 Hazeberry (https://github.com/Hazeberry/Go-html-Game-MoE)
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+/* ═══════════════════════════════════════════════════════════════
+   A/B-HARNESS v2 für die Go-KI (Hazeberry/Go-)
+   ═══════════════════════════════════════════════════════════════
+   Self-Play-Messharness. Die KI-Logik wird zur Laufzeit DIREKT
+   aus der index.html extrahiert (<script id="shared-go-logic">,
+   "worker-ai" und "policy-net") — kein Code-Duplikat, getestet wird
+   exakt der Stand, der auf GitHub Pages läuft. Die ersten beiden
+   Blöcke sind DOM-frei; policy-net fasst localStorage und
+   document.getElementById an und bekommt beide hier als Schale.
+
+   Aufruf:
+     node ab-harness.js [Optionen]
+
+   Modi:
+     Standard:   --games N Partien, A/B wechseln die Farbe ab
+     Gepaart:    --paired N Paare — gemeinsame neutrale Eröffnung
+                 (--opening Züge, Default-Parameter), dann zwei
+                 Partien ab derselben Stellung mit getauschten
+                 Farben. Konkordante Paare (Weiß gewinnt beide)
+                 zeigen den Farbeffekt, diskordante (Sieger
+                 wechselt) den Parametereffekt — bei Bruchteil
+                 der Partienzahl.
+
+   Optionen:
+     --html <pfad>     index.html (Default: ./index.html)
+     --games <n>       Partien im Standard-Modus (Default: 4)
+     --paired <n>      Paare im Paar-Modus (0 = aus, Default: 0)
+     --opening <n>     Eröffnungszüge je Paar (Default: 20)
+     --obudget <ms>    Budget für Eröffnungszüge (Default: 100)
+     --budget <ms>     Zeitbudget pro Zug, fest (Default: 250)
+                       ACHTUNG, das ist eine ZEIT: wie viele Simulationen
+                       darin liegen, hängt an der Maschinenlast. Derselbe
+                       Seed verbraucht dann unterschiedlich viele
+                       Zufallszahlen, und zwei Läufe laufen auseinander.
+                       Gemessen: --seed 2026, zweimal dieselbe
+                       Konfiguration, einmal 2:0 und einmal 1:1.
+                       Für reproduzierbare Läufe stattdessen
+                       --A mctsFixedSims=N --B mctsFixedSims=N setzen;
+                       dann ist alles außer der Stoppuhr Zeichen für
+                       Zeichen gleich — aber NUR im Standardmodus. Im
+                       Paarmodus spielt die gemeinsame Eröffnung
+                       (--opening/--obudget) mit Default-Parametern und
+                       Zeitbudget; dort laufen Läufe trotz gleichem Seed
+                       auseinander (gemessen: drei Läufe, drei Ergebnisse).
+     --maxmoves <n>    Zug-Limit pro Partie (Default: 400)
+     --komi <f>        Komi für die Wertung (Default: 7.5).
+                       Hinweis: Die Engine selbst ist komi-blind —
+                       --komi ändert NUR die Abrechnung, nie einen Zug.
+     --A k=v,k=v       PARAMS für Konfiguration A (Baseline)
+     --B k=v,k=v       PARAMS für Konfiguration B (Kandidat)
+                       Phasenabhängig: k@N=v setzt k AB Zug N. Beispiel
+                       --B mctsValueScale=200,mctsValueScale@200=1000
+                       spielt bis Zug 199 mit 200, danach mit 1000.
+                       N zählt Züge der GESAMTEN Partie, die gemeinsame
+                       Eröffnung im Paar-Modus eingeschlossen. Beim Wechsel
+                       wird der gespeicherte Suchbaum verworfen, sonst
+                       trüge ein wiederverwendeter Knoten N/W aus der
+                       alten Skala in die neue hinein.
+     --seed <n>        Zufalls-Seed (reproduzierbar)
+     --json <pfad>     Rohdaten als JSON (alle Instrumente unten)
+     --roh <pfad>      Zugweiser Rohdump als JSON Lines, eine Zeile je
+                       Partie, geschrieben direkt nach deren Ende. Enthält
+                       params_hash und final_board_hash; Schema und Zweck
+                       stehen in docs/pilot-benson-defense.md, §5.
+                       Wer dieses Format ändert, ändert zuerst dort.
+                       Nur im Standardmodus; mit --paired bricht der
+                       Harness ab.
+     --fortsetzen      Einen abgebrochenen Lauf fortsetzen: liest die
+                       fertigen Partien aus der --roh-Datei, prüft Seed
+                       und params_hash, setzt den Zufallsstrom auf den
+                       Stand nach der letzten Partie und spielt ab der
+                       nächsten weiter. Braucht --seed, --roh und feste
+                       Simulationen (mctsFixedSims in beiden Armen), sonst
+                       wären die Partien ohnehin nicht dieselben. --json
+                       und die Zusammenfassung umfassen danach nur die neu
+                       gespielten Partien; maßgeblich ist der Rohdump.
+                       Grenze: ein langlebiger Prozess kann nach vielen
+                       Partien numerisch minimal anders suchen als ein
+                       frisch gestarteter (gemessen: einmal, ab Partie
+                       151, siehe docs/endspielgrenze.md §8). Ein
+                       fortgesetzter Lauf ist dann ein gültiger, aber
+                       nicht bitgleicher Lauf.
+     --net <pfad>      Gewichte für das PolicyNet. Inhalt ist exakt der
+                       String, den der Browser unter localStorage
+                       'go_pnet' ablegt (im Dashboard gespeichert oder
+                       per localStorage.getItem('go_pnet') exportiert).
+                       Ohne die Option startet das Netz mit zufälligen
+                       Gewichten und gamesPlayed = 0.
+     --nettrain <pfad> REINFORCE-Selbstspieltraining. Nach jeder Partie
+                       lernt das Netz aus BEIDEN Farben (getrennte Buffer,
+                       Reward je +1/-1) und schreibt die Gewichte nach
+                       <pfad> im Browser-Format. Nur im Standardmodus:
+                       im Paarmodus änderte sich die Engine zwischen den
+                       Partien und der A/B-Vergleich wäre hinfällig.
+     --netgames <n>    gamesPlayed überschreiben. Nötig, weil blendWeight
+                       unterhalb von 2 Spielen 0 zurückgibt: ohne diese
+                       Option ist das Netz zwar geladen, aber wirkungslos,
+                       und ein A/B über netMaxBlend läge strukturell bei
+                       50 %. Für Wirksamkeitsnachweise, nicht für
+                       Stärkemessungen mit ungelernten Gewichten.
+     --help            Diese Hilfe
+
+   INSTRUMENTIERUNG (pro Partie, im JSON und als Aggregate):
+     areaM150/M200/M250/areaEnde  Gebietsstand OHNE Komi (Benson-tote
+                                  entfernt, dann Area), aus Schwarz-
+                                  und Weiß-Sicht — lokalisiert, wann
+                                  Punkte verloren gehen.
+     komi0Sieger                  Gewinner bei Komi 0. Da die Engine
+                                  komi-blind spielt, ist das der
+                                  exakte Komi-0-Kontrolltest.
+     passErste/passGesamt/passBenson  erster Pass-Zug, Passzahl,
+                                  Benson-Pässe ("todgeboren"), je Farbe.
+     aufgabeFarbe/grund           Aufgaben je Farbe + Grund (Q-Serie
+                                  oder strukturell "todgeboren").
+     q50/q75 je Farbe             Q bei 50 %/75 % der eigenen Züge —
+                                  die Kennzahl, die den Einbruch
+                                  lokalisiert (Fund v1: Schwarz
+                                  bricht bei ~60–70 % weg).
+     dauerMin                     Partiedauer. Der konfig-Block trägt
+                                  gestartetUtc, lauf (GITHUB_RUN_NUMBER),
+                                  commit (GITHUB_SHA), Gesamtdauer und
+                                  abgeschlossen — das JSON wird nach jeder
+                                  Partie neu geschrieben, Teildaten eines
+                                  abgebrochenen Laufs bleiben erhalten.
+
+   Beispiele:
+     node ab-harness.js --games 20 --budget 250 --seed 2026 \
+       --A rolloutSample=32,mctsRolloutDepth=24 \
+       --B rolloutSample=16,mctsRolloutDepth=12 --json lauf.json
+     node ab-harness.js --paired 12 --budget 250 --seed 77 \
+       --A rolloutSample=32,mctsRolloutDepth=24 \
+       --B rolloutSample=16,mctsRolloutDepth=12 --json paare.json
+
+   FAIRNESS-REGELN: identisches festes Budget beider Seiten
+   (adaptiveBudgetEnabled = 0), PARAMS_DEFAULT als Basis, nur
+   explizite Schlüssel weichen ab, Farbwechsel / Farbtausch.
+
+   ── v2.1: Modul-Zustand pro Farbe ──────────────────────────────
+   Die Engine hält Zustand zwischen den Zügen in Modul-Variablen:
+   _mctsSavedRoot (Tree-Reuse), _hopelessStreak und _allDeadStreak
+   (Aufgabe). Im Browser lebt der Worker nur für EINE Farbe. Hier
+   ziehen beide Farben im selben Scope — vorher überschrieb jede
+   Farbe den Zustand der anderen:
+     · Tree-Reuse: _mctsSavedRoot.aiColor stimmte nie mit der
+       ziehenden Farbe überein → _tryReuseSubtree wurde in 30
+       Zügen 0-mal aufgerufen, das Feature war im Harness tot.
+     · Aufgabe: jeder Gegnerzug mit gutem Q setzte die Serie der
+       anderen Farbe auf 0. Die Serie braucht 5 EIGENE Züge in
+       Folge — sie konnte also praktisch nie volllaufen (Beleg:
+       Kimis Paarlauf 0 Aufgaben, nach dem Fix 18 in 40 Partien).
+   playGame führt den Zustand jetzt pro Farbe und spielt ihn vor
+   jedem Zug ein. Beide Seiten verhalten sich wie im echten Spiel.
+
+   ── Tree-Reuse trifft nie — und das ist normal ─────────────────
+   Nach dem Fix wird _tryReuseSubtree aufgerufen (58× in 60 Zügen),
+   findet aber KEINEN Treffer. Die Mechanik ist in Ordnung — die
+   Brettdifferenz ist exakt 1 Feld —, der Gegnerzug liegt nur nie
+   unter den 8 vorhergesagten Kindern.
+
+   ACHTUNG, hier stand eine falsche Erklärung: Innere Knoten werden
+   mit quickEval expandiert, die Wurzel mit dem vollen evaluateMove,
+   und quickEval kennt weder Ecken noch Sternpunkte — daraus wurde
+   geschlossen, der Baum wachse in Richtungen, die nie gespielt
+   werden, und das erkläre die geringe Wirkung zusätzlicher
+   Simulationen. Zwei Messungen dazu, mit UNTERSCHIEDLICHEM Status:
+
+     · WIDERLEGT (die Erklärung): Expansion testweise auf
+       evaluateMove umgestellt (quickEval filtert auf die besten 24
+       vor, sonst unbezahlbar). Die Quote, mit der der Baum den
+       tatsächlich gespielten Gegnerzug unter seinen Kindern hat,
+       steigt nur von 3 % auf 5 % — also gar nicht. Ein Suchergebnis
+       weicht eben von einer heuristischen Reihenfolge ab; niedrige
+       Reuse-Trefferquoten sind für Engines ohne Policy-Netz der
+       Normalfall, kein Defekt.
+
+     · NICHT BELEGT, aber auch nicht widerlegt (die Wirkung):
+       64 gepaarte Partien, 25 : 39 (61 %), p = 0.10, Intervall
+       49–73 %. Erster Lauf 69 %, Replikation 53 %. Ein echter
+       Effekt von bis zu +23 Prozentpunkten ist mit diesen Daten
+       VEREINBAR — die Tür ist nicht zu. Gegen ein Weiterverfolgen
+       spricht die Kosten-Nutzen-Rechnung, nicht ein Beweis:
+       konsistent −10 % Simulationen (319 → 287), plus die
+       Basisrate (siehe Selektionsgesetz unten). Für Signifikanz
+       bei 61 % bräuchte es rund 200 Partien ≈ 4–5 h Rechenzeit.
+
+   ── Regelbuch: wann wird eingebaut? ────────────────────────────
+   Korrektheitsfix mit Null-Kosten wird eingebaut, AUCH bei
+   Null-Effekt (Semantik richtig, Risiko gemessen, spätere
+   Änderungen setzen auf sauberer Basis auf). So geschehen beim
+   FPU-Vorzeichen: ΔQ ±0.005, Sims 411 : 419, trotzdem gemergt.
+   Optimierung mit Kosten und unbewiesenem Nutzen wird abgelehnt.
+   So geschehen bei rolloutSample (60 %, p = 0.10) und bei der
+   evaluateMove-Expansion (61 %, p = 0.10, −10 % Sims).
+   Wichtig: Ein abgelehnter Befund gehört als Kommentar an die
+   Codestelle, sonst wird derselbe Fehler in einem Jahr erneut
+   „entdeckt" und die Untersuchungskosten fallen zweimal an.
+
+   ── Triage: wann lohnt ein Bestätigungslauf? ───────────────────
+   0 von 3 Replikationen sind bei Selektion auf vielversprechende
+   Erstläufe kein Pech, sondern der Erwartungswert (Winner's
+   Curse — der Erstlauf der Expansion lag mit p = 0.050 exakt auf
+   der Schwelle). Daher: Erstlauf ist Hypothesengenerierung, nicht
+   Beleg. Bestätigungslauf nur ab etwa 75 % Siegrate oder wenn
+   Korrektheit betroffen ist. Das spart die 4–5 h systematisch.
+
+   ── Selektionsgesetz für künftige Experimente ──────────────────
+   Die präzise Formulierung ist NICHT „Suchparameter wirken nicht",
+   sondern: Alle drei Nullergebnisse waren UMGEWICHTUNGEN DESSELBEN
+   SIGNALS. quickEval und der MoE-Evaluator teilen dieselben
+   Liberty- und Capture-Primitive — die Expansion umzustellen
+   tauscht also vor allem die Reihenfolge nahezu gleichwertiger
+   Kandidaten. FPU ist Suchreihenfolge, rolloutSample ist
+   Stichprobengröße. Gewirkt hat dagegen ausnahmslos, was NEUE
+   Information einbrachte oder FALSCHE beseitigte: der 32-Bit-
+   Epochen-Überlauf (er allein erzeugte den 17:3-Farbeffekt), der
+   Tree-Reuse-Crash, das Ko-Leck, das Steine-Füttern.
+   Daraus das Kriterium: Bringt der Vorschlag Information ins
+   System, die vorher nicht drin war? Wenn nein, ist Nullergebnis
+   die Erwartung. Schaerfung aus dem openContactResponse-Fall: Eine
+   fehlende STRUKTUR ist nicht automatisch eine fehlende INFORMATION.
+   evalOpening hatte keinen Kontaktterm und kannte die Zuege trotzdem
+   (Rang 20 von 359). Prueffrage: Wuesste die Bewertung den Zug ohne
+   den neuen Term ueberhaupt nicht — oder bewertet sie ihn nur
+   anders? Zur Belastbarkeit der Regel siehe den eigenen Abschnitt
+   weiter unten; sie taugt zum Priorisieren, nicht zum Ablehnen. Für ein Policy-Netz heißt das konkret: Nur
+   Distillation aus externen Daten (z. B. KataGo) trägt neue
+   Information — Selbstspiel-Imitation der eigenen Heuristik wäre
+   wieder dasselbe Signal in neuer Verpackung.
+
+   ── Erster belegter Parametereffekt: mctsValueScale ────────────
+   350 (Baseline) gegen 1000, gepaart, resignEnabled=0 auf BEIDEN
+   Seiten, Zug-Limit 600. Zwei unabhängige Seeds:
+     Seed 2026, 30 Paare: 41 : 19 (68.3 %), p = 0.006
+     Seed 4711, 20 Paare: 27 : 13 (67.5 %), p = 0.038
+     zusammen 100 Partien: 68 : 32 (68.0 %), p = 0.0004
+     diskordante Paare zusammen: 22 : 4, p = 0.0005
+   Sims/Zug 483 gegen 478 — kein Geschwindigkeitsartefakt. Die
+   Effektstärke repliziert (68.3 → 67.5 %), also kein Winner's
+   Curse. NICHT ERNEUT TESTEN: 350 schlägt 1000, deutlich.
+
+   Richtung beachten: Die Intuition „größere Skala = mehr
+   Auflösung = mehr Information" ist WIDERLEGT. tanh(v/scale)
+   sättigt bei scale=350 in 20 % der Stellungen ab Zug 250
+   (gemessen, |evaluateBoard| Median 101, 90-Perzentil 419). Diese
+   Sättigung ist offenbar Nutzen, nicht Verlust — sie wirkt wie
+   Winsorizing und dämpft einzelne Ausreißer-Rollouts. mctsValueScale
+   ist damit eher ein Robustheitsparameter als eine Wertebereichs-
+   Skalierung.
+
+   Lokalisierung — und ihre Grenze: Gebiet aus Sicht der Baseline
+   bei Zug 150 −1.1 · 200 +0.5 · 250 +4.3 · Ende +24.6. Der Effekt
+   entsteht also spät. ABER: Ein monoton wachsender Vorsprung ist
+   die generische Signatur JEDES Stärkeunterschieds — die Form
+   unterscheidet nicht zwischen „Sättigung wirkt spät" und „B ist
+   allgemein schwächer". Wer den Mechanismus belegen will, braucht
+   einen Phasentausch (350 durchgehend gegen 350-bis-Zug-200-dann-
+   1000). Der geht rein im Harness: cfg wird in der Zugschleife pro
+   Zug angewandt, eine Funktion von mc genügt, index.html bleibt
+   unberührt. Vorsicht dort beim Tree-Reuse — am Umschaltpunkt kann
+   ein wiederverwendeter Knoten N/W aus der alten Skala mitbringen.
+
+   ── Kurve über mctsValueScale (abgeschlossen) ──────────────────
+   Sieben Werte gegen die damalige Baseline 350, je 20 Paare
+   (1000 mit 50 Paaren), resignEnabled=0, Zug-Limit 600:
+     100 → 45.0 %   150 → 67.5 %   200 → 62.5 %   250 → 60.0 %
+     300 → 52.5 %   500 → 45.0 %  1000 → 32.0 %
+   Plateau bei 150–250, symmetrischer Abfall zu beiden Seiten. Der
+   Rückfall bei 100 ist der eigentliche Befund: Es gibt ein Optimum,
+   nicht "kleiner ist besser". Das bestätigt die Winsorizing-Deutung
+   an ihrer eigenen riskanten Vorhersage — zwei gegenläufige Kräfte,
+   Ausreißerdämpfung gegen Auflösungsverlust.
+   Einzelne Punkte NICHT lesen: bei sieben Tests rutscht einer per
+   Erwartung unter p = 0.05 (hier 150 mit p = 0.039). Gepoolt über
+   alle Werte unter 350: 94/160 = 58.8 %, p = 0.032.
+   Gewählt wurde 200 — die MITTE des Plateaus, nicht der höchste
+   Punkt 150. Der Maximalwert einer verrauschten Serie ist
+   systematisch überschätzt; genau dagegen steht die Triage-Regel.
+   Bestätigungslauf, Schwelle VOR dem Lauf auf ≥ 39/60 festgelegt:
+   40:20 (66.7 %, p = 0.013), Komi-0 44:16, diskordant 15:5.
+   Mit dem Erstlauf zusammen 65:35 über 100 Partien, p = 0.0035.
+   → Standard steht seit diesem Lauf auf 200. NICHT ERNEUT TESTEN.
+   Offen geblieben: die Wechselwirkung mit resignQ (siehe Kommentar
+   an der Parameterstelle in index.html) und der Phasentausch-Test,
+   der Sättigung von allgemeiner Stärke trennen würde.
+
+   ── resignQ 0.95 gegen 0.997 (abgeschlossen) ───────────────────
+   Folgefrage aus der Skalenänderung: Die kleinere Skala erzeugt
+   größere |Q|, also greift die Aufgabeschwelle früher — in Brett-
+   punkten von −641 auf −366. 0.997 wäre der verhaltenserhaltende
+   Wert gewesen.
+   30 Paare = 60 Partien, beide Seiten mctsValueScale=200 und
+   resignEnabled=1 (erster Lauf überhaupt mit eingeschalteter
+   Aufgabe — bei der Skalenmessung musste sie aus sein, hier ist
+   sie der Gegenstand): 29:31, Komi-0 exakt 30:30, diskordante
+   Paare 8:9, p = 0.90. Sims/Zug 526 gegen 526.
+   Vorhersage war vorab festgelegt und einseitig: Aufgeben kann die
+   Siegrate nie verbessern, weil Weiterspielen schwach dominant ist.
+   Ein signifikanter Vorsprung der 0.95-Seite wäre also LOGISCH
+   UNMÖGLICH gewesen und hätte einen Messfehler angezeigt — dieser
+   eingebaute Falsifikationstest ist nicht ausgelöst worden.
+   Warum das kein leeres Nullergebnis ist: Die Schwelle hat
+   nachweislich unterschiedlich gefeuert. Die 0.95-Seite gab 26-mal
+   auf, die 0.997-Seite 18-mal, bei 44 Aufgaben in 60 Partien. Die
+   Diagnose trennt damit "Parameter tat nichts" von "rechtzeitiges
+   Aufgeben kostet nichts" — nur Letzteres ist belegt. Ohne die
+   Aufgabezählung wäre das Ergebnis mehrdeutig geblieben; das ist
+   die verallgemeinerbare Lehre für künftige Nullergebnisse.
+   → resignQ bleibt 0.95. NICHT ERNEUT TESTEN.
+
+   ── Phasentausch: Mechanismus NICHT entschieden ────────────────
+   Frage: Wirkt die kleinere Skala, weil Sättigung speziell in der
+   Spätphase nützt, oder ist 1000 einfach durchgehend schwächer?
+   Die Lokalisierung konnte das nicht trennen — ein spät wachsender
+   Vorsprung ist die Signatur JEDES Stärkeunterschieds.
+   Drei Läufe, A überall mctsValueScale=200 konstant, 20 Paare je
+   Lauf, resignEnabled=0, Umschaltpunkt Zug 200:
+     R  1000 durchgehend        31:9  = 77.5 %  Schaden +27.5 Pp
+     L  200 früh / 1000 spät    25:15 = 62.5 %  Schaden +12.5 Pp
+     E  1000 früh / 200 spät    22:18 = 55.0 %  Schaden  +5.0 Pp
+   Vorhersagen waren vorab notiert und gegenläufig:
+     Sättigung-wirkt-spät:  L nahe R (+27.5), E nahe 0
+     generischer Effekt:    L ~ E ~ halber Schaden (+13.8)
+   ERGEBNIS: unentschieden. L trifft die generische Vorhersage fast
+   punktgenau, E liegt zwischen beiden. Der Unterschied L gegen E
+   sind DREI Partien bei je 40 — E allein p = 0.64, also Rauschen.
+   Belegt ist nur eine Ausschlussaussage: Die starke Version
+   ("Sättigung wirkt praktisch nur spät") passt nicht, denn dann
+   hätte E bei etwa 50 % liegen müssen.
+   Kontrollen haben gehalten: R meldet 0 Phasenwechsel, L und E je
+   40 bei 40 Partien. Sims/Zug innerhalb jedes Laufs unter 1 %
+   Abweichung. Die Baum-Verwerfung am Umschaltpunkt trifft L und E
+   gleichermaßen, der Vergleich L gegen E ist davon also unberührt;
+   nur der Bezug auf R (ohne Wechsel) trägt diese Asymmetrie.
+   NICHT WIEDERHOLEN ohne rund 200 Partien je Arm — bei 40 ist die
+   Frage nicht auflösbar. Das wären ~11 h für eine Erkenntnis ohne
+   direkten Spielgewinn; nach der Triage-Regel kein guter Tausch.
+   Kosten bereits ausgegeben: 3.2 h.
+
+   ── Harness-Bug: lastMove kam nie an (behoben) ─────────────────
+   getAIMove nimmt als 9. Parameter lastMove. Das Spiel übergibt
+   dort state.lastMove (index.html:2032, 2072, 2269), der Harness
+   übergab hart null. Folge: _lastMoveIdx blieb hier immer -1, und
+   der Lokalitätsterm in evaluateMove (index.html:1118) ist hinter
+   "_lastMoveIdx >= 0" verriegelt — er konnte im Harness GAR NICHT
+   feuern. Ein A/B über localityBonus musste deshalb strukturell
+   50 % liefern, unabhängig vom Wert. Wer so ein Ergebnis vorliegen
+   hat: Es ist ein Messartefakt, kein Nullbefund.
+   Reichweite: _lastMoveIdx wird NUR in diesem einen Term gelesen,
+   und der Term ist zusätzlich hinter "localityBonus > 0" verriegelt.
+   Der Default ist 0, alle Läufe bis einschließlich Nr. 15 liefen mit
+   dem Default — sie sind also nachweislich unberührt. Das ist ein
+   statisches Argument aus dem Kontrollfluss, kein Testergebnis;
+   ein Verhaltenstest könnte es wegen der Zeitsteuerung gar nicht
+   zeigen.
+   Semantik wie im Spiel nachgebaut: nur bei einem Steinzug setzen,
+   beim Pass stehen lassen (index.html:1750 setzt lastMove nur dort).
+   Im Paar-Modus trägt die Eröffnung ihren letzten Zug in den
+   Startzustand, sonst startete Zug 21 wieder ohne Kontext.
+
+   ── Gemessen: was localityBonus mit der Zugwahl macht ──────────
+   Direkt an der Wurzelsortierung, Rauschen gepinnt, kein Selbstspiel
+   nötig — die Frage ist Verhalten, nicht Stärke:
+     Eröffnung (mc=2): ab Bonus 40 kippt der Top-1-Zug, ab 80 liegen
+       10 von 10 Spitzenzügen in Gegnernähe.
+     Mittelspiel (mc=100): Top-1 kippt erst ab 200.
+   Faktor ~5 im Schwellwert, und der Grund steckt in den Skalen der
+   Experten: evalOpening hat auf einem Eröffnungsbrett eine
+   Entscheidungsspanne (p95-p50) von 16 Punkten, evalMidgame auf
+   einem Mittelspielbrett 171 — Faktor 11. localityBonus wird NACH
+   der Phasennormierung als flache Konstante addiert. Ein einziger
+   Wert kann daher nicht in beiden Phasen richtig sein; er ist in
+   der Eröffnung erdrückend, wenn er im Mittelspiel spürbar ist.
+   Folgerung für künftige Vorschläge dieser Art: Ein Term, der nur
+   eine Phase betrifft, gehört in den Phasen-Experten und nicht als
+   globale Konstante hinter die Normierung.
+
+   ── openContactResponse: gemessen und verworfen ────────────────
+   Befund: evalOpening kennt nur, was der KANDIDATENZUG tut (schlagen,
+   Selbst-Atari) plus ownNbr fuer den Ausbau. Kein Term bemerkt, dass
+   ein BEREITS STEHENDER eigener Stein unter Druck geraten ist.
+   evalMidgame hat dafuer eine abgestufte Freiheitsanalyse je Nachbar,
+   evalOpening nichts. Sichtbar wird das als Tenuki bei Kontakt in der
+   Eroeffnung; die lokalen Antworten stehen auf Rang 20-22 von 359.
+   Sie sind der Bewertung bekannt und verlieren nur den Vergleich.
+   Eingebaut als openContactResponse, DEFAULT 0. Aequivalenz gegen
+   HEAD geprueft: 6753 Vergleiche, 0 Abweichungen — die Engine
+   verhaelt sich unveraendert, solange der Wert 0 ist.
+   Verhaltens-Sweep (Wurzelsortierung, Rauschen gepinnt, kein
+   Selbstspiel — die Frage ist Verhalten, nicht Staerke):
+     Wert   Raenge E3/C3/D2      Mittelspiel-Top-1
+        0   20 / 22 / 77         Referenz
+       20    7 /  8 / 13         unveraendert
+       40    4 /  5 /  9         unveraendert
+       60    4 /  5 /  6         unveraendert  (ab hier gesaettigt)
+      200    4 /  5 /  6         unveraendert
+   Drei Folgerungen:
+   1. Schwelle 20, nicht 40. Die Kalibrierung von localityBonus
+      uebertraegt sich NICHT eins zu eins: Der dortige Bonus faellt mit
+      der Distanz ab (Distanz 3 = 40 % des Werts), der Kontaktterm gibt
+      den vollen Wert an wenige Felder.
+   2. Ab 60 gesaettigt. Ein A/B bei 120 oder 200 waere verbrannte
+      Rechenzeit — das Verhalten aendert sich dort nicht mehr.
+      Sinnvolles Fenster: 20 bis 60.
+   3. Die Mittelspiel-Kontrolle ist ueber den GANZEN Bereich flach.
+      Der Term sitzt in evalOpening und ist bei mc=100 strukturell
+      ausgeblendet. Das ist der Unterschied zu localityBonus, das als
+      flache Konstante hinter der Phasennormierung sitzt und deshalb
+      nicht in beiden Phasen richtig sein kann.
+   Fehler auf dem Weg, festgehalten weil er ohne Kontrolle durchgegangen
+   waere: Die erste Fassung belohnte nur Zuege neben dem BERUEHRTEN
+   EIGENEN Stein. Der Top-1 kippte dadurch zwar, aber die Raenge von
+   E3/C3/D2 blieben exakt gleich — belohnt wurde eine andere Zugmenge
+   als die, deren niedriger Rang den Befund ausgeloest hatte. Erst die
+   Erweiterung auf beide Seiten des Kontakts (Hane neben dem Gegner-
+   stein UND Verstaerken neben dem eigenen) traf das Ziel.
+   GEMESSEN UND VERWORFEN. Zwei A/B-Laeufe gegen 0, je 20 Paare:
+     Wert 30 → 18/40 = 45.0 %, p = 0.64, Sims 702:702
+     Wert 60 → 21/40 = 52.5 %, p = 0.88, Sims 538:539
+     gepoolt   39/80 = 48.8 %, p = 0.91
+   Schwelle war VOR den Laeufen auf ~70 % festgelegt (Triage-Regel).
+   Default bleibt 0.
+   Gehaltvoll, nicht leer: Der Verhaltens-Sweep hatte vorher bewiesen,
+   dass der Term wirkt (Raenge 20→4, Mittelspiel flach). Die Engine
+   spielt also anders und gewinnt dadurch nicht — dieselbe Unter-
+   scheidung wie beim resignQ-Test.
+   Die Phasenzahlen stuetzen das von der anderen Seite: Angekuendigt
+   war, auf einen FRUEHEN Unterschied zu achten, weil der Term nur in
+   der Eroeffnung wirkt. Lauf 16 zeigt +1.8/+0.5/+0.9 bei Zug
+   150/200/250, Lauf 17 +2.2/+3.0/+4.1 — klein und ohne konsistente
+   Richtung.
+   SELBSTKRITIK, weil sie die Regel schaerft: Das Selektionsgesetz
+   sagte diesen Ausgang voraus, und ich habe es beim Aufsetzen
+   uebersehen. Der Befund war woertlich "die lokalen Antworten sind
+   der Bewertung BEKANNT und verlieren nur den Vergleich" — das ist
+   die Definition einer Umgewichtung desselben Signals, nicht neuer
+   Information. Eine fehlende Struktur ist nicht automatisch eine
+   fehlende INFORMATION: evalOpening hatte keinen Kontaktterm, kannte
+   die Zuege aber trotzdem. Pruefkriterium fuer den naechsten
+   Vorschlag dieser Art: Wuesste die Bewertung den Zug ohne den neuen
+   Term ueberhaupt nicht — oder bewertet sie ihn nur anders?
+
+   ── Phasengrenze: nominelles Gewicht ist nicht Einfluss ────────
+   phaseWeights blendet die Experten per smoothstep, openingMoves=20
+   und phaseBlendWidth=8 ergeben nominell 50/50 bei mc=20 und einen
+   Uebergang von mc=12 bis 28. Gemessen wird etwas anderes.
+   evaluateMove mittelt die ROHWERTE der Experten. evalMidgame hat
+   eine deutlich groessere Entscheidungsspanne als evalOpening
+   (gemessen auf Extrembrettern 171 gegen 16), dominiert die Mischung
+   also lange bevor sein Gewicht 50 % erreicht.
+   Gemessen ueber die Top-20-Ueberlappung der geblendeten Rangfolge
+   mit den beiden reinen Experten, drei Brettdichten:
+     12 Steine → wirksamer Kipppunkt mc=20 (= nominell)
+     30 Steine → mc=16
+     50 Steine → mc=16
+   Am nominellen 50/50-Punkt traegt evalMidgame 81 % der
+   Entscheidungsvarianz. Bei nominell 84 % Eroeffnungsgewicht (mc=16)
+   aehnelt der Blend auf dichteren Brettern bereits dem Mittelspiel
+   mehr als der Eroeffnung.
+   Der Effekt waechst mit der Brettdichte: mehr Steine → mehr
+   taktische Terme feuern → groessere Spanne → frueherer Kipppunkt.
+   FOLGE: Der Eroeffnungs-Experte regiert effektiv ~15 Zuege, nicht
+   20. Jeder eroeffnungsspezifische Term hat ein kuerzeres Fenster
+   als der Parametername nahelegt — das galt auch fuer
+   openContactResponse.
+   KEIN FEHLERBEFUND: Eine schnellere Uebergabe an den taktischen
+   Experten kann richtig sein, sobald Steine in Kontakt kommen. Die
+   Messung sagt "der Parameter bedeutet nicht, was er sagt", nicht
+   "das Verhalten ist falsch".
+   Naheliegender Eingriff waere, jeden Experten vor dem Blend auf
+   eine gemeinsame Skala zu normieren. Nicht verfolgt: Das ist eine
+   Umgewichtung, und das Selektionsgesetz sagt dafuer Null voraus —
+   mit der Einschraenkung im naechsten Abschnitt.
+
+   ── phaseNormalize: gemessen und verworfen ─────────────────────
+   Antwort auf den Phasengrenzen-Befund oben. Mit 1 werden die
+   Experten vor dem Blend gegeneinander normiert und danach auf die
+   gewichtete Referenzskala zurueckgerechnet:
+     sPhase = Σ(w·u/S)/Σw × Σ(w·S)/Σw
+   Referenzspannen (p95−p50, Median ueber je 10 Bretter):
+     evalOpening 15.8 · evalMidgame 160.2 · evalEndgame 158.0
+   WICHTIGER NEBENBEFUND: Mittelspiel und Endspiel liegen auf
+   derselben Skala. Der Bruch existiert NUR an der Eroeffnungsgrenze;
+   an der Endspielgrenze kann der Schalter nichts bewirken. Das
+   halbiert die Reichweite des Eingriffs.
+   Konstruktion: Der Normierungspfad greift nur, wenn mindestens ZWEI
+   Experten mischen. Bei einem einzigen waere (v/S)*S mathematisch v,
+   aber nicht bitgenau — gemessen bis zu ein ULP Abweichung, und ein
+   ULP kippt bei Gleichstand die Rangfolge. Erst diese Bedingung macht
+   "ausserhalb der Uebergangszone unveraendert" konstruktiv statt
+   rundungsabhaengig. Belegt: 1120 Bewertungen bei mc 0/4/8/40/60/
+   120/250, 0 Abweichungen. Aequivalenz bei Default 0: 2686
+   Vergleiche, 0 Abweichungen (inkl. evaluateMove quer durch die Zone).
+   VERHALTEN — und hier stimmt die Erwartung NICHT:
+     Kipppunkt   aus      an     nominell
+     12 Steine   mc 20  → mc 26     20
+     30 Steine   mc 16  → mc 22     20
+     50 Steine   mc 16  → mc 22     20
+   Die Normierung trifft die nominelle Grenze nicht, sie schiesst
+   darueber hinaus. Vorher lag der Kipppunkt 4 Zuege zu frueh, jetzt
+   2-6 zu spaet. Grund: Gleiche Varianz ist nicht gleiche Wirkung auf
+   die Top-20. Die Eroeffnungs-Rangfolge wird von wenigen grossen
+   Termen getragen (Sternpunkte, Ecken) und ist dadurch zaeher als die
+   breiter gestreute Mittelspiel-Rangfolge. Der Schalter verschiebt
+   die wirksame Grenze nach hinten, er legt sie nicht auf die
+   nominelle — der Name verspricht mehr als er haelt.
+   GEMESSEN UND VERWORFEN. Zwei PARALLELE Laeufe gegen 0, je 20 Paare:
+     Seed 7301 → 13/40 = 32.5 %, p = 0.039, Sims 552:551
+     Seed 7302 → 21/40 = 52.5 %, p = 0.87,  Sims 531:530
+     gepoolt     34/80 = 42.5 %, p = 0.22
+   Default bleibt 0.
+   METHODISCH DER LEHRREICHSTE LAUF DER SERIE: Haette ich nur den
+   ersten gefahren, laege jetzt ein "signifikantes" Ergebnis bei
+   p = 0.039 vor, das die Replikation nicht traegt. Bei zwei Tests
+   rutscht mit ~10 % Wahrscheinlichkeit einer unter 0.05 — hier ist
+   es passiert. Die 20 Prozentpunkte Abstand liegen vollstaendig im
+   95-%-Zufallsband von 35-65 % bei n=40.
+   Daraus eine Empfehlung fuer kuenftige Erstlaeufe: ZWEI Seeds
+   PARALLEL statt eines laengeren Laufs. Gleiche Wanduhrzeit, aber
+   ein Fehlalarm faellt sofort auf statt erst im Bestaetigungslauf.
+
+   DASSELBE GILT FUER LAUFZEIT-VERGLEICHE, und dort faellt es leichter
+   herein. Beim inkrementellen JSON-Schreiben stand der Verdacht im
+   Raum, es koste Sims/Zug — die Rohzahlen sahen sogar nach dem
+   Gegenteil aus (65-70 vorher, 75-77 nachher). ALTERNIEREND gemessen,
+   6 Runden je Version, gleiche Konfiguration und Seed, --budget 50:
+     Original  90 78 88 85 88 84  -> Mittel 85.2, SD 4.4
+     mit Patch 92 81 91 83 86 84  -> Mittel 86.1, SD 4.3
+     gepaart   +0.92 Sims/Zug (+1.1 %), SD 2.29, t = 0.98 bei n = 6
+   Kein Effekt. Entscheidend ist nicht der Mittelwert, sondern die
+   Streuung: allein die UNVERAENDERTE Version schwankt zwischen 78 und
+   90 Sims. Die vermutete Differenz von ~9 liegt vollstaendig darin.
+   Zwei Warnzeichen, an denen so etwas frueh auffaellt: (1) die
+   Richtung — eine Aenderung, die nur Arbeit HINZUFUEGT, kann nicht
+   schneller machen; wer sie schneller misst, misst etwas anderes,
+   meist die CPU-Erwaermung des zuerst gelaufenen Blocks. (2) der
+   fehlende Mechanismus — das writeFileSync liegt ZWISCHEN den
+   Partien, nie waehrend der Suche, und kostet bei 30 Paaren (~65 KB)
+   2.9 ms gegen ~150000 ms Partiedauer, also 0.002 %.
+   REGEL: Laufzeit-Vergleiche zweier Codestaende NIE blockweise, immer
+   alternierend — sonst misst man den Runner, nicht den Code.
+
+   UND DIE UMKEHRUNG, die Partien SPART: nicht jede Frage ist
+   statistisch. Aus Siegquoten muss man Kurvenform rekonstruieren —
+   steigt sie noch, oder liegt der Peak dahinter? Dafuer braucht es
+   viele Partien, siehe die sieben Skalenpunkte fuer mctsValueScale
+   oben. Eine STRUKTURELLE Aussage dagegen wird durch mehr Partien
+   nicht sicherer: dass scoreWeight die Summe der Blend-Gewichte von 1
+   abweichen liess (index.html:3631), wurde im Code entschieden; dass
+   der Abstand zwischen bestem und zweitbestem evaluateMove-Score in
+   Eroeffnung und Mittelspiel bei 0.0-0.5 liegt, ebenso
+   (distillation/spanne_check.js). Vor jedem langen Lauf lohnt daher
+   die Frage, ob die offene Groesse eine Quote oder ein Mechanismus
+   ist — im zweiten Fall ersetzt Hinsehen das Spielen.
+   Nicht belegte, aber passende Lesart: Der Schalter schiebt den
+   Kipppunkt von 16 auf 22, ueber den nominellen Punkt hinaus. Ist
+   die fruehe Uebergabe an den taktischen Experten gut, waere
+   leichter Schaden erwartbar. 42.5 % bei p = 0.22 belegen das nicht.
+   Einschraenkung, VORAB notiert: Der Schalter beruehrt nur mc 12-28,
+   rund 16 von 400 Zuegen. Ein Nullergebnis ist hier schwaecher als
+   bei openContactResponse, wo der Verhaltensnachweis die ganze
+   Eroeffnung abdeckte — vereinbar mit "wirkungslos" wie mit
+   "wirksam, aber zu selten angewandt fuer 80 Partien".
+
+   ── Belastbarkeit des Selektionsgesetzes ───────────────────────
+   Das Gesetz oben ("nur was neue Information einbringt oder falsche
+   beseitigt, wirkt") ist eine FAUSTREGEL aus drei bis vier Faellen,
+   kein Befund. Wer es zum Ablehnen eines Experiments heranzieht,
+   sollte die Schwachstelle kennen:
+   Sein staerkster Beleg, mctsValueScale, ist selbst eine
+   Umgewichtung — es skaliert Rollout-Werte um und brachte trotzdem
+   +108 Elo. Eingeordnet wurde es als "beseitigt falsche Information"
+   (Ausreisserdaempfung), aber diese Einordnung entstand NACHDEM das
+   Ergebnis vorlag. Ein Gesetz, das seinen eigenen Gegenbeleg durch
+   nachtraegliche Umdeutung aufnimmt, traegt weniger weit als es
+   aussieht.
+   Bilanz ehrlich: korrekt vorhergesagt bei openContactResponse,
+   rolloutSample, FPU und der evaluateMove-Expansion; bei
+   mctsValueScale nur mit nachtraeglicher Umdeutung haltbar.
+   Praktische Konsequenz: Das Gesetz taugt zum Priorisieren, nicht
+   zum endgueltigen Ablehnen. Wenn ein Vorschlag billig zu messen ist,
+   misst man ihn, statt ihn wegzuargumentieren.
+
+   ── PolicyNet: war im Harness gar nicht vorhanden ──────────────
+   Dritter Werkzeugfehler derselben Klasse wie lastMove = null. Die
+   Klasse PolicyNet und `globalThis.policyNet = new PolicyNet()`
+   standen im Haupt-Skript, das der Harness nicht extrahiert. In
+   getAIMove lautet die Bedingung `globalThis.policyNet &&
+   policyNet.blendWeight > 0` — im Harness war der erste Operand
+   undefined, der Zweig also tot. Ein A/B über netMaxBlend hätte
+   strukturell 50 % geliefert, ohne dass irgendetwas defekt aussieht.
+   Behoben: der Block hat jetzt `id="policy-net"` und wird als
+   dritter Block extrahiert; localStorage und document bekommt er
+   vom Harness als Schale, damit der Browser-Code unverändert bleibt.
+
+   ZWEITES Tor, das genauso still ist: blendWeight liefert unterhalb
+   von 2 gespielten Spielen 0. Ein frischer Harness-Prozess hat
+   gamesPlayed = 0 — das Netz wäre also auch nach der Extraktion
+   wirkungslos geblieben. Dafür gibt es --netgames; --net lädt
+   Gewichte im Browser-Format. Der Aggregatblock zeigt jetzt
+   POLICYNET mit der Zahl der forward()-Aufrufe, analog zu
+   PHASENWECHSEL: steht dort 0, misst der Lauf nichts.
+
+   Der Netz-Block zieht bei der Gewichtsinitialisierung rund 554 000
+   Zufallszahlen. Liefen die aus dem Hauptstrom, verschöbe allein
+   die ANWESENHEIT des Blocks jede Eröffnung. Er bekommt deshalb
+   einen eigenen seedabhängigen Strom (verifiziert: der Hauptstrom
+   liefert danach dieselben Werte wie ohne den Block).
+
+   WIRKSAMKEITSNACHWEIS, deterministisch über die Wurzelordnung,
+   10 Stellungen von Zug 20 bis 280, blendWeight 0.30, ungelernte
+   Gewichte: 95 % der Rangpositionen ändern sich, der Top-1-Zug in
+   2 von 10 Stellungen. Der Zweig ist also erreichbar UND wirksam.
+
+   DABEI EIN STRUKTURBEFUND, der vor jeder Stärkemessung steht: der
+   Netzbeitrag ist bw · p · netScoreScale ≈ 2 … 8 Punkte, und diese
+   Größe ist phasenunabhängig — die Entscheidungsspanne von
+   evaluateMove ist es nicht (Eröffnung ≈ 15.8, Mittelspiel ≈ 160,
+   siehe Phasengrenzen-Abschnitt oben). Folge: in der Eröffnung
+   dominiert der Prior die Heuristik (der alte Top-1 fiel auf Rang
+   221), im Mittelspiel ist er fast bedeutungslos. Ein A/B über
+   netMaxBlend mit ZUFÄLLIGEN Gewichten misst daher überwiegend,
+   was es kostet, die Eröffnung zu verrauschen — nicht, was das Netz
+   taugt. Ungelernte Priors liegen bei 1.36e-3 … 5.15e-3 gegen
+   2.77e-3 bei Gleichverteilung, sind also fast flach. Eine
+   Stärkemessung braucht trainierte Gewichte über --net.
+
+   ── Das Netz konnte nie lernen — auch nicht im Browser ────────
+   Vierter Fund derselben Familie, diesmal aber im PRODUKT und nicht
+   im Messrahmen. Der Kreis:
+
+     blendWeight ist 0, solange gamesPlayed < 2
+       → _netPriors bleibt null (Bedingung in triggerAIMove)
+       → applyAIResult schiebt nichts in _gameBuffer
+       → trainGame() bricht mit „Kein Buffer" ab, VOR gamesPlayed++
+       → gamesPlayed bleibt 0
+
+   Kein Ausgang: save() läuft nur in trainGame und reset(), load()
+   verwirft Gewichte abweichender Dimension. Es kann also nirgends
+   trainierte Gewichte geben, in keinem localStorage.
+
+   Behoben durch Trennung von BEOBACHTEN und STEUERN: Priors werden
+   bei jedem Hard-Zug gerechnet und aufgezeichnet, geblendet wird nur
+   bei blendWeight > 0. Dieselbe Trennung in getAIMove, sonst kann
+   auch ein Trainingslauf im Harness nichts lernen.
+
+   VORSICHT BEIM NACHWEIS — ich habe hier selbst danebengegriffen:
+   Der erste Browser-Test lief mit state.aiEnabled = false, triggerAIMove
+   kehrt dann in der ersten Zeile zurück. „Buffer bleibt 0 nach einem
+   KI-Zug" war also kein Befund, sondern eine nicht stattgefundene
+   Messung — und sie sah exakt so aus wie der echte Fund. Sauber
+   wiederholt (aiEnabled = true, Zug tatsächlich gespielt): HEAD Buffer
+   0 und gamesPlayed bleibt 0, mit Fix Buffer 1 und gamesPlayed 1.
+   Regel daraus: eine Messung, die den erwarteten Nullwert liefert,
+   braucht IMMER eine Gegenprobe, die zeigt, dass der Aufbau überhaupt
+   etwas hätte anzeigen können.
+
+   netMaxBlend steht seither auf 0. Den Kreis zu reparieren, ohne den
+   Wert zu senken, hätte die Eröffnung ab der zweiten Partie mit
+   Zufallsgewichten verrauscht (siehe Strukturbefund oben, Rang 221).
+   Das Netz lernt jetzt mit, ohne die Zugwahl zu berühren.
+
+   ── Was das Netz nach der Reparatur kann: zu wenig ─────────────
+   Zielgröße: Rang, den das Netz dem Zug gibt, den die SUCHE wählt.
+   Genau das ist die Aufgabe eines Priors — die Suche vorwegnehmen.
+
+   ACHTUNG, die Kennzahl ist extrem verrauscht. Zwei UNTRAINIERTE
+   Netze lagen auf 24 Stellungen bei Ø Rang 97 und 124, auf 36
+   Stellungen streuten vier Initialisierungen von 100 bis 126. Ich
+   habe daraus zuerst auf 12 Stellungen zwei Befunde abgeleitet, die
+   beide falsch waren („Zufallsnetz schlägt den Zufall", „netLR ist
+   zehnfach zu groß"). Unter etwa 30 Stellungen ist hier nichts
+   ablesbar, und ungepaarte Vergleiche zwischen zwei Gewichtssätzen
+   sind wertlos.
+
+   GEPAART und repliziert (identische 1680 Zug-Paare, identische 36
+   Probestellungen, nur die Startgewichte wechseln, netLR 1e-3,
+   Ziel = Suchzug, 5 Epochen; Zufallserwartung Ø Rang 101.3):
+
+     Init   Start → nach 5 Epochen     Top-10 am Ende
+       11   125.7 → 97.0               2/36
+       22   102.6 → 91.0               2/36
+       33   100.4 → 77.3               0/36
+       44   118.1 → 95.7               2/36
+
+   4 von 4 verbessern sich, im Mittel 111.7 → 90.3. Das Netz lernt
+   also — die Architektur ist nicht kaputt, und netLR 1e-3 ist nicht
+   zu hoch (1e-5 und kleiner bewegen praktisch nichts).
+
+   ABER: die Trefferquote im KOPF der Verteilung bleibt auf
+   Zufallsniveau. Top-10 von 36 Stellungen wäre bei Gleichverteilung
+   rund 1.6 — gemessen 0 bis 2. Der Suchzug landet nie auf Rang 1.
+   Gelernt wird eine grobe Lagepräferenz („wo auf dem Brett wird
+   überhaupt gespielt"), nicht, WELCHER Zug. Für PUCT zählt aber
+   allein der Kopf: ein Prior, der den gesuchten Zug im Mittel auf
+   Platz 90 von rund 225 legt, kann die Suche nicht lenken.
+
+   Konsequenz: ein A/B über netMaxBlend hat keinen Gegenstand. Es
+   gibt keine Priors, die zu blenden sich lohnt. Der Weg dahin führt
+   über Datenmenge und -qualität (Distillation aus starkem Spiel),
+   nicht über weiteres Selbstspiel und nicht über Parametertuning.
+
+   OFFEN, ausdrücklich nicht entschieden: ob das Lernziel Suchzug
+   (Distillation) besser ist als der bisherige ±Reward (REINFORCE).
+   Der Vergleich, den ich dazu gefahren habe, war UNGEPAART —
+   verschiedene Startgewichte, verschiedene Probensätze — und liegt
+   damit vollständig im oben gemessenen Rauschen. Wer das entscheiden
+   will, fährt beide Regeln auf denselben Daten, denselben
+   Startgewichten und mindestens vier Initialisierungen.
+
+   ── Ein Instrument kann still seine Bedeutung verlieren ────────
+   POLICYNET zählte anfangs nur Vorwärtsläufe, mit der dokumentierten
+   Lesart „steht dort 0, misst der Lauf nichts". Die Trennung von
+   Beobachten und Steuern hat genau diese Aussage entwertet: seither
+   rechnet das Netz bei JEDEM Hard-Zug, auch bei netMaxBlend = 0.
+   Ein A/B über netMaxBlend hätte also eine große Zahl gesehen und
+   daraus geschlossen, der Parameter greife — während die eine Seite
+   gar nicht blendete. Aufgefallen beim Durchtesten der Pipeline:
+   2 Partien à 40 Züge meldeten 80 Vorwärtsläufe, obwohl nur eine
+   Konfiguration blendete.
+
+   Jetzt zwei Zahlen: Vorwärtsläufe und davon solche mit Wirkung.
+   Gegengeprüft — A 0.30 gegen B 0: 80/40. A 0.30 gegen B 0.30: 80/80.
+   Merksatz fürs nächste Mal: Wer eine Bedingung im Code aufteilt,
+   muss prüfen, ob ein Zähler noch dasselbe zählt wie vorher.
+
+   ── Kennzahlen, die bei kleinen Stichproben NICHT gelesen werden ─
+   Benson-Pässe und Passzahlen. Zwei Läufe mit je 40 Partien:
+   Benson S 28 / W 45 gegen S 43 / W 0, Pässe 365/647 gegen 334/249.
+   Die Streuung ist um ein Vielfaches größer als die der Siegrate,
+   weil beide Größen stark am einzelnen Eröffnungsverlauf hängen.
+   Kein Messfehler — aber unter mehreren hundert Partien ist dort
+   kein Muster von Rauschen unterscheidbar. Auch nicht beiläufig
+   interpretieren; ich habe aus der ersten Zahlenreihe eine
+   Pass-Asymmetrie abgeleitet, die der zweite Lauf umdrehte.
+
+   ── Messstand (84 Partien über drei Läufe) ─────────────────────
+   rolloutSample 16 / mctsRolloutDepth 12 gegen 32/24: 60 % für den
+   Kandidaten, p = 0.10 — nicht signifikant, und der Vorsprung
+   schrumpft mit jedem saubereren Lauf (70 % → 58 % → 55 %). Trotz
+   2.8× mehr Simulationen kein belegbarer Gewinn; Standardwerte
+   bleiben. Farbeffekt über die sauberen Läufe: Schwarz 38 : 46
+   Weiß, p = 0.45 — die 17:3-Weiß-Dominanz aus dem allerersten Lauf
+   war der 32-Bit-Epochen-Überlauf, nicht die Engine.
+   ═══════════════════════════════════════════════════════════════ */
+'use strict';
+
+const fs = require('fs');
+
+/* ── CLI ─────────────────────────────────────────────────────── */
+function parseArgs(argv) {
+  const a = {
+    html: './index.html', games: 4, paired: 0, opening: 20, obudget: 100,
+    budget: 250, maxMoves: 400, komi: 7.5,
+    A: {spec: '', plain: {}, steps: {}}, B: {spec: '', plain: {}, steps: {}},
+    seed: null, json: null, roh: null, fortsetzen: false, net: null, netGames: 0, netTrain: null
+  };
+  /* Konfiguration = feste Werte plus optionale Phasenstufen (k@N=v).
+     Ergebnisform: {spec, plain:{k:v}, steps:{k:[[abZug,wert],...]}} */
+  const kv = s => {
+    const cfg = {spec: s, plain: {}, steps: {}};
+    for (const part of s.split(',')) {
+      const [lhs, v] = part.split('=').map(t => t.trim());
+      if (!lhs) continue;
+      const n = Number(v);
+      if (!Number.isFinite(n)) { console.error(`Ungültiger Wert: ${part}`); process.exit(2); }
+      const at = lhs.indexOf('@');
+      if (at < 0) { cfg.plain[lhs] = n; continue; }
+      const key = lhs.slice(0, at).trim();
+      const from = parseInt(lhs.slice(at + 1), 10);
+      if (!key || !Number.isInteger(from) || from < 0) {
+        console.error(`Ungültige Phasenangabe: ${part} (erwartet k@N=v mit N >= 0)`);
+        process.exit(2);
+      }
+      (cfg.steps[key] = cfg.steps[key] || []).push([from, n]);
+    }
+    for (const k of Object.keys(cfg.steps)) cfg.steps[k].sort((x, y) => x[0] - y[0]);
+    return cfg;
+  };
+  const emptyCfg = () => ({spec: '', plain: {}, steps: {}});
+  for (let i = 2; i < argv.length; i++) {
+    const k = argv[i], v = argv[i + 1];
+    switch (k) {
+      case '--html': a.html = v; i++; break;
+      case '--games': a.games = parseInt(v, 10); i++; break;
+      case '--paired': a.paired = parseInt(v, 10); i++; break;
+      case '--opening': a.opening = parseInt(v, 10); i++; break;
+      case '--obudget': a.obudget = parseInt(v, 10); i++; break;
+      case '--budget': a.budget = parseInt(v, 10); i++; break;
+      case '--maxmoves': a.maxMoves = parseInt(v, 10); i++; break;
+      case '--komi': a.komi = parseFloat(v); i++; break;
+      case '--A': a.A = kv(v); i++; break;
+      case '--B': a.B = kv(v); i++; break;
+      case '--seed': a.seed = parseInt(v, 10); i++; break;
+      case '--json': a.json = v; i++; break;
+      case '--roh':  a.roh  = v; i++; break;
+      case '--fortsetzen': a.fortsetzen = true; break;
+      case '--net': a.net = v; i++; break;
+      case '--netgames': a.netGames = parseInt(v, 10); i++; break;
+      case '--nettrain': a.netTrain = v; i++; break;
+      case '--help': console.log(fs.readFileSync(__filename, 'utf8')
+        .split('*/')[0].replace(/^\/\*+[^\n]*\n/, '')); process.exit(0);
+      default: console.error(`Unbekannte Option: ${k} (--help)`); process.exit(2);
+    }
+  }
+  return a;
+}
+
+const args = parseArgs(process.argv);
+
+/* ── Seedbarer Zufall (mulberry32) ───────────────────────────── */
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  const f = function () {
+    s |= 0; s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  /* Zustand lesen und setzen, für --fortsetzen. Der Generator ist eine
+     einzige 32-Bit-Zahl; wer sie nach einer Partie aufschreibt und vor der
+     nächsten wieder einsetzt, setzt den Strom exakt dort fort. */
+  f.zustand = () => s;
+  f.setze = v => { s = v; };
+  return f;
+}
+const zufallHaupt = args.seed !== null ? mulberry32(args.seed) : Math.random;
+const zufallNetz  = args.seed !== null ? mulberry32((args.seed ^ 0x9E3779B9) >>> 0) : Math.random;
+if (args.seed !== null) Math.random = zufallHaupt;
+
+/* Die Gewichtsinitialisierung des PolicyNet zieht rund 554 000 Zufallszahlen
+   (3971×128 + 361×128). Liefen die aus dem Hauptstrom, verschöbe allein die
+   ANWESENHEIT des Blocks jede Eröffnung und jeden Rollout — ein Lauf von
+   vorher wäre mit einem von nachher nicht mehr vergleichbar, obwohl sich an
+   der Suche nichts geändert hat. Der Block bekommt deshalb einen eigenen,
+   ebenfalls seedabhängigen Strom; danach steht der Hauptstrom exakt dort,
+   wo er ohne PolicyNet stünde. */
+globalThis.__netzZufallAn  = () => { if (args.seed !== null) Math.random = zufallNetz;  };
+globalThis.__netzZufallAus = () => { if (args.seed !== null) Math.random = zufallHaupt; };
+
+/* Browser-Schalen für den policy-net-Block. Der Block ist unverändert der
+   Code, der auch im Browser läuft; statt ihn mit typeof-Abfragen zu spicken,
+   bekommt er hier die zwei Objekte, die er überhaupt anfasst:
+     localStorage      — Gewichte laden/speichern (load/save/reset)
+     document          — dashUpdate() holt sich Dashboard-Felder; das erste
+                         liefert null, die Methode kehrt sofort zurück.
+   btoa/atob sind in Node ≥ 16 global vorhanden. */
+if (typeof globalThis.localStorage === 'undefined') {
+  const speicher = new Map();
+  if (args.net !== null) speicher.set('go_pnet', fs.readFileSync(args.net, 'utf8').trim());
+  globalThis.localStorage = {
+    getItem:    k => (speicher.has(k) ? speicher.get(k) : null),
+    setItem:    (k, v) => { speicher.set(k, String(v)); },
+    removeItem: k => { speicher.delete(k); }
+  };
+}
+if (typeof globalThis.document === 'undefined') {
+  globalThis.document = { getElementById: () => null };
+}
+
+/* ── KI-Scripts aus der index.html extrahieren ───────────────── */
+function extractScript(html, id) {
+  const re = new RegExp(`<script id="${id}">([\\s\\S]*?)</script>`);
+  const m = re.exec(html);
+  if (!m) { console.error(`<script id="${id}"> nicht gefunden in ${args.html}`); process.exit(1); }
+  return m[1];
+}
+
+const html = fs.readFileSync(args.html, 'utf8');
+const sharedGoLogic = extractScript(html, 'shared-go-logic');
+const workerAi = extractScript(html, 'worker-ai');
+/* policy-net MUSS nach worker-ai laufen: der blendWeight-Getter liest PARAMS.
+   Name bewusst nicht "policyNet": der Driver wird im selben Scope evaluiert
+   und würde sonst diese Quelltext-Zeichenkette statt globalThis.policyNet
+   sehen. */
+const policyNetSrc = extractScript(html, 'policy-net');
+
+/* ── Driver: läuft im selben eval-Scope wie die KI ───────────── */
+const driver = `
+;(function abMain(AB) {
+  /* Einen Stein anwenden (Legalität hat getAIMove geprüft). Pflegt
+     Gefangene, Ko-Punkt und Superko-Historie wie placeStone(). */
+  function applyMove(board, color, x, y, ko, hist, caps) {
+    const i = idx(x, y);
+    const opp = color === 1 ? 2 : 1;
+    board[i] = color;
+    const cap = removeDeadGroups(board, opp, i);
+    caps[color] += cap;
+    if (cap === 1) {
+      const ff = floodFill(board, i);
+      ko.point = (ff.group.length === 1 && ff.liberties.length === 1) ? ff.liberties[0] : null;
+    } else ko.point = null;
+    hist.add(computeZobrist(board));
+    return cap;
+  }
+
+  /* Abrechnung: Benson-tote Steine entfernen (beweisbar, keine
+     Heuristik), dann Area: Steine + einseitig berührte Regionen.
+     Seki/Dame zählt nicht. komi als Parameter — die Engine ist
+     komi-blind, also ist komi=0 der exakte Kontrolltest. */
+  function finalScore(board, capsIn, komi) {
+    const b = cloneBoard(board);
+    const caps = {1: capsIn[1], 2: capsIn[2]};
+    const epoch = bensonClassify(b);
+    const done = new Uint8Array(BOARD_SIZE);
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      const c = b[i];
+      if (!c || done[i]) continue;
+      const ff = floodFill(b, i);
+      for (const g of ff.group) done[g] = 1;
+      if (_bnDead[i] === epoch)
+        for (const g of ff.group) { b[g] = 0; caps[c === 1 ? 2 : 1]++; }
+    }
+    const area = {1: 0, 2: 0};
+    const vis = new Uint8Array(BOARD_SIZE);
+    for (let i = 0; i < BOARD_SIZE; i++) if (b[i]) area[b[i]]++;
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      if (b[i] || vis[i]) continue;
+      const q = [i]; vis[i] = 1;
+      let head = 0, size = 0, touch = 0;
+      while (head < q.length) {
+        const cur = q[head++]; size++;
+        for (const n of NEIGHBORS[cur]) {
+          const c = b[n];
+          if (c === 0) { if (!vis[n]) { vis[n] = 1; q.push(n); } }
+          else touch |= c;
+        }
+      }
+      if (touch === 1) area[1] += size;
+      else if (touch === 2) area[2] += size;
+    }
+    return { b: area[1], w: area[2] + komi, caps };
+  }
+
+  const SIMS_RE = /MCTS (\\d+)(?: ⚠)? Sims · \\d+% [A-T]\\d+ · Q (-?[\\d.]+)/;
+  const SNAP = [150, 200, 250];
+  const qAt = (arr, f) => arr.length
+    ? arr[Math.min(arr.length - 1, Math.floor(arr.length * f))] : null;
+
+  /* Wirksame Parameter einer Konfiguration bei Zug mc. Spätere Stufen
+     überschreiben frühere; ohne Stufen ist das einfach cfg.plain. */
+  function cfgAt(cfg, mc) {
+    const out = {...cfg.plain};
+    for (const k of Object.keys(cfg.steps))
+      for (const [from, val] of cfg.steps[k]) if (mc >= from) out[k] = val;
+    return out;
+  }
+
+  /* ═══ Rohdump nach docs/pilot-benson-defense.md, §5 ═══════════════
+     Alle Groessen der Stellung werden HIER neu gerechnet, nicht aus den
+     Waechtern gelesen: die summieren ueber alle evaluateBoard-Aufrufe der
+     Suche (Tausende je Zug), gefragt ist aber die Buchung der Stellung
+     selbst. Siehe §5.2, letzter Absatz. */
+  const _krypto = require('crypto');
+  const _sha = buf => _krypto.createHash('sha256').update(buf).digest('hex');
+
+  /* Kanonischer JSON-Text: Schluessel sortiert, damit derselbe
+     Parametersatz immer denselben Hash traegt — unabhaengig davon, in
+     welcher Reihenfolge --A/--B geschrieben wurden. */
+  function _kanonisch(o) {
+    if (o === null || typeof o !== 'object') return JSON.stringify(o);
+    if (Array.isArray(o)) return '[' + o.map(_kanonisch).join(',') + ']';
+    return '{' + Object.keys(o).sort().map(k =>
+      JSON.stringify(k) + ':' + _kanonisch(o[k])).join(',') + '}';
+  }
+
+  /* §5.3: die EFFEKTIVEN Parameter beider Arme, also nach Anwendung von
+     --A/--B auf PARAMS_DEFAULT, plus die Harness-Einstellungen, die das
+     Spiel beeinflussen. Der Seed steht bewusst NICHT darin: derselbe
+     Parametersatz soll ueber Seeds hinweg denselben Hash tragen. */
+  function _paramsHash() {
+    const eff = cfg => Object.assign({}, PARAMS_DEFAULT,
+      {aiTimeBudget: AB.budget, adaptiveBudgetEnabled: 0}, cfgAt(cfg, 0));
+    return _sha(_kanonisch({A: eff(AB.A), B: eff(AB.B),
+      budget: AB.budget, maxMoves: AB.maxMoves, komi: AB.komi,
+      modus: AB.paired > 0 ? 'paired' : 'standard', opening: AB.opening}));
+  }
+  function _brettHash(board) {
+    return _sha(Buffer.from(board.buffer, board.byteOffset, BOARD_SIZE));
+  }
+
+  /* Gruppen einer Farbe: Groesse und Freiheiten. Eigene Schleife statt
+     floodFill je Stein, damit der Dump nicht teurer wird als die Suche. */
+  function _gruppen(board, color) {
+    const gesehen = new Uint8Array(BOARD_SIZE);
+    const out = [];
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      if (board[i] !== color || gesehen[i]) continue;
+      const stapel = [i]; gesehen[i] = 1;
+      let groesse = 0;
+      const frei = new Set();
+      while (stapel.length) {
+        const g = stapel.pop(); groesse++;
+        for (const n of NEIGHBORS[g]) {
+          if (board[n] === 0) frei.add(n);
+          else if (board[n] === color && !gesehen[n]) { gesehen[n] = 1; stapel.push(n); }
+        }
+      }
+      out.push({groesse, frei: frei.size});
+    }
+    return out;
+  }
+
+  /* §5.2: dieselbe Formel, die evaluateBoard fuer den Uebertrag benutzt. */
+  function _transfer(gruppen) {
+    let summe = 0;
+    for (const g of gruppen) {
+      if (g.frei >= STERBE_RAMPE.length || g.groesse < PARAMS.deathDiscountSize) continue;
+      summe += PARAMS.deathTransfer * STERBE_RAMPE[g.frei] * g.groesse * PARAMS.captureWeight;
+    }
+    return summe;
+  }
+
+  function _zugEreignis(board, color, res, sims, q, geschlagen) {
+    const opp = color === 1 ? 2 : 1;
+    let frei = 0;
+    for (let i = 0; i < BOARD_SIZE; i++) if (!board[i]) frei++;
+    const ep = bensonClassify(board);
+    let totEigen = 0, totFremd = 0;
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      if (!board[i] || _bnDead[i] !== ep) continue;
+      if (board[i] === color) totEigen++; else totFremd++;
+    }
+    const eigen = _gruppen(board, color), fremd = _gruppen(board, opp);
+    const gross = eigen.filter(g => g.groesse >= PARAMS.deathDiscountSize);
+    let minFrei = null;
+    for (const g of gross) if (minFrei === null || g.frei < minFrei) minFrei = g.frei;
+    return {
+      zug: null, farbe: color === 1 ? 'S' : 'W',
+      idx: (res && res.type === 'stone') ? idx(res.x, res.y) : -1,
+      sims, q, frei, tor: frei <= PARAMS.bensonEvalMaxEmpty,
+      totEigen, totFremd,
+      grossGruppen: gross.length, minFreiGross: minFrei,
+      transferEigen: _transfer(eigen), transferFremd: _transfer(fremd),
+      geschlagen
+    };
+  }
+
+  function playGame(cfgBlack, cfgWhite, startState) {
+    const board = startState ? cloneBoard(startState.board) : createBoard();
+    const caps = startState ? {1: startState.caps[1], 2: startState.caps[2]} : {1: 0, 2: 0};
+    const hist = startState ? new Set(startState.hist) : new Set([computeZobrist(board)]);
+    const ko = {point: startState ? startState.ko : null};
+    let mc = startState ? startState.mc : 0;
+    /* FIX: lastMove wurde nie uebergeben — der Harness rief getAIMove mit
+       null auf, das Spiel dagegen mit state.lastMove. Folge: _lastMoveIdx
+       blieb im Harness immer -1, und der Lokalitaetsterm in evaluateMove
+       (index.html:1118, Bedingung _lastMoveIdx >= 0) konnte GAR NICHT
+       greifen. Ein A/B ueber localityBonus haette hier strukturell 50 %
+       liefern muessen, unabhaengig vom Wert. Semantik wie im Spiel: nur bei
+       einem Steinzug setzen, beim Pass stehen lassen (index.html:1750). */
+    let lastIdx = startState ? (startState.lastMove ?? null) : null;
+    let passes = 0, resignedBy = null, resignInfo = null, anomalies = 0;
+    /* FIX: Modul-Zustand PRO FARBE führen. _mctsSavedRoot, _hopelessStreak
+       und _allDeadStreak sind Modul-Variablen der Engine. Im Browser lebt
+       der Worker nur für EINE Farbe; hier ziehen beide Farben im selben
+       Scope, dadurch überschrieb jede Farbe den Zustand der anderen:
+         · _mctsSavedRoot: aiColor stimmte nie → Tree-Reuse griff NIE
+           (gemessen: 0 Treffer in 24 Zügen)
+         · _hopelessStreak/_allDeadStreak: jeder Gegnerzug mit gutem Q
+           setzte die Aufgabe-Serie der anderen Farbe auf 0 → Aufgabe
+           konnte praktisch nicht regulär auslösen
+       Jetzt: vor jedem Zug den Zustand der ziehenden Farbe einspielen,
+       danach zurückschreiben — beide Farben verhalten sich wie im Spiel. */
+    const modState = {1: {root: null, hope: 0, dead: 0, sig: null, phaseSwitches: 0, msProSim: null, krisenDauer: null},
+                      2: {root: null, hope: 0, dead: 0, sig: null, phaseSwitches: 0, msProSim: null, krisenDauer: null}};
+    const st = {
+      1: {moves: 0, sims: 0, timeMs: 0, q: [], zeiten: [], boden: 0, faktoren: [], args: [],
+          atRufe: 0, atGross: 0, atMax: 0, drRufe: 0, drGross: 0, drMax: 0, dkRufe: 0, dkGriff: 0, skRufe: 0, skGriff: 0, skMax: 0, agRufe: 0, agOffen: 0, afRufe: 0, afBlock: 0, afMax: 0, trRufe: 0, trGruppen: 0, trSumme: 0, trMax: 0, trUeber: 0, trCap: 0, trGesamt: 0},
+      2: {moves: 0, sims: 0, timeMs: 0, q: [], zeiten: [], boden: 0, faktoren: [], args: [],
+          atRufe: 0, atGross: 0, atMax: 0, drRufe: 0, drGross: 0, drMax: 0, dkRufe: 0, dkGriff: 0, skRufe: 0, skGriff: 0, skMax: 0, agRufe: 0, agOffen: 0, afRufe: 0, afBlock: 0, afMax: 0, trRufe: 0, trGruppen: 0, trSumme: 0, trMax: 0, trUeber: 0, trCap: 0, trGesamt: 0}
+    };
+    /* Gruppenverluste je Farbe: groesster Einzelschlag, den DIESE Farbe
+       erlitten hat, plus die Zahl der Verluste ab 5 Steinen. Instrument fuer
+       die Frage, ob ein Eingriff am Freiheitsterm (midLibCap) dazu fuehrt,
+       dass eigene grosse Gruppen sterben — der Wert zusaetzlicher Freiheiten
+       im grossen Kampf ist genau das, was ein Deckel unterschaetzen koennte.
+       Verlierer eines Schlags ist immer die Gegenfarbe des Ziehenden. */
+    const verlust = {1: {max: 0, ab5: 0, summe: 0}, 2: {max: 0, ab5: 0, summe: 0}};
+    /* Rohdump nach docs/pilot-benson-defense.md, §5.2. Leer, solange --roh
+       nicht gesetzt ist: die Analyse je Zug kostet ein bensonClassify und
+       zwei Gruppenlaeufe, das soll ein normaler A/B-Lauf nicht zahlen. */
+    const ereignisse = [];
+    const passSt = {
+      1: {first: null, total: 0, benson: 0},
+      2: {first: null, total: 0, benson: 0}
+    };
+    const area = {};
+    /* Trainingspuffer GETRENNT je Farbe. Im Browser lernt nur die KI-Seite,
+       hier ziehen beide — mit entgegengesetztem Reward. Ein gemeinsamer
+       Puffer würde Sieger- und Verliererzüge mit demselben Vorzeichen
+       verstärken. */
+    const netBuf = {1: [], 2: []};
+
+    while (mc < AB.maxMoves && passes < 2 && !resignedBy) {
+      const color = (mc % 2 === 0) ? 1 : 2;
+      const cfg = cfgAt(color === 1 ? cfgBlack : cfgWhite, mc);
+      Object.assign(PARAMS, PARAMS_DEFAULT,
+        {aiTimeBudget: AB.budget, adaptiveBudgetEnabled: 0}, cfg);
+
+      const ms = modState[color];
+      /* Phasenwechsel: gespeicherten Baum verwerfen. Ein wiederverwendeter
+         Knoten trägt N/W aus der alten Parametrisierung und würde sie mit
+         neuen Bewertungen weitermitteln — vermischte Skalen in einem Knoten,
+         und zwar nicht nur im Übergangszug, sondern so lange der Teilbaum
+         weiterlebt. */
+      const sig = JSON.stringify(cfg);
+      if (ms.sig !== null && ms.sig !== sig) { ms.root = null; ms.phaseSwitches++; }
+      ms.sig = sig;
+      _mctsSavedRoot = ms.root; _hopelessStreak = ms.hope; _allDeadStreak = ms.dead;
+      /* _lastMsPerSim gehoert in dieselbe Liste wie die drei darueber: es ist
+         eine Modul-Variable, und der adaptive Zeitbudget-Zweig liest sie. Ohne
+         Trennung wuerde ein langsamer Zug der EINEN Konfiguration das Budget
+         der ANDEREN anheben — ein A/B ueber Zeitverteilung waere damit
+         wertlos. Bei adaptiveBudgetEnabled=0 (Default des Harness) ist der
+         Zweig tot und die Zeile wirkungslos. */
+      _lastMsPerSim = ms.msProSim;
+      /* _krisenDauer zaehlt, wie lange eine Gruppe schon in der Krise steckt —
+         Zustand EINER Farbe in EINER Partie. Ohne diesen Tausch truege der
+         eine Arm die Krisenhistorie des anderen, dieselbe Fehlerklasse wie
+         beim Faktor-Waechter und bei _lastMsPerSim. */
+      setzeKrisenDauer(ms.krisenDauer);
+
+      /* GREIFT DER MIN-SIMS-BODEN UEBERHAUPT? Ohne diese Zaehlung waere ein
+         Nullergebnis nicht deutbar: nicht geholfen, oder nie ausgeloest?
+         Der Zaehler sitzt in getAdaptiveTimeBudget selbst. Eine frueere
+         Fassung rief die Funktion hier mit der Zahl der FREIEN FELDER auf und
+         verglich mit/ohne Boden — das war falsch: mctsPUCT uebergibt die Zahl
+         der KANDIDATENZUEGE. Die Nachbildung mass damit einen anderen
+         Arbeitspunkt als die Engine und lieferte 37,5 % statt des wahren
+         Werts. Jetzt wird dort gezaehlt, wo entschieden wird. */
+      leseBodenGriff(true);
+
+      /* GREIFT DIE ATARI-SKALIERUNG? Derselbe Grund wie beim Boden: ein
+         Nullergebnis ist nur deutbar, wenn feststeht, dass der Eingriff
+         ueberhaupt stattfand. Vor dem Zug zuruecksetzen und danach lesen
+         haelt die Zahlen der beiden Arme getrennt — sonst buchte die eine
+         Farbe der anderen ihre Aufrufe zu, wie es der Faktor-Waechter
+         schon einmal getan hat. */
+      leseAtariWaechter(true);
+      leseDruckWaechter(true);
+      leseDeckelWaechter(true);
+      leseSunkWaechter(true);
+      leseAugenWaechter(true);
+      leseAufgabeWaechter(true);
+      leseTransferWaechter(true);
+
+      const t0 = Date.now();
+      netFrisch = false;
+      const res = getAIMove(board, color, Array.from(hist), {...caps},
+                            mc, 'hard', 1, ko.point, lastIdx);
+      const dt = Date.now() - t0;
+      if (netFrisch && policyNet._netBlend > 0) netGeblendet++;
+      /* Zugzeiten sammeln. Bei einem Test ueber die VERTEILUNG der Rechenzeit
+         ist der Mittelwert allein nutzlos — er soll ja zwischen den Armen
+         gleich sein. Gefragt ist die Streuung: gleichmaessig verteilt gegen
+         in die schweren Stellungen geschoben. */
+      st[color].zeiten.push(dt);
+      if (leseBodenGriff(true) > 0) st[color].boden++;
+      { const aw = leseAtariWaechter(true);
+        st[color].atRufe += aw.rufe; st[color].atGross += aw.gross;
+        if (aw.maxGroesse > st[color].atMax) st[color].atMax = aw.maxGroesse; }
+      { const dw = leseDruckWaechter(true);
+        st[color].drRufe += dw.rufe; st[color].drGross += dw.gross;
+        if (dw.maxGroesse > st[color].drMax) st[color].drMax = dw.maxGroesse; }
+      { const kw = leseDeckelWaechter(true);
+        st[color].dkRufe += kw.rufe; st[color].dkGriff += kw.griff; }
+      { const sw = leseSunkWaechter(true);
+        st[color].skRufe += sw.rufe; st[color].skGriff += sw.griff;
+        if (sw.maxDauer > st[color].skMax) st[color].skMax = sw.maxDauer; }
+      { const aw = leseAugenWaechter(true);
+        st[color].agRufe += aw.rufe; st[color].agOffen += aw.offen; }
+      /* AUFGABE-WAECHTER: qRufe zaehlt die Zuege, in denen Q die Schwelle
+         gerissen hat; block die Teilmenge davon, in der das Gebietskriterium
+         die Aufgabe verhindert hat. Fuer eine resignAreaMargin-Dosisreihe ist
+         block die einzige Zahl, die sagt, ob der Arm ueberhaupt beisst. */
+      { const fw = leseAufgabeWaechter(true);
+        st[color].afRufe += fw.qRufe; st[color].afBlock += fw.block;
+        if (fw.maxLuecke > st[color].afMax) st[color].afMax = fw.maxLuecke; }
+      /* TRANSFER-WAECHTER: greift nur bei transferTelemetrie > 0. ueber zaehlt
+         die Gruppen, deren Abzug groesser war als ihr eigener Wert -- die
+         zaehlen danach negativ, obwohl sie noch auf dem Brett stehen. */
+      { const tw = leseTransferWaechter(true);
+        st[color].trRufe += tw.rufe; st[color].trGruppen += tw.gruppen;
+        st[color].trSumme += tw.summe; st[color].trUeber += tw.ueber;
+        st[color].trCap += tw.capAbs; st[color].trGesamt += tw.gesamtAbs;
+        if (tw.max > st[color].trMax) st[color].trMax = tw.max; }
+      { const f = leseFaktor();
+        if (f.faktor !== null) { st[color].faktoren.push(f.faktor); st[color].args.push(f.arg); } }
+
+      ms.root = _mctsSavedRoot; ms.hope = _hopelessStreak; ms.dead = _allDeadStreak;
+      ms.msProSim = _lastMsPerSim;
+      ms.krisenDauer = leseKrisenDauer();
+      const s = st[color]; s.moves++; s.timeMs += dt;
+
+      let zugSims = null, zugQ = null;
+      if (res.info) {
+        const m = SIMS_RE.exec(res.info);
+        if (m) { s.sims += +m[1]; s.q.push(+m[2]); zugSims = +m[1]; zugQ = +m[2]; }
+      }
+      /* VOR dem Anwenden des Zuges: alle Groessen in §5.2 beziehen sich auf
+         die Stellung, in der die KI entschieden hat. Nur geschlagen gehoert
+         zum Zug selbst und wird unten nachgetragen. */
+      const ereignis = AB.roh ? _zugEreignis(board, color, res, zugSims, zugQ, 0) : null;
+      if (ereignis) { ereignis.zug = mc + 1; ereignisse.push(ereignis); }
+
+      if (res.type === 'resign') { resignedBy = color; resignInfo = res.info || null; break; }
+      if (res.type === 'pass') {
+        passes++; ko.point = null;
+        const p = passSt[color];
+        p.total++; if (p.first === null) p.first = mc;
+        if (res.info && res.info.indexOf('todgeboren') >= 0) p.benson++;
+        mc++;
+      } else {
+        const i = idx(res.x, res.y);
+        if (res.x === undefined || board[i] !== 0) {
+          anomalies++; passes++; ko.point = null; mc++; continue;
+        }
+        /* Dasselbe Tupel, das applyAIResult im Spiel puffert. */
+        if (AB.netTrain && netFrisch && policyNet._netPriors)
+          netBuf[color].push({inp: policyNet._netInp, probs: policyNet._netPriors,
+                              hidden: policyNet._netHidden, moveIdx: i});
+        const geschlagen = applyMove(board, color, res.x, res.y, ko, hist, caps);
+        if (ereignis) ereignis.geschlagen = geschlagen;
+        if (geschlagen > 0) {
+          const v = verlust[color === 1 ? 2 : 1];
+          v.summe += geschlagen;
+          if (geschlagen > v.max) v.max = geschlagen;
+          if (geschlagen >= 5) v.ab5++;
+        }
+        lastIdx = idx(res.x, res.y);
+        passes = 0; mc++;
+      }
+      if (SNAP.indexOf(mc) >= 0 && !area['M' + mc]) {
+        const f = finalScore(board, caps, 0);
+        area['M' + mc] = {b: f.b, w: f.w};
+      }
+    }
+
+    /* RANDANTEIL der Endstellung je Farbe: Anteil der eigenen Steine auf
+       Linie 1 und 2. Instrument fuer die Randspiel-These — der Term
+       midLineWeight soll genau diese Zahl senken, und ohne sie waere nur
+       messbar OB ein Eingriff wirkt, nicht ob er die URSACHE trifft.
+       Gemessen auf dem ROHEN Endbrett, ohne Totsteinentfernung: gefragt ist,
+       wo die KI gebaut hat, nicht wie es ausgezaehlt wird.
+       Referenz aus vier Partien gegen einen Menschen: KI 51.0 %, Mensch
+       20.7 % — siehe den Randspiel-Abschnitt der README. */
+    const rand = {1: {steine: 0, linie12: 0}, 2: {steine: 0, linie12: 0}};
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      const c = board[i]; if (!c) continue;
+      rand[c].steine++;
+      const x = xOf(i), y = yOf(i);
+      if (Math.min(x, y, SIZE - 1 - x, SIZE - 1 - y) <= 1) rand[c].linie12++;
+    }
+
+    /* ZEITVERTEILUNG je Farbe. Gesamtzeit sagt WIE VIEL gerechnet wurde,
+       der Top10-Anteil sagt WIE es verteilt war: welcher Anteil der
+       Gesamtzeit auf das langsamste Zehntel der Zuege entfaellt. Gleichverteilt
+       waeren das 10 %; je hoeher, desto staerker in die schweren Stellungen
+       geschoben. Genau die Groesse, um die es beim Test ueber Verteilung statt
+       Menge geht — der Mittelwert soll dort ja gerade gleich sein. */
+    const zeit = {1: null, 2: null};
+    for (const c of [1, 2]) {
+      const z = st[c].zeiten;
+      if (!z.length) continue;
+      const sortiert = [...z].sort((a, b) => b - a);
+      const k = Math.max(1, Math.round(z.length * 0.1));
+      const summe = z.reduce((a, b) => a + b, 0);
+      const top = sortiert.slice(0, k).reduce((a, b) => a + b, 0);
+      zeit[c] = {gesamtMs: summe, zuege: z.length,
+                 top10: summe ? 100 * top / summe : 0,
+                 maxMs: sortiert[0],
+                 bodenAnteil: 100 * st[c].boden / z.length,
+                 /* Atari-Waechter je Partie: Aufrufe der Skalierung pro Zug,
+                    Anteil davon an Gruppen ab 6 Steinen, groesste beruehrte
+                    Gruppe. Bleiben die Aufrufe 0, ist der Hebel nicht
+                    verdrahtet und ein Nullergebnis bedeutungslos. */
+                 atariProZug: st[c].atRufe / z.length,
+                 atariGrossAnteil: st[c].atRufe ? 100 * st[c].atGross / st[c].atRufe : 0,
+                 atariMaxGroesse: st[c].atMax,
+                 /* Freiheitsdruck und Gefangenen-Deckel, je eigener Waechter:
+                    die drei Terme greifen an verschiedenen Stellen, eine
+                    gemeinsame Zaehlung koennte nicht sagen, welcher feuerte. */
+                 druckProZug: st[c].drRufe / z.length,
+                 druckGrossAnteil: st[c].drRufe ? 100 * st[c].drGross / st[c].drRufe : 0,
+                 druckMaxGroesse: st[c].drMax,
+                 deckelAnteil: st[c].dkRufe ? 100 * st[c].dkGriff / st[c].dkRufe : 0,
+                 deckelRufe: st[c].dkRufe,
+                 sunkAnteil: st[c].skRufe ? 100 * st[c].skGriff / st[c].skRufe : 0,
+                 sunkRufe: st[c].skRufe,
+                 sunkMaxDauer: st[c].skMax,
+                 augenOffenAnteil: st[c].agRufe ? 100 * st[c].agOffen / st[c].agRufe : 0,
+                 augenRufe: st[c].agRufe,
+                 aufgabeQRufe: st[c].afRufe,
+                 aufgabeBlockAnteil: st[c].afRufe ? 100 * st[c].afBlock / st[c].afRufe : 0,
+                 aufgabeBlock: st[c].afBlock,
+                 aufgabeMaxLuecke: st[c].afMax,
+                 transferRufe: st[c].trRufe,
+                 transferGruppen: st[c].trGruppen,
+                 transferUeber: st[c].trUeber,
+                 /* je 1000 Bewertungen, nicht je Bewertung: die Uebertragung
+                    greift selten genug, dass eine Rate je Ruf auf zwei
+                    Nachkommastellen zu 0.00 wird und wie "greift nie"
+                    aussieht. Genau so hat diese Zeile im ersten Rauchtest
+                    gelogen. */
+                 transferGruppenPro1000: st[c].trRufe ? 1000 * st[c].trGruppen / st[c].trRufe : 0,
+                 transferUeberAnteil: st[c].trGruppen ? 100 * st[c].trUeber / st[c].trGruppen : 0,
+                 transferAbzugSchnitt: st[c].trGruppen ? st[c].trSumme / st[c].trGruppen : 0,
+                 transferMaxAbzug: st[c].trMax,
+                 capAnteil: st[c].trGesamt ? 100 * st[c].trCap / st[c].trGesamt : 0,
+                 /* Phasensplit der Rechenzeit: Frueh- gegen Spaetspiel. Der
+                    Top10-Anteil sagt, ob es Spitzen gibt; das hier sagt, ob
+                    die Zeit systematisch nach hinten wandert. Je Farbe zieht
+                    ein Index i den Partiezug 2i bzw. 2i+1, deshalb die
+                    Halbierung der Grenzen. */
+                 phase: (() => {
+                   const frueh = z.slice(0, 50), spaet = z.slice(100);
+                   if (!frueh.length || !spaet.length) return null;
+                   const m = a => a.reduce((x, y) => x + y, 0) / a.length;
+                   const f = m(frueh), sp = m(spaet);
+                   return {frueh: f, spaet: sp, quot: f ? sp / f : null};
+                 })(),
+                 /* Faktor-Waechter: Histogramm ueber die Zuege AB ZUG 20, plus
+                    Anteil der Zuege mit Faktor > 1. Bleibt der bei 0, ist der
+                    Hebel nicht verdrahtet und jede weitere Zahl wertlos. */
+                 faktor: (() => {
+                   const f = st[c].faktoren.slice(10);   // je Farbe = ab Zug ~20
+                   if (!f.length) return null;
+                   const b = [0, 0, 0, 0, 0];
+                   for (const v of f) {
+                     if (v <= 1.0001) b[0]++;
+                     else if (v < 1.25) b[1]++;
+                     else if (v < 1.5) b[2]++;
+                     else if (v < 2.0) b[3]++;
+                     else b[4]++;
+                   }
+                   return {n: f.length, eimer: b,
+                           ueber1: 100 * (f.length - b[0]) / f.length,
+                           mittel: f.reduce((a, x) => a + x, 0) / f.length,
+                           max: Math.max(...f),
+                           argMin: Math.min(...st[c].args.slice(10)),
+                           argMax: Math.max(...st[c].args.slice(10))};
+                 })()};
+    }
+
+    const score  = finalScore(board, caps, AB.komi);
+    const score0 = finalScore(board, caps, 0);
+    let winner, winner0;
+    if (resignedBy) { winner = resignedBy === 1 ? 2 : 1; winner0 = winner; }
+    else {
+      winner  = score.b  > score.w  ? 1 : 2;
+      winner0 = score0.b > score0.w ? 1 : 2;
+    }
+    /* REINFORCE, beide Farben, danach Gewichte sichern. save() schreibt in
+       die localStorage-Schale, von dort in die Datei — genau das Format,
+       das der Browser liest. */
+    if (AB.netTrain) {
+      for (const c of [1, 2]) {
+        policyNet._gameBuffer = netBuf[c];
+        policyNet.trainGame(winner === c ? 1 : -1);
+      }
+      policyNet._gameBuffer = [];
+      require('fs').writeFileSync(AB.netTrain, localStorage.getItem('go_pnet') || '');
+    }
+
+    return {winner, winner0, resignedBy, resignInfo, moves: mc,
+            score, score0, st, anomalies, passSt, area,
+            phaseSwitches: modState[1].phaseSwitches + modState[2].phaseSwitches,
+            q50: {1: qAt(st[1].q, .5), 2: qAt(st[2].q, .5)},
+            q75: {1: qAt(st[1].q, .75), 2: qAt(st[2].q, .75)},
+            verlust, rand, zeit, ereignisse,
+            gefangene: {S: caps[1], W: caps[2]},
+            brettHash: AB.roh ? _brettHash(board) : null};
+  }
+
+  /* Neutrale Eröffnung für gepaarte Partien: Default-Parameter,
+     kleines Budget — beide Paar-Partien starten exakt hier. */
+  function makeOpening(plies) {
+    const board = createBoard();
+    const caps = {1: 0, 2: 0};
+    const hist = new Set([computeZobrist(board)]);
+    const ko = {point: null};
+    let mc = 0, passes = 0, lastIdx = null;
+    while (mc < plies && passes < 2) {
+      const color = (mc % 2 === 0) ? 1 : 2;
+      Object.assign(PARAMS, PARAMS_DEFAULT,
+        {aiTimeBudget: AB.openingBudget, adaptiveBudgetEnabled: 0});
+      const res = getAIMove(board, color, Array.from(hist), {...caps},
+                            mc, 'hard', 1, ko.point, lastIdx);
+      if (res.type !== 'stone') { passes++; ko.point = null; mc++; continue; }
+      const i = idx(res.x, res.y);
+      if (board[i] !== 0) { passes++; ko.point = null; mc++; continue; }
+      applyMove(board, color, res.x, res.y, ko, hist, caps);
+      lastIdx = i;
+      passes = 0; mc++;
+    }
+    return {board, caps, hist: Array.from(hist), ko: ko.point, mc, lastMove: lastIdx};
+  }
+
+  const label = (name, cfg) => {
+    const parts = Object.keys(cfg.plain).map(k => k + '=' + cfg.plain[k]);
+    for (const k of Object.keys(cfg.steps))
+      for (const [from, val] of cfg.steps[k]) parts.push(k + ' ab Zug ' + from + ' = ' + val);
+    return name + ' (' + (parts.length ? parts.join(', ') : 'Standard-Parameter') + ')';
+  };
+  const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const fmt = (v, d) => v === null || v === undefined ? '—' : (+v).toFixed(d === undefined ? 1 : d);
+
+  console.log('═══ A/B-Harness v2 ═══');
+  console.log('A: ' + label('Baseline', AB.A));
+  console.log('B: ' + label('Kandidat', AB.B));
+  console.log('Budget: ' + AB.budget + ' ms/Zug (fest) · Komi ' + AB.komi
+    + ' · max ' + AB.maxMoves + ' Züge'
+    + (AB.seed !== null ? ' · Seed ' + AB.seed : ''));
+  console.log('');
+
+  /* Ein Spiel in die Buchhaltung übernehmen.
+     aColor = Farbe, die Konfig A in dieser Partie spielt (1=S, 2=W). */
+  function bookGame(agg, r, aColor) {
+    const bColor = aColor === 1 ? 2 : 1;
+    const aWon = r.winner === aColor;
+    const aWon0 = r.winner0 === aColor;
+    (aWon ? agg.A : agg.B).wins++;
+    (aWon0 ? agg.A : agg.B).wins0++;
+    if (r.resignedBy) {
+      (aWon ? agg.A : agg.B).resignWins++;
+      const structural = r.resignInfo && r.resignInfo.indexOf('todgeboren') >= 0;
+      agg.resigns[r.resignedBy][structural ? 'struktur' : 'q']++;
+    }
+    agg.farbSiege[r.winner]++;
+    for (const col of [1, 2]) {
+      const p = r.passSt[col];
+      if (p.first !== null) agg.passFirst[col].push(p.first);
+      agg.passTotal[col] += p.total;
+      agg.passBenson[col] += p.benson;
+      const q50 = r.q50[col], q75 = r.q75[col];
+      if (q50 !== null) agg.q50[col].push(q50);
+      if (q75 !== null) agg.q75[col].push(q75);
+    }
+    for (const k of Object.keys(r.area))
+      agg.area[k].push(r.area[k].b - r.area[k].w);   /* Differenz aus Schwarz-Sicht */
+    const diffEnd = r.score0.b - r.score0.w;
+    agg.area.end.push(diffEnd);
+
+    /* Nach Konfiguration: Q liegt bereits in der Sicht der ziehenden Farbe vor,
+       ist also direkt zuordenbar. Gebiet muss auf A-Sicht gedreht werden. */
+    if (r.q50[aColor] !== null) agg.phase.q50.A.push(r.q50[aColor]);
+    if (r.q50[bColor] !== null) agg.phase.q50.B.push(r.q50[bColor]);
+    if (r.q75[aColor] !== null) agg.phase.q75.A.push(r.q75[aColor]);
+    if (r.q75[bColor] !== null) agg.phase.q75.B.push(r.q75[bColor]);
+    const vorz = aColor === 1 ? 1 : -1;
+    for (const k of Object.keys(r.area))
+      agg.phase.areaA[k].push(vorz * (r.area[k].b - r.area[k].w));
+    agg.phase.areaA.end.push(vorz * diffEnd);
+    for (const [key, col] of [['A', aColor], ['B', bColor]]) {
+      const s = r.st[col];
+      agg[key].moves += s.moves; agg[key].sims += s.sims; agg[key].timeMs += s.timeMs;
+    }
+    for (const [key, col] of [['A', aColor], ['B', bColor]]) {
+      const v = r.verlust[col];
+      agg.verlust[key].max.push(v.max);
+      agg.verlust[key].ab5 += v.ab5;
+      agg.verlust[key].summe += v.summe;
+    }
+    for (const [key, col] of [['A', aColor], ['B', bColor]]) {
+      const d = r.rand[col];
+      if (d.steine) agg.rand[key].push(100 * d.linie12 / d.steine);
+    }
+    for (const [key, col] of [['A', aColor], ['B', bColor]]) {
+      const z = r.zeit[col];
+      if (!z) continue;
+      agg.zeit[key].gesamt.push(z.gesamtMs / 1000);
+      agg.zeit[key].top10.push(z.top10);
+      agg.zeit[key].max.push(z.maxMs);
+      agg.zeit[key].boden.push(z.bodenAnteil);
+      agg.zeit[key].atari.push(z.atariProZug);
+      agg.zeit[key].atariGross.push(z.atariGrossAnteil);
+      agg.zeit[key].atariMax.push(z.atariMaxGroesse);
+      agg.zeit[key].druck.push(z.druckProZug);
+      agg.zeit[key].druckGross.push(z.druckGrossAnteil);
+      agg.zeit[key].druckMax.push(z.druckMaxGroesse);
+      agg.zeit[key].deckel.push(z.deckelAnteil);
+      agg.zeit[key].deckelRufe.push(z.deckelRufe);
+      agg.zeit[key].sunk.push(z.sunkAnteil);
+      agg.zeit[key].sunkRufe.push(z.sunkRufe);
+      agg.zeit[key].sunkMax.push(z.sunkMaxDauer);
+      agg.zeit[key].augen.push(z.augenOffenAnteil);
+      agg.zeit[key].augenRufe.push(z.augenRufe);
+      agg.zeit[key].aufgabeQ.push(z.aufgabeQRufe);
+      agg.zeit[key].aufgabeBlock.push(z.aufgabeBlockAnteil);
+      agg.zeit[key].aufgabeBlockN.push(z.aufgabeBlock);
+      agg.zeit[key].aufgabeMax.push(z.aufgabeMaxLuecke);
+      agg.zeit[key].trRufe.push(z.transferRufe);
+      agg.zeit[key].trGruppen.push(z.transferGruppenPro1000);
+      agg.zeit[key].trGruppenAbs.push(z.transferGruppen);
+      agg.zeit[key].trUeberAbs.push(z.transferUeber);
+      agg.zeit[key].trUeber.push(z.transferUeberAnteil);
+      agg.zeit[key].trAbzug.push(z.transferAbzugSchnitt);
+      agg.zeit[key].trMax.push(z.transferMaxAbzug);
+      agg.zeit[key].capAnteil.push(z.capAnteil);
+      if (z.faktor) agg.zeit[key].faktor.push(z.faktor);
+      if (z.phase) agg.zeit[key].phase.push(z.phase);
+    }
+    agg.anomalies += r.anomalies;
+    agg.phaseSwitches += r.phaseSwitches || 0;
+    return {aWon, aWon0};
+  }
+
+  function newAgg() {
+    return {
+      A: {wins: 0, wins0: 0, moves: 0, sims: 0, timeMs: 0, resignWins: 0},
+      B: {wins: 0, wins0: 0, moves: 0, sims: 0, timeMs: 0, resignWins: 0},
+      farbSiege: {1: 0, 2: 0},
+      resigns: {1: {q: 0, struktur: 0}, 2: {q: 0, struktur: 0}},
+      passFirst: {1: [], 2: []}, passTotal: {1: 0, 2: 0}, passBenson: {1: 0, 2: 0},
+      q50: {1: [], 2: []}, q75: {1: [], 2: []},
+      area: {M150: [], M200: [], M250: [], end: []},
+      phaseSwitches: 0,
+      /* Dieselben Phasen-Kennzahlen, aber nach KONFIGURATION gruppiert statt
+         nach Farbe. Ohne das beantwortet der Harness die Frage nicht, für die
+         er gebaut ist: WO in der Partie ein Parameter wirkt. Gebiet ist
+         nullsummig, deshalb genügt die A-Sicht — B ist das Negative. */
+      phase: {q50: {A: [], B: []}, q75: {A: [], B: []},
+              areaA: {M150: [], M200: [], M250: [], end: []}},
+      /* Gruppenverluste NACH KONFIGURATION, nicht nach Farbe — die Frage ist,
+         ob der Parameter das Sterben eigener Gruppen verursacht. */
+      verlust: {A: {max: [], ab5: 0, summe: 0}, B: {max: [], ab5: 0, summe: 0}},
+      /* Randanteil NACH KONFIGURATION. Pro Partie ein Prozentwert je Seite,
+         damit der gepaarte Vergleich moeglich bleibt (beide Seiten spielen
+         dieselbe Partie) statt nur ein Gesamtmittel. */
+      rand: {A: [], B: []},
+      /* Zeitverteilung nach Konfiguration: Gesamtzeit je Partie (muss bei
+         Paritaet gleich sein) und Top10-Anteil (die eigentliche Messgroesse). */
+      zeit: {A: {gesamt: [], top10: [], max: [], boden: [], faktor: [], phase: [],
+                 atari: [], atariGross: [], atariMax: [], druck: [], druckGross: [], druckMax: [], deckel: [], deckelRufe: [], sunk: [], sunkRufe: [], sunkMax: [], augen: [], augenRufe: [], aufgabeQ: [], aufgabeBlock: [], aufgabeBlockN: [], aufgabeMax: [], trRufe: [], trGruppen: [], trGruppenAbs: [], trUeberAbs: [], trUeber: [], trAbzug: [], trMax: [], capAnteil: []},
+             B: {gesamt: [], top10: [], max: [], boden: [], faktor: [], phase: [],
+                 atari: [], atariGross: [], atariMax: [], druck: [], druckGross: [], druckMax: [], deckel: [], deckelRufe: [], sunk: [], sunkRufe: [], sunkMax: [], augen: [], augenRufe: [], aufgabeQ: [], aufgabeBlock: [], aufgabeBlockN: [], aufgabeMax: [], trRufe: [], trGruppen: [], trGruppenAbs: [], trUeberAbs: [], trUeber: [], trAbzug: [], trMax: [], capAnteil: []}},
+      anomalies: 0
+    };
+  }
+
+  function printAgg(agg, nGames) {
+    const line = '─'.repeat(72);
+    console.log('\\n' + line);
+    console.log('SIEGRATE (Komi ' + AB.komi + ')   A ' + agg.A.wins + ' : ' + agg.B.wins + ' B'
+      + '    Komi-0-Wertung: A ' + agg.A.wins0 + ' : ' + agg.B.wins0 + ' B');
+    console.log('FARBE   Schwarz ' + agg.farbSiege[1] + ' : ' + agg.farbSiege[2] + ' Weiß'
+      + '    Aufgaben S/W: Q ' + agg.resigns[1].q + '/' + agg.resigns[2].q
+      + ' · strukturell ' + agg.resigns[1].struktur + '/' + agg.resigns[2].struktur);
+    for (const key of ['A', 'B']) {
+      const a = agg[key];
+      console.log(key + ': Ø ' + (a.moves ? Math.round(a.sims / a.moves) : 0) + ' Sims/Zug · Ø '
+        + (a.moves ? Math.round(a.timeMs / a.moves) : 0) + ' ms/Zug'
+        + (a.resignWins ? ' · ' + a.resignWins + ' Aufgabe-Siege' : ''));
+    }
+    console.log('GEBIET ohne Komi (B−W, Punkte):  Zug 150 ' + fmt(mean(agg.area.M150))
+      + ' · 200 ' + fmt(mean(agg.area.M200)) + ' · 250 ' + fmt(mean(agg.area.M250))
+      + ' · Ende ' + fmt(mean(agg.area.end)));
+    console.log('Q 50%/75%:  Schwarz ' + fmt(mean(agg.q50[1]), 2) + ' / ' + fmt(mean(agg.q75[1]), 2)
+      + '   Weiß ' + fmt(mean(agg.q50[2]), 2) + ' / ' + fmt(mean(agg.q75[2]), 2));
+    console.log('PHASE aus A-Sicht — Gebiet (Punkte, + = A vorn):  Zug 150 ' + fmt(mean(agg.phase.areaA.M150))
+      + ' · 200 ' + fmt(mean(agg.phase.areaA.M200)) + ' · 250 ' + fmt(mean(agg.phase.areaA.M250))
+      + ' · Ende ' + fmt(mean(agg.phase.areaA.end))
+      + '   [n=' + agg.phase.areaA.end.length + ']');
+    console.log('PHASE Q 50%/75% je Konfiguration:  A ' + fmt(mean(agg.phase.q50.A), 2) + ' / ' + fmt(mean(agg.phase.q75.A), 2)
+      + '   B ' + fmt(mean(agg.phase.q50.B), 2) + ' / ' + fmt(mean(agg.phase.q75.B), 2));
+    console.log('GRUPPENVERLUST je Konfiguration (erlittene Schläge):  '
+      + 'A Ø größter ' + fmt(mean(agg.verlust.A.max), 1) + ' · ' + agg.verlust.A.ab5 + '× ab 5 Steinen · ' + agg.verlust.A.summe + ' gesamt'
+      + '   |   B Ø größter ' + fmt(mean(agg.verlust.B.max), 1) + ' · ' + agg.verlust.B.ab5 + '× ab 5 Steinen · ' + agg.verlust.B.summe + ' gesamt');
+    {
+      /* Gepaarter Vergleich: in wie vielen Partien liegt B unter A. Das
+         Mittel allein verdeckt, ob der Effekt durchgaengig ist. */
+      let bKleiner = 0, aKleiner = 0;
+      for (let i = 0; i < agg.rand.A.length; i++) {
+        if (agg.rand.B[i] < agg.rand.A[i]) bKleiner++;
+        else if (agg.rand.B[i] > agg.rand.A[i]) aKleiner++;
+      }
+      console.log('RANDANTEIL Endstellung (Steine auf Linie 1-2):  '
+        + 'A ' + fmt(mean(agg.rand.A), 1) + ' %   |   B ' + fmt(mean(agg.rand.B), 1) + ' %'
+        + '   ·  B kleiner in ' + bKleiner + ':' + aKleiner + ' Partien'
+        + '   [Referenz: Mensch 20.7 %]');
+    }
+    {
+      const A = agg.zeit.A, B = agg.zeit.B;
+      if (A.gesamt.length) {
+        const gA = mean(A.gesamt), gB = mean(B.gesamt);
+        const abw = gA ? 100 * (gB - gA) / gA : 0;
+        console.log('ZEIT gesamt je Partie:  A ' + fmt(gA, 1) + ' s   |   B ' + fmt(gB, 1) + ' s'
+          + '   ·  Abweichung ' + (abw >= 0 ? '+' : '') + fmt(abw, 1) + ' %'
+          + (Math.abs(abw) <= 2 ? '  [Paritaet]' : '  [KEINE PARITAET — Vergleich misst auch Rechenmenge]'));
+        console.log('ZEIT Verteilung (Anteil der Gesamtzeit auf dem langsamsten Zehntel der Zuege):  '
+          + 'A ' + fmt(mean(A.top10), 1) + ' %   |   B ' + fmt(mean(B.top10), 1) + ' %'
+          + '   ·  laengster Zug Ø A ' + fmt(mean(A.max), 0) + ' ms / B ' + fmt(mean(B.max), 0) + ' ms'
+          + '   [gleichverteilt waeren 10 %]');
+        if (A.phase.length && B.phase.length) {
+          const m = (arr, k) => arr.reduce((a, x) => a + x[k], 0) / arr.length;
+          const fA = m(A.phase, 'frueh'), sA = m(A.phase, 'spaet');
+          const fB = m(B.phase, 'frueh'), sB = m(B.phase, 'spaet');
+          const qA = fA ? sA / fA : 0, qB = fB ? sB / fB : 0;
+          console.log('ZEIT Phasensplit (Ø ms/Zug, eigene Zuege 1-50 gegen ab 100):  '
+            + 'A frueh ' + fmt(fA, 0) + ' / spaet ' + fmt(sA, 0) + '  (Quotient ' + fmt(qA, 2) + ')'
+            + '   |   B frueh ' + fmt(fB, 0) + ' / spaet ' + fmt(sB, 0) + '  (Quotient ' + fmt(qB, 2) + ')'
+            + '   ·  Verschiebung ' + (qA ? fmt(100 * (qB / qA - 1), 0) : '?') + ' %');
+        }
+        for (const [lbl, arr] of [['A', A.faktor], ['B', B.faktor]]) {
+          if (!arr.length) continue;
+          const eimer = [0, 0, 0, 0, 0];
+          let n = 0, sum = 0, mx = 0, aMin = 1e9, aMax = -1;
+          for (const f of arr) {
+            for (let i = 0; i < 5; i++) eimer[i] += f.eimer[i];
+            n += f.n; sum += f.mittel * f.n; mx = Math.max(mx, f.max);
+            aMin = Math.min(aMin, f.argMin); aMax = Math.max(aMax, f.argMax);
+          }
+          const proz = eimer.map(e => (100 * e / n).toFixed(1) + ' %');
+          console.log('FAKTOR-WAECHTER ' + lbl + ' (ab Zug 20, n=' + n + ' Zuege):  '
+            + 'Ø ' + (sum / n).toFixed(3) + ' · max ' + mx.toFixed(2)
+            + ' · ueber 1 bei ' + (100 * (n - eimer[0]) / n).toFixed(1) + ' %'
+            + '   [=1: ' + proz[0] + ' · <1.25: ' + proz[1] + ' · <1.5: ' + proz[2]
+            + ' · <2.0: ' + proz[3] + ' · >=2.0: ' + proz[4] + ']'
+            + '   Argument (Kandidatenzahl) ' + aMin + '-' + aMax);
+        }
+        const bA = mean(A.boden), bB = mean(B.boden);
+        console.log('MIN-SIMS-BODEN griff bei:  A ' + fmt(bA, 1) + ' %   |   B ' + fmt(bB, 1) + ' % der Zuege'
+          + (Math.max(bA, bB) < 1
+             ? '   — BEHANDLUNG FAND PRAKTISCH NICHT STATT, ein Nullergebnis waere bedeutungslos'
+             : ''));
+        const aA = mean(A.atari), aB = mean(B.atari);
+        const mxA = Math.max(0, ...A.atariMax), mxB = Math.max(0, ...B.atariMax);
+        console.log('ATARI-WAECHTER: Skalierung je Zug  A ' + fmt(aA, 2) + '   |   B ' + fmt(aB, 2)
+          + '  ·  davon Gruppen ab 6 Steinen  A ' + fmt(mean(A.atariGross), 1) + ' %   |   B ' + fmt(mean(B.atariGross), 1) + ' %'
+          + '  ·  groesste Gruppe  A ' + mxA + '   |   B ' + mxB);
+        /* Getrennte Zeilen statt eines Umbruchs im String: der Treiber ist ein
+           Template-Literal, ein Backslash-n darin wird schon aussen aufgeloest
+           und zerreisst den Einzelanfuehrungs-String. */
+        if (Math.max(aA, aB) === 0)
+          console.log('                — NICHT VERDRAHTET: die Skalierung wurde in keinem Arm ausgeloest');
+        else if (mxB <= 1)
+          console.log('                — SKALIERT NICHTS: groesste beruehrte Gruppe ist 1 Stein, der Faktor bleibt 1');
+
+        const dA = mean(A.druck), dB = mean(B.druck);
+        const dmA = Math.max(0, ...A.druckMax), dmB = Math.max(0, ...B.druckMax);
+        console.log('DRUCK-WAECHTER: Freiheitsdruck je Zug  A ' + fmt(dA, 2) + '   |   B ' + fmt(dB, 2)
+          + '  ·  davon Gruppen ab 6 Steinen  A ' + fmt(mean(A.druckGross), 1) + ' %   |   B ' + fmt(mean(B.druckGross), 1) + ' %'
+          + '  ·  groesste Gruppe  A ' + dmA + '   |   B ' + dmB);
+        if (Math.max(dA, dB) === 0)
+          console.log('                — NICHT VERDRAHTET: der Freiheitsdruck wurde in keinem Arm ausgeloest');
+
+        const kA = mean(A.deckel), kB = mean(B.deckel);
+        const krA = mean(A.deckelRufe), krB = mean(B.deckelRufe);
+        console.log('DECKEL-WAECHTER: Gefangenen-Deckel schnitt bei  A ' + fmt(kA, 1) + ' %   |   B ' + fmt(kB, 1)
+          + ' % der Bewertungen   ·  Bewertungen mit aktivem Deckel je Zug  A ' + fmt(krA, 0) + '   |   B ' + fmt(krB, 0));
+        if (Math.max(krA, krB) === 0)
+          console.log('                — NICHT VERDRAHTET: in keinem Arm war ein Deckel gesetzt');
+        else if (Math.max(kA, kB) < 1)
+          console.log('                — DECKEL ZU HOCH: er schnitt praktisch nie, ein Nullergebnis waere bedeutungslos');
+
+        const sA = mean(A.sunk), sB = mean(B.sunk);
+        const srA = mean(A.sunkRufe), srB = mean(B.sunkRufe);
+        const smA = Math.max(0, ...A.sunkMax), smB = Math.max(0, ...B.sunkMax);
+        console.log('SUNK-WAECHTER: Malus griff bei  A ' + fmt(sA, 1) + ' %   |   B ' + fmt(sB, 1)
+          + ' % der Tsumego-Bewertungen   ·  laengste Krisendauer  A ' + smA + '   |   B ' + smB + ' Zuege');
+        if (Math.max(srA, srB) === 0)
+          console.log('                — NICHT VERDRAHTET: in keinem Arm war der Malus gesetzt');
+        else if (Math.max(sA, sB) < 1)
+          console.log('                — SERIE ZU LANG: der Malus griff praktisch nie, ein Nullergebnis waere bedeutungslos');
+
+        const gA2 = mean(A.augen), gB2 = mean(B.augen);
+        const grA = mean(A.augenRufe), grB = mean(B.augenRufe);
+        console.log('AUGEN-WAECHTER: offene Punkte unter den gezaehlten Augen  A ' + fmt(gA2, 1) + ' %   |   B ' + fmt(gB2, 1) + ' %'
+          + '   ·  gezaehlte Augenpunkte je Zug  A ' + fmt(grA, 0) + '   |   B ' + fmt(grB, 0));
+        if (Math.max(grA, grB) === 0)
+          console.log('                — NICHT VERDRAHTET: in keinem Arm war der Abschlag gesetzt');
+        else if (Math.max(gA2, gB2) < 1)
+          console.log('                — NICHTS ABZUWERTEN: praktisch kein gezaehlter Augenpunkt ist offen');
+
+        /* AUFGABE-WAECHTER. Die entscheidende Zahl fuer eine
+           resignAreaMargin-Dosisreihe: qRufe sind die Zuege, in denen Q die
+           Schwelle gerissen hat, block der Anteil davon, den das
+           Gebietskriterium abgefangen hat. Ist block in beiden Armen 0, hat
+           die Marge nie eingegriffen und jedes Ergebnis der Dosisreihe misst
+           etwas anderes als den Parameter. */
+        const summe = a => a.reduce((x, y) => x + y, 0);
+        const fqA = summe(A.aufgabeQ), fqB = summe(B.aufgabeQ);
+        const fbA = summe(A.aufgabeBlockN), fbB = summe(B.aufgabeBlockN);
+        const flA = Math.max(0, ...A.aufgabeMax), flB = Math.max(0, ...B.aufgabeMax);
+        console.log('AUFGABE-WAECHTER: Q riss die Aufgabeschwelle  A ' + fqA + '   |   B ' + fqB + ' mal');
+        console.log('                  davon vom Gebiet blockiert  A ' + fbA
+          + ' (' + fmt(fqA ? 100 * fbA / fqA : 0, 1) + ' %)   |   B ' + fbB
+          + ' (' + fmt(fqB ? 100 * fbB / fqB : 0, 1) + ' %)');
+        console.log('                  groesster blockierter Rueckstand  A ' + flA
+          + '   |   B ' + flB + ' Punkte [roh]');
+
+        /* TRANSFER-WAECHTER. Die interessante Zahl ist ueber: Gruppen, deren
+           Uebertragungsabzug groesser war als ihr eigener Wert. Die zaehlen
+           danach negativ, obwohl sie noch auf dem Brett stehen -- wenn das
+           haeufig vorkommt, bewertet die Engine Stellungen schlechter als
+           sie sind. */
+        const trRufA = summe(A.trRufe), trRufB = summe(B.trRufe);
+        const trGrA = mean(A.trGruppen), trGrB = mean(B.trGruppen);
+        const trUbA = mean(A.trUeber), trUbB = mean(B.trUeber);
+        const trAbA = mean(A.trAbzug), trAbB = mean(B.trAbzug);
+        const trMxA = Math.max(0, ...A.trMax), trMxB = Math.max(0, ...B.trMax);
+        const trCaA = mean(A.capAnteil), trCaB = mean(B.capAnteil);
+        const trGaA = summe(A.trGruppenAbs), trGaB = summe(B.trGruppenAbs);
+        console.log('TRANSFER-WAECHTER: Uebertragung griff  A ' + trGaA + '   |   B ' + trGaB
+          + ' mal   \u00b7  je 1000 Bewertungen  A ' + fmt(trGrA, 1) + '   |   B ' + fmt(trGrB, 1));
+        console.log('                   davon ueberkompensiert  A ' + fmt(trUbA, 1) + ' %'
+          + '   |   B ' + fmt(trUbB, 1) + ' %'
+          + '   \u00b7  Abzug \u00d8  A ' + fmt(trAbA, 0) + '   |   B ' + fmt(trAbB, 0)
+          + '   ·  max  A ' + fmt(trMxA, 0) + '   |   B ' + fmt(trMxB, 0));
+        console.log('                   Gefangenen-Anteil an der Bewertung  A ' + fmt(trCaA, 1)
+          + ' %   |   B ' + fmt(trCaB, 1) + ' %');
+        if (Math.max(trRufA, trRufB) === 0)
+          console.log('                \u2014 NICHT VERDRAHTET: transferTelemetrie war in keinem Arm gesetzt');
+        else if (Math.max(trGaA, trGaB) === 0)
+          console.log('                \u2014 UEBERTRAGUNG GREIFT NIE: deathTransfer 0 oder keine Gruppe erreicht die Rampe');
+        if (Math.max(fqA, fqB) === 0)
+          console.log('                — NICHT VERDRAHTET: Q hat in keinem Arm je die Aufgabeschwelle gerissen');
+        else if (Math.max(fbA, fbB) === 0)
+          console.log('                — MARGE WIRKUNGSLOS: sie hat keine einzige Aufgabe blockiert, '
+            + 'ein Unterschied zwischen den Armen kaeme nicht von ihr');
+      }
+    }
+    console.log('PASS: erster Ø Zug S ' + fmt(mean(agg.passFirst[1]), 0) + ' / W ' + fmt(mean(agg.passFirst[2]), 0)
+      + ' · gesamt S ' + agg.passTotal[1] + ' / W ' + agg.passTotal[2]
+      + ' · Benson S ' + agg.passBenson[1] + ' / W ' + agg.passBenson[2]);
+    if (agg.phaseSwitches)
+      console.log('PHASENWECHSEL: ' + agg.phaseSwitches + ' mal ausgelöst (Suchbaum dabei verworfen)'
+        + ' — bei 0 hätte die Stufe nie gegriffen und das Ergebnis wäre bedeutungslos');
+    if (agg.anomalies)
+      console.log('⚠ ' + agg.anomalies + ' illegale KI-Züge abgefangen (als Pass gewertet) — bitte melden!');
+    /* Erreichbarkeitsnachweis für das Netz, analog zu PHASENWECHSEL: steht
+       hier 0, hat der Blend-Zweig in getAIMove nie gefeuert und ein A/B über
+       netMaxBlend misst nichts. */
+    if (AB.netGames > 0 || AB.netTrain || netAufrufe)
+      console.log('POLICYNET: ' + netAufrufe + ' Vorwärtsläufe, davon '
+        + netGeblendet + ' mit Wirkung auf die Zugwahl · gamesPlayed '
+        + (globalThis.policyNet ? policyNet.gamesPlayed : '—')
+        + ' · Gewichte ' + (AB.net ? AB.net : 'zufällig'));
+    console.log(line);
+  }
+
+  /* PolicyNet für den Messlauf scharf schalten. blendWeight liefert unter
+     2 Spielen 0 — ohne --netgames ist das Netz zwar geladen, aber wirkungslos.
+     Der Zähler auf forward() belegt hinterher, dass es tatsächlich lief. */
+  /* ZWEI Zähler, nicht einer. Seit Beobachten und Steuern getrennt sind,
+     läuft das Netz bei jedem Hard-Zug — ein Vorwärtslauf beweist also
+     nicht mehr, dass der Prior die Zugwahl berührt hat. Geblendet wird nur
+     bei blendWeight > 0, und genau das muss ein A/B über netMaxBlend
+     belegen können. Stünde hier weiterhin eine Zahl, wäre die alte Aussage
+     „0 heißt, der Lauf misst nichts" still falsch geworden. */
+  let netAufrufe = 0, netGeblendet = 0, netFrisch = false;
+  if (globalThis.policyNet) {
+    if (AB.netGames > 0) policyNet.gamesPlayed = AB.netGames;
+    const _fwd = policyNet.forward.bind(policyNet);
+    /* netFrisch unterscheidet „in DIESEM Zug gerechnet" von „steht noch
+       vom letzten Zug auf dem Objekt" — ohne das würde der Trainingspuffer
+       veraltete Priors mit dem aktuellen Zug verheiraten. */
+    policyNet.forward = inp => { netAufrufe++; netFrisch = true; return _fwd(inp); };
+  } else if (AB.netGames > 0 || AB.netTrain) {
+    console.error('--netgames/--nettrain gesetzt, aber policyNet fehlt — <script id="policy-net"> nicht extrahiert?');
+    process.exit(2);
+  }
+
+  const raw = {partien: [], paare: []};
+
+  /* Lauf-Identität und Startzeit gehören IN die Rohdaten, nicht nur in
+     runner-runN.txt — sonst lassen sich Artefakte vieler Läufe nicht
+     strukturiert verknüpfen, sondern nur per Regex über Freitext. Und das
+     JSON wird nach JEDER Partie neu geschrieben: stirbt der Lauf (Timeout,
+     Runner-Neustart), bleiben die Teildaten erhalten statt gar keiner.
+     abgeschlossen:false markiert solche Fragmente als unvollständig. */
+  const t0Lauf = Date.now();
+  const gestartetUtc = new Date().toISOString();
+  const schreibeJson = abgeschlossen => {
+    if (!AB.json) return;
+    raw.konfig = {A: AB.A.spec || 'Standard', B: AB.B.spec || 'Standard',
+                  budgetMs: AB.budget, komi: AB.komi,
+                  seed: AB.seed, modus: AB.paired > 0 ? 'paired' : 'standard',
+                  gestartetUtc,
+                  lauf: process.env.GITHUB_RUN_NUMBER || null,
+                  commit: process.env.GITHUB_SHA || null,
+                  dauerMin: Math.round((Date.now() - t0Lauf) / 600) / 100,
+                  abgeschlossen,
+                  netz: AB.net || null, netzSpiele: AB.netGames,
+                  netzVorwaertslaeufe: netAufrufe, netzGeblendet: netGeblendet};
+    require('fs').writeFileSync(AB.json, JSON.stringify(raw, null, 1));
+  };
+
+  /* JSON Lines nach docs/pilot-benson-defense.md, §5.1: eine Zeile je Partie,
+     angehaengt direkt nach deren Ende. Stirbt der Lauf, bleiben die fertigen
+     Partien lesbar — anders als bei einem JSON-Dokument, das erst am Schluss
+     schliessbar waere. */
+  let _rohHash = null;
+  const schreibeRoh = satz => {
+    if (!AB.roh) return;
+    if (_rohHash === null) _rohHash = _paramsHash();
+    require('fs').appendFileSync(AB.roh,
+      JSON.stringify(Object.assign({typ: 'partie', seed: AB.seed,
+                                    params_hash: _rohHash}, satz)) + '\\n');
+  };
+
+  if (AB.paired > 0) {
+    /* ═══ Paar-Modus ═══ */
+    console.log('Modus: ' + AB.paired + ' Paare · Eröffnung ' + AB.opening
+      + ' Züge (' + AB.openingBudget + ' ms/Zug, neutrale Defaults)\\n');
+    const agg = newAgg();
+    let konKordantS = 0, konKordantW = 0, diskordantA = 0, diskordantB = 0;
+    for (let p = 0; p < AB.paired; p++) {
+      const opening = makeOpening(AB.opening);
+      const start = {board: opening.board, caps: opening.caps,
+                     hist: opening.hist, ko: opening.ko, mc: opening.mc,
+                     lastMove: opening.lastMove};
+      const aBlackFirst = p % 2 === 0;
+      const t0 = Date.now();
+      const g1 = playGame(aBlackFirst ? AB.A : AB.B, aBlackFirst ? AB.B : AB.A, start);
+      const g2 = playGame(aBlackFirst ? AB.B : AB.A, aBlackFirst ? AB.A : AB.B, start);
+      const mins = (Date.now() - t0) / 60000;
+      const aCol1 = aBlackFirst ? 1 : 2;
+      const w1 = bookGame(agg, g1, aCol1);
+      const w2 = bookGame(agg, g2, aCol1 === 1 ? 2 : 1);
+      const aWins = (w1.aWon ? 1 : 0) + (w2.aWon ? 1 : 0);
+      let typ;
+      if (aWins === 2) { typ = 'A:A'; diskordantA++; }
+      else if (aWins === 0) { typ = 'B:B'; diskordantB++; }
+      else if (g1.winner === g2.winner) {
+        typ = g1.winner === 1 ? 'S-Sweep' : 'W-Sweep';
+        if (g1.winner === 1) konKordantS++; else konKordantW++;
+      } else typ = 'geteilt (je Farbe 1)';
+      raw.paare.push({paar: p + 1, typ,
+        dauerMin: Math.round(mins * 100) / 100,
+        g1: {sieger: g1.winner === 1 ? 'S' : 'W', zuege: g1.moves,
+             stand: g1.score.b + ' : ' + g1.score.w.toFixed(1)},
+        g2: {sieger: g2.winner === 1 ? 'S' : 'W', zuege: g2.moves,
+             stand: g2.score.b + ' : ' + g2.score.w.toFixed(1)}});
+      schreibeJson(false);
+      console.log('Paar ' + (p + 1) + '/' + AB.paired + ': ' + typ
+        + '  (g1 ' + raw.paare[p].g1.sieger + ' ' + raw.paare[p].g1.stand
+        + ' · g2 ' + raw.paare[p].g2.sieger + ' ' + raw.paare[p].g2.stand
+        + ') · ' + mins.toFixed(1) + ' min');
+    }
+    console.log('\\nPAAR-BILANZ: A gewinnt beide ' + diskordantA
+      + ' · B gewinnt beide ' + diskordantB
+      + ' · Schwarz-Sweep ' + konKordantS + ' · Weiß-Sweep ' + konKordantW
+      + '   → diskordante Paare tragen den Parametereffekt, Sweeps den Farbeffekt');
+    printAgg(agg, AB.paired * 2);
+    raw.phase = agg.phase;
+  } else {
+    /* ═══ Standard-Modus ═══ */
+    console.log('Modus: ' + AB.games + ' Partien (Farbwechsel)\\n');
+    const agg = newAgg();
+    /* --fortsetzen: fertige Partien aus dem Rohdump übernehmen und den
+       Zufallsstrom auf den Stand nach der letzten setzen. Alles andere, was
+       eine Partie braucht, legt playGame je Partie neu an. */
+    let g0 = 0;
+    if (AB.fortsetzen && require('fs').existsSync(AB.roh)) {
+      const alt = require('fs').readFileSync(AB.roh, 'utf8').split('\\n')
+        .filter(z => z.trim()).map(z => JSON.parse(z));
+      if (alt.length) {
+        const letzte = alt[alt.length - 1];
+        const fehler = alt.some(p => p.seed !== AB.seed) ? 'anderer Seed'
+          : alt.some(p => p.params_hash !== _paramsHash()) ? 'anderer params_hash'
+          : alt.some((p, i) => p.nr !== i + 1) ? 'Partien nicht lückenlos'
+          : !letzte.zufall ? 'kein Zufallszustand im Dump (älterer Harness)' : null;
+        if (fehler) { console.error('--fortsetzen unmöglich: ' + fehler); process.exit(2); }
+        zufallHaupt.setze(letzte.zufall.haupt);
+        zufallNetz.setze(letzte.zufall.netz);
+        g0 = alt.length;
+        console.log('Fortgesetzt nach Partie ' + g0 + '\\n');
+      }
+    }
+    for (let g = g0; g < AB.games; g++) {
+      const aIsBlack = g % 2 === 0;
+      const t0 = Date.now();
+      const r = playGame(aIsBlack ? AB.A : AB.B, aIsBlack ? AB.B : AB.A, null);
+      const mins = (Date.now() - t0) / 60000;
+      const aColor = aIsBlack ? 1 : 2;
+      const w = bookGame(agg, r, aColor);
+      raw.partien.push({
+        partie: g + 1, aIst: aColor === 1 ? 'Schwarz' : 'Weiß',
+        sieger: w.aWon ? 'A' : 'B', siegerKomi0: w.aWon0 ? 'A' : 'B',
+        siegerFarbe: r.winner === 1 ? 'S' : 'W',
+        aufgabe: r.resignedBy ? (r.resignedBy === 1 ? 'S' : 'W') : null,
+        aufgabeGrund: r.resignInfo,
+        zuege: r.moves, stand: 'B ' + r.score.b + ' : W ' + r.score.w.toFixed(1),
+        standKomi0: 'B ' + r.score0.b + ' : W ' + r.score0.w.toFixed(1),
+        gebietOhneKomi: r.area,
+        pass: {S: r.passSt[1], W: r.passSt[2]},
+        q50: {S: r.q50[1], W: r.q50[2]}, q75: {S: r.q75[1], W: r.q75[2]},
+        verlust: {A: r.verlust[aColor], B: r.verlust[aColor === 1 ? 2 : 1]},
+        rand: {A: r.rand[aColor], B: r.rand[aColor === 1 ? 2 : 1]},
+        zeit: {A: r.zeit[aColor], B: r.zeit[aColor === 1 ? 2 : 1]},
+        simsA: r.st[aColor].moves ? Math.round(r.st[aColor].sims / r.st[aColor].moves) : 0,
+        simsB: r.st[aColor === 1 ? 2 : 1].moves
+          ? Math.round(r.st[aColor === 1 ? 2 : 1].sims / r.st[aColor === 1 ? 2 : 1].moves) : 0,
+        dauerMin: Math.round(mins * 100) / 100
+      });
+      schreibeJson(false);
+      schreibeRoh({
+        nr: g + 1,
+        armSchwarz: aIsBlack ? 'A' : 'B', armWeiss: aIsBlack ? 'B' : 'A',
+        final_board_hash: r.brettHash,
+        sieger: r.winner === 1 ? 'S' : 'W',
+        zuege: r.moves,
+        gefangene: r.gefangene,
+        aufgabe: r.resignedBy ? (r.resignedBy === 1 ? 'S' : 'W') : null,
+        ereignisse: r.ereignisse,
+        zufall: AB.seed !== null ? {haupt: zufallHaupt.zustand(), netz: zufallNetz.zustand()} : null
+      });
+      console.log('Partie ' + (g + 1) + '/' + AB.games + ': A=' + (aIsBlack ? 'Schwarz' : 'Weiß')
+        + ' → ' + (w.aWon ? 'A' : 'B') + ' (' + (r.winner === 1 ? 'S' : 'W') + ')'
+        + (r.resignedBy ? ' Aufgabe' : ' ' + r.score.b + ' : ' + r.score.w.toFixed(1))
+        + ' · ' + r.moves + ' Züge · ' + mins.toFixed(1) + ' min');
+    }
+    printAgg(agg, AB.games);
+    raw.phase = agg.phase;
+    if (AB.games < 20)
+      console.log('Hinweis: ' + AB.games + ' Partien sind Rauschen — belastbar ab ≥ 20–30.');
+  }
+
+  if (AB.json) {
+    schreibeJson(true);
+    console.log('Rohdaten → ' + AB.json);
+  }
+})
+`;
+
+/* ── Alles in einem Scope ausführen ──────────────────────────── */
+const AB_CONFIG = {
+  A: args.A, B: args.B,
+  games: args.games, paired: args.paired, opening: args.opening,
+  openingBudget: args.obudget, budget: args.budget, maxMoves: args.maxMoves,
+  komi: args.komi, seed: args.seed, json: args.json, roh: args.roh,
+  fortsetzen: args.fortsetzen,
+  net: args.net, netGames: args.netGames, netTrain: args.netTrain
+};
+
+if (args.netTrain && args.paired > 0) {
+  console.error('--nettrain und --paired schließen sich aus: das Netz änderte sich '
+    + 'zwischen den Partien eines Paares, der A/B-Vergleich wäre hinfällig.');
+  process.exit(2);
+}
+/* Der Rohdump ist nur im Standardmodus verdrahtet. Ohne diesen Abbruch liefe
+   ein Paarlauf stundenlang durch und schriebe keine einzige Zeile — eine
+   stille Lücke, die aussieht wie ein Lauf ohne Ereignisse. */
+if (args.roh && args.paired > 0) {
+  console.error('--roh und --paired schließen sich aus: der Rohdump ist nur im '
+    + 'Standardmodus (--games) verdrahtet, ein Paarlauf schriebe nichts. '
+    + 'Siehe docs/pilot-benson-defense.md, §5.');
+  process.exit(2);
+}
+
+if (args.fortsetzen && (!args.roh || args.seed === null || args.paired > 0)) {
+  console.error('--fortsetzen braucht --roh und --seed und läuft nur im Standardmodus.');
+  process.exit(2);
+}
+
+const t0 = Date.now();
+/* eslint-disable-next-line no-eval */
+eval(sharedGoLogic + '\n' + workerAi
+   + '\n__netzZufallAn();\n'  + policyNetSrc + '\n__netzZufallAus();\n'
+   + driver + '\n(' + JSON.stringify(AB_CONFIG) + ');');
+console.log(`\nGesamtlaufzeit: ${((Date.now() - t0) / 60000).toFixed(1)} min`);

@@ -1,0 +1,2892 @@
+# Go — 19×19 im Browser, mit messbarer KI
+
+Ein vollständiges Go-Spiel in einer einzigen HTML-Datei. Keine Abhängigkeiten,
+kein Build, kein Server: `index.html` im Browser öffnen und spielen. Die KI
+läuft als Monte-Carlo-Baumsuche in einem Web Worker.
+
+Der zweite Teil des Projekts ist ein Messrahmen: Selbstspiel, Partien gegen
+GNU Go und gegen Fuego, dazu Diagnosen an archivierten Partien. Die jeweiligen
+Versuchsprotokolle unterscheiden vorab festgelegte Stärkemessungen von
+explorativen Befunden und nennen Bedingungen, Unsicherheit und Entscheidung.
+GNU Go dient auch als Schiedsrichter. Ein Gewinn im Selbstspiel allein
+begründet keinen neuen Default.
+https://hazeberry.github.io/Go-html-Game-MoE/
+
+## Spielen
+
+`index.html` öffnen — lokal per Doppelklick oder über GitHub Pages. Es gibt
+nichts zu installieren.
+
+- 19×19, Komi 7.5, Superko-Regel
+- Drei Schwierigkeitsgrade: Leicht, Mittel, Schwer
+- Wertung wahlweise **Area** (chinesisch) oder **Territory** (japanisch)
+- Zählvorschau mit und ohne Annahmen zu toten Steinen, für Area und Territory
+- SGF-Export, Zug-Log, Bug-Report-Export als JSON
+- Parameter-Dashboard: alle KI-Parameter live verstellbar, speicherbar im
+  `localStorage`
+
+## Stand: was funktioniert, was offen ist
+
+**Dokumentationsstand: 02.11.2026.** Die Übersicht unten fasst die Ergebnisse
+bis 31.10. zusammen. Die spätere Versuchschronik enthält ältere Engine-Stände
+und damalige Hypothesen. „Default“ bezeichnet dort den Default des jeweiligen
+Laufs, nicht automatisch den heutigen.
+
+Vor einer neuen Untersuchung die verlinkten Ergebnisnachträge lesen:
+Eine bereits gemessene Frage ist nicht wieder offen, nur weil ein älterer
+Abschnitt sie noch als nächsten Schritt nennt.
+
+**Funktioniert und ist gemessen:**
+
+- MCTS mit PUCT, RAVE/AMAF und Baum-Wiederverwendung
+- Bensons Algorithmus für bedingungslos lebende Gruppen — bewiesen, nicht
+  geschätzt, und damit die einzige Schicht, die nicht heuristisch ist
+- Muster aus GNU-Go-Zügen in der Zugbewertung (`musterGewicht`): gegen GNU
+  Go mit neun Vorgabesteinen im damaligen Einführungsversuch +103 Punkte
+  im Endstand, 156 von 240 Siege statt 13. Für den neueren Default ohne
+  Vorgabe siehe die getrennten Ergebnisse gegen GNU Go und Fuego unten.
+- Endspiel-Netz an der Wurzel ab Zug 81 (`endspielNetz` 0,8): ein kleines
+  Faltungsnetz, gelernt an Zügen von GNU Go Stufe 10. Gegen GNU Go +46,9
+  Punkte (λ 0,5 gegen aus) und weitere +15,5 (λ 0,8 gegen 0,5);
+  für 0,9 und 1 ist kein weiterer Gewinn belegt. Auf dem heutigen Default
+  kostet es abgeschaltet 71
+  Punkte gegen GNU Go und 68 gegen Fuego (sechs Vorgabesteine, je 480 Paare,
+  `docs/komponenten.md` §9). Es ist damit der größte der bisher einzeln
+  abgeschalteten Teile unter diesen Bedingungen. Es liefert Zugwahrscheinlichkeiten
+  und Wurzelkandidaten, keinen Stellungswert für `evaluateBoard`.
+  Die gemessenen 41 ms je Zug stammen aus Node auf einem Actions-Rechner:
+  Das Netz läuft vor dem Suchbudget und verlängert die gesamte Zugdauer.
+  Gerätemessungen und die A17-Auflösung stehen unten und in
+  [`docs/zeitbudget.md`](docs/zeitbudget.md) §5.
+  Nicht zu verwechseln mit dem Policy-Netz hinter `netMaxBlend`, das nicht
+  in bisherigen Stärkemessungen keinen Vorteil brachte und auf 0 steht.
+- Aufgabe bei aussichtsloser Stellung, sowohl über Q als auch strukturell
+  („alle legalen Züge wären todgeboren")
+- Worker-Fallback-Kette `data:` → `blob:` → Hauptthread, damit die KI auch
+  unter `file://` läuft, wo der Origin `null` ist
+
+**Befunde, Grenzen und offene Ursachen:**
+
+- **Der Suchmechanismus ist nur teilweise verstanden.** `mctsValueScale` ist
+  im Selbstspiel belegt der wichtigste Parameter, *warum* er wirkt, ist offen
+  (siehe unten). Gegen GNU Go ist der Unterschied zwischen 200 und 350 klein
+  und nicht signifikant (`docs/wertskala-gnugo.md`).
+- **Die Phasengrenze liegt nicht dort, wo der Parameter sagt.** `openingMoves`
+  steht auf 20, aber der Eröffnungs-Experte regiert effektiv nur etwa 15 Züge:
+  Der Blend mittelt Rohwerte, und `evalMidgame` hat die rund zehnfach größere
+  Entscheidungsspanne. Am nominellen 50/50-Punkt trägt es bereits 81 % der
+  Varianz. Ob das schädlich ist, ist offen — ein Normierungsversuch hat nicht
+  geholfen.
+- **Zwei externe Gegner, unterschiedliche Bedingungen.** GNU Go ist Lehrer
+  der Muster und des Endspiel-Netzes; Fuego ist der zweite Gegner.
+  Mit sechs Vorgabesteinen übertragen sich die Beiträge von Netz und
+  Netz plus Mustern auf Fuego (100 Spiele je Zug), innerhalb der Auflösung
+  von rund 14 Punkten ([`komponenten.md`](docs/komponenten.md) §9).
+  Das ist kein allgemeiner Nachweis gegen eine Spezialisierung:
+  Ohne Vorgabe wirken die Muster gegen GNU Go und Fuego unterschiedlich.
+  Auch die Ergebnisse gegen Fuego gelten nur für die getestete, sehr
+  schwache Suche, nicht für Fuego bei normaler Stärke oder für Menschen.
+
+  | Vergleich ohne Vorgabe | Ergebnis | Stand |
+  |---|---|---|
+  | GNU Go Stufe 1, 120 Simulationen, Seed 222 | D verliert 472 von 480; ohne Netz −46,9 Punkte, ohne Muster +14,3 | [Leeres Brett §9](docs/leeres-brett.md): Netz trägt, Muster kosten gegen diesen Gegner Punkte |
+  | GNU Go und Fuego (100 Spiele), neuer Seed 226 | ohne Muster +18,1 Punkte gegen GNU Go, +0,6 gegen Fuego; Selbstspiel ohne Muster 26,9 % | [Muster ohne Vorgabe §§9–10](docs/muster-ohne-vorgabe.md): keine Verbesserung gegen beide Gegner; die Entscheidung hing **nicht am Selbstspiel-Veto** |
+  | Fuego, 50 Spiele je Zug, Seed 228, je 960 Partien | volle Muster 48,0 % Siege, ohne 35,2 %, halb 39,5 % | [Siegquotenmessung §10](docs/muster-fuego-siege.md): abgeschlossen, volle Muster gewinnen häufiger (p 2,4 · 10⁻⁸ und 0,0002); Default bleibt 1 |
+  | ältere PWA-Fassung ohne Endspiel-Netz | aktuelle Engine gewinnt 84,7 % bei 120 Simulationen, 71,7 % bei 1,8 s | [PWA-Vergleich §9](docs/pwa-vergleich.md): abgeschlossen; Gleichstandsprobe 51,7 % |
+
+  Der Gegensatz zwischen Selbstspiel und GNU Go ist damit nicht allein durch
+  Vorgabe und Farbe erklärt: Er besteht auch ohne Vorgabe mit wechselnden
+  Farben. Fuego und Selbstspiel sprechen für die Muster. Mittlerer Endstand
+  und Siegquote sind verschiedene Endpunkte und dürfen nicht gleichgesetzt werden.
+- **Suchskalierung ist gemessen, der heutige Engpass nicht.** Am 03.10. auf
+  Commit `94b59d0` gewann 240 gegen 120 Simulationen 60,6 % und 480 gegen 240
+  57,8 % (je 360 Partien; +75 [38–112] und +55 [19–92] Elo).
+  Der Unterschied der Steigungen ist nicht gesichert. Die 30–50 Elo bei
+  höheren Simulationszahlen sind eine Hochrechnung, keine Messung des
+  heutigen Defaults mit Netz und Mustern. Auch 0/8 gegen 0/17 Siege im
+  damaligen GNU-Go-Pilot isolieren keinen Bewertungsengpass.
+  [`skalierung.md`](docs/skalierung.md) §5 dokumentiert die Zahlen; seine
+  abschließende Diagnose „Bewertung statt Suche“ geht über das hinaus,
+  was diese Vergleiche allein belegen.
+- **Komponenten und Baum-Übernahme sind bereits nachgemessen.** Die sieben
+  übrigen Zusätze zusammen ergeben auf dem vollen Default mit sechs Steinen
+  keinen messbaren Beitrag (Abschalten −4,7 / −2,0 Punkte gegen GNU Go /
+  Fuego); das beweist nicht, dass jeder Teil einzeln entbehrlich ist.
+  Ohne frische Wurzel bei weiter aktiver Baum-Übernahme verliert die Engine
+  −34,7 / −29,6 Punkte ([`komponenten-b.md`](docs/komponenten-b.md) §9).
+  Baum-Übernahme ganz aus wurde separat bei 120 und 600 Simulationen
+  getestet. Der Default bleibt 1 nach der vorab festgelegten Regel;
+  ein Vorteil bei 600 ist nicht gesichert, die Browser-Laufzeit war kein
+  Endpunkt ([`baum-uebernahme.md`](docs/baum-uebernahme.md) §9).
+- **Komi: Kalibrierung samt Gegenproben abgeschlossen, Eingriff offen.**
+  In der Fuego-Siegquotenmessung gewinnt D als Weiß 60,6 %, als Schwarz
+  35,4 %. Dass fehlendes Komi-Bewusstsein die Ursache ist, ist eine Hypothese.
+  An 2 399 vorhandenen Partien wurde `evaluateBoard` bei Zug 200/240/280
+  mit dem späteren Endstand verglichen. Mit eigener Zählung: R²
+  0,33 / 0,31 / 0,34; die Stabilität des Umrechnungsfaktors scheiterte.
+  Gegen GNU Gos `final_score`: R² 0,05 / 0,12 / 0,28; auch mit identischen
+  Partien an allen Zugzahlen kein stabiler Faktor.
+  Kein k ist eingefroren, Stufen 2 und 3 bleiben zurückgestellt.
+  Das misst Vorhersage des späteren Endstands, nicht direkt die Qualität
+  einzelner Zugentscheidungen; weder ein Komi-Effekt noch die Notwendigkeit
+  eines anderen Bewerters ist damit bewiesen.
+  [`komi-bewusstsein.md`](docs/komi-bewusstsein.md) §§5–7.
+- **Lange Partien.** Ohne Aufgabelogik laufen Selbstspiel-Partien regelmäßig
+  auf 400+ Züge, der erste Pass fällt im Mittel um Zug 390.
+- **Die Zeitsteuerung ist Wall-Clock.** Auf langsamer Hardware sinkt die Zahl
+  der Simulationen pro Zug und damit die Spielstärke. Im Spielbetrieb ist das
+  richtig so — ein Mensch wartet Sekunden, keine Simulationen.
+
+  Für **Messungen** war es ein Loch: weil die Simulationszahl an der
+  Maschinenlast hing, verbrauchte derselbe Seed unterschiedlich viele
+  Zufallszahlen und die Partien liefen auseinander. Zwei Läufe mit
+  `--seed 2026` und identischer Konfiguration endeten 2:0 und 1:1 — während
+  die Hilfe des Harness wörtlich „identischer Seed erzeugt identische Züge"
+  versprach. `PARAMS.mctsFixedSims` (Default 0) nimmt die Zeit aus der Suche;
+  darüber ist alles außer der Stoppuhr Zeichen für Zeichen gleich. Erst damit
+  ist eine Identitätskontrolle über `params_hash` und `final_board_hash`
+  möglich, und erst damit dürfen zwei Messläufe parallel auf einer Maschine
+  laufen, ohne sich zu verändern.
+
+  Das gilt **nur im Standardmodus** (`--games`). Im Paarmodus spielt die
+  gemeinsame Eröffnung weiter mit `PARAMS_DEFAULT` und Zeitbudget; dort laufen
+  zwei Läufe trotz gleichem Seed auseinander — gemessen: drei Läufe, drei
+  verschiedene Ergebnisse.
+- **Zwei unterschiedliche Netze.** Das Endspiel-Netz ist aktiv
+  (`endspielNetz` 0,8). Das separate Dense-Policy-Netz (`netMaxBlend`)
+  bleibt auf 0: Die bisherigen Lern- und Distillationsversuche haben keinen
+  Spielstärkegewinn belegt. Mehr Daten verbesserten dort die Offline-Trefferrate;
+  eine Übertragung auf die Spielstärke ist nicht gemessen.
+  Die historische Versuchsreihe steht unten, die Trainingskette in
+  [`distillation/`](distillation/).
+
+### Bereits untersucht: Punktverluste und Kandidatenauswahl
+
+Die Diagnose beginnt nicht bei null. Die folgenden Befunde gelten für die
+jeweiligen damaligen Stände, beide mit neun Vorgabesteinen gegen GNU Go:
+
+| Untersuchung | Befund | Was danach geprüft wurde |
+|---|---|---|
+| [Punktverlust vor den Mustern](docs/punktverlust.md), 11.10., 120 Partien | Zwischen Zug 100 und 200 −94,5 Punkte; größter Posten Gebiet. Bei nicht geretteten Gruppen lag GNU Gos Rettungspunkt in 61 % außerhalb der ersten 16 Kandidaten. | `leseRettung` nachgemessen (§8): gegen GNU Go −6,3 Punkte, nicht signifikant; direkte Rettung hilft längerfristig kaum. Kein Default. |
+| [Punktverlust mit Mustern](docs/punktverlust-muster.md), 12.10., Commit `2816458`, 240 Partien | Vorsprung bis Zug 80 gehalten, danach rund 85 Punkte verloren; sterbende eigene Steine nur noch rund 7 Punkte. In 30 % der untersuchten Stellungen lag GNU Gos bester Zug außerhalb der Top 16. | An 340 Stellungen führten 120/480/1000 Simulationen in 16,5/14,4/14,4 % zu GNU Gos bestem Zug (§6). Das ist Zugübereinstimmung, keine Stärkemessung. |
+| [Endspiel-Muster und Datenaggregation](docs/muster-endspiel-messung.md) | Letzte Tabelle gegen Default −3,7 Punkte [−10,7; +3,3] über 240 Paare. | Reihe abgeschlossen, nicht übernommen. Kein allgemeines Urteil über mehr Lehrdaten oder andere Netze. |
+| [Endspiel-Netz im Spiel](docs/endspiel-netz.md), danach [Dosis](docs/netz-dosis.md) | +46,9 Punkte bei Einführung, +15,5 beim Wechsel von 0,5 auf 0,8. | Eingebaut; neuere Komponentenmessung gegen beide Gegner bestätigt seinen Beitrag. |
+
+Die alten Verlustprofile liegen **vor dem Endspiel-Netz**. Ob sie beim heutigen
+Default ohne Vorgabe gegen Fuego fortbestehen, ist durch diese Diagnosen
+nicht beantwortet. Eine Wiederholung unter diesen Bedingungen wäre eine
+Übertragungsprüfung, keine erstmalige Untersuchung von Kandidatenausschluss.
+Ein Verlust vor oder nach Zug 81 beweist für sich allein nicht, welche
+Architekturänderung hilft.
+
+### Bedienung, Passregel und Laufzeit
+
+- **Zählvorschau umgesetzt**, einschließlich Territory: „Mit Annahmen“ und
+  „Nur Bewiesenes“, ohne Einfluss auf die KI. Seki und offenes Ko werden nicht
+  zuverlässig beurteilt; auch „Nur Bewiesenes“ ist keine garantierte
+  Untergrenze. Die 70,2 % exakte Übereinstimmung mit GNU Go betreffen 480
+  ausgespielte Schlussstellungen, nicht beliebige Zwischenstellungen.
+  [Zählung §5](docs/zaehlung.md) · [Zählvorschau §§7–8](docs/zaehlvorschau.md).
+- **Langes Weiterspielen bereits diagnostiziert.** Pass-Sonde und Verteilung
+  der Kandidatenwerte sind gelaufen. Dass Weiterzüge nach einem Gegnerpass
+  unnütz sind, ist nicht belegt; in einer Territory-Handpartie verbesserte
+  sich die Bilanz nach dem ersten Gegnerpass um 14 Punkte.
+  [Endspiel-Abräumen §§6–13](docs/endspiel-abraeumen.md).
+  Der Versuchsschalter `passNachGegnerpass` ist gebaut, **Standard 0**.
+  Sein gepaarter Vergleich ist laut Protokoll noch nicht gestartet; ein
+  Sicherheits- oder Stärkegewinn ist nicht nachgewiesen.
+  [Passregel-Versuch §§3–5](docs/passregel-versuch.md).
+- **A17-Laufzeitproblem aufgelöst:** Chrome lief mit ausgeschaltetem
+  V8-Optimierer. Nach Einschalten: 2662 statt 453 Simulationen in 1,8 s
+  bei Zug 2; Endspiel-Netz ab Zug 81 im Median 106 statt 1635 ms;
+  gesamte Zugdauer 2241 statt 3798 ms. Kein Zug mehr über 1,5× Budget.
+  Auf dem A20s war der Optimierer bereits an; dessen 520 ms Netzzeit sind
+  damit nicht erklärt. Entscheidung vom 31.10.: **keine Beschleunigung des
+  Endspiel-Netzes geplant**. Ein Hinweis auf langsame Ausführung bleibt
+  eine Idee, kein eingebautes Merkmal.
+  [Zeitbudget §§5–6](docs/zeitbudget.md).
+
+### Was tatsächlich offen bleibt
+
+- Wo der heutige Default ohne Vorgabe Stärke verliert: Kandidatenauswahl,
+  Suchverteilung, Rollout-Politik und Blattbewertung sind noch nicht als
+  Ursachen getrennt. Ein einzelner dominanter Engpass ist nicht belegt.
+- Wie stark zusätzliche Simulationen den heutigen Default im relevanten
+  Browser-Bereich verbessern; die alte Skalierung beantwortet das nicht.
+- Ob und wie ein Komi-Eingriff hilft, nachdem die gewählte Kalibrierung
+  keinen tragfähigen Faktor geliefert hat.
+- Ob die neue Pass-Versuchsregel Siege oder Punkte kostet. Die Vorschau
+  und die Einzelrechnung ersetzen den vorgesehenen Vergleich nicht.
+
+Das sind offene Fragen, keine neu beschlossenen Versuche. Vorhandene Werkzeuge
+und Ergebnisse zuerst nutzen; neue Läufe brauchen einen klaren Unterschied
+zur bereits beantworteten Frage.
+
+## Architektur
+
+Eine Datei, drei Skriptblöcke — bewusst so, damit die Engine ohne Build-Schritt
+im Browser *und* im Messrahmen identisch läuft:
+
+| Block | Inhalt |
+|---|---|
+| `<script id="shared-go-logic">` | Regeln, Zobrist-Hashing, Freiheiten, Benson — DOM-frei |
+| `<script id="worker-ai">` | MCTS, Bewertungsfunktionen, Rollouts, Muster-Tabelle und Endspiel-Netz — DOM-frei |
+| `<script id="policy-net">` | Policy-Netz (`netMaxBlend`, steht auf 0): Features, Forward, REINFORCE-Training |
+| Haupt-Skript | UI, Rendering, Worker-Verwaltung, Dashboard |
+
+Alle drei ID-Blöcke werden vom Messrahmen zur Laufzeit aus der `index.html`
+extrahiert. Es gibt also **kein Code-Duplikat**: Gemessen wird exakt der Stand,
+der auch im Browser läuft. Die ersten beiden Blöcke sind DOM-frei; `policy-net`
+fasst `localStorage` und `document.getElementById` an und bekommt beide vom
+Messrahmen als Schale gestellt, statt im Code zu verzweigen.
+
+Der Messrahmen führt die Blöcke per `eval` aus. Er ist für die `index.html`
+dieses Repos gedacht: Eine fremde Datei damit zu messen heißt, fremden Code
+auszuführen.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/bilder/aufbau-dunkel.svg">
+  <img alt="Aufbau: index.html mit vier Skriptblöcken; im Browser laufen sie im Web Worker und im Haupt-Thread, in Node lösen ab-harness.js, gnugo-duell.js, die Tests und die Auswertung dieselben Blöcke heraus" src="docs/bilder/aufbau-hell.svg" width="100%">
+</picture>
+
+### Bewertung
+
+Eine Mixture of Experts über die Partiephasen — `evalOpening`, `evalMidgame`,
+`evalEndgame`, `evalTsumego`, `evalNakade` — mit weichem Übergang zwischen den
+Phasen. Das Gating ist **handgebaut, nicht gelernt**: `phaseWeights` verteilt
+die Gewichte nach Zugzahl und freien Feldern, das Krisengewicht mischt
+`evalTsumego` dort ein, wo Ketten in Gefahr sind. Auch die Experten sind
+Heuristiken, keine trainierten Netze. In der ML-Literatur, wo Gate und
+Experten gemeinsam gelernt werden, hieße das eine MoE mit fester
+Gating-Funktion. Benson liefert zusätzlich beweisbare Aussagen über
+bedingungsloses Leben. Nicht jede Bewertungsschicht nimmt solche Gruppen
+automatisch aus: Der geprüfte Schalter `bensonAliveExempt` steht weiterhin
+auf 0 ([`docs/benson-lebend-treppe.md`](docs/benson-lebend-treppe.md) §8).
+
+Gelernt sind zwei Teile, beide nur an der Wurzel der KI und beide aus Zügen
+von GNU Go: die Muster-Tabelle (`musterGewicht`), die zur Zugbewertung addiert
+wird, und das Endspiel-Netz (`endspielNetz`), das ab Zug 81 den Prior der
+Wurzelkinder zu 80 % bestimmt. Beide tragen viel (zusammen rund 113 Punkte
+gegen GNU Go und gegen Fuego, `docs/komponenten.md` §9). Das Policy-Netz
+(`netMaxBlend`) ist ein drittes, anderes Netz und steht auf 0.
+
+Das aktive Endspiel-Netz ist **kein Wertnetz**: Es verändert Kandidaten und
+Priors, nicht die Blattbewertung. Die MCTS-Suche nutzt standardmäßig 16
+Wurzelkinder und 8 Kinder je innerem Knoten, innen nach `quickEval`
+ausgewählt. An neuen Blättern folgt ein kurzer Rollout (Default 24 Halbzüge)
+und danach `tanh(evaluateBoard / mctsValueScale)`. Mehr Simulationen erweitern
+eine bereits festgelegte Kinderliste nicht automatisch. Daraus folgt eine
+mögliche Begrenzung, aber noch kein gemessener Stärkeverlust des heutigen
+Defaults.
+
+So wird daraus ein Zug, Schritt für Schritt durch `getAIMove`:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/bilder/zugwahl-dunkel.svg">
+  <img alt="Ablauf der Zugwahl: Stellung, legale Züge, Filter, Zugbewertung als Mischung von Experten, Pass-Prüfung, Taktik-Schalter, Monte-Carlo-Suche mit PUCT, Aufgabe-Prüfung, Zug" src="docs/bilder/zugwahl-hell.svg" width="100%">
+</picture>
+
+Beide Bilder erzeugt `node auswertung/architektur.js`.
+
+## Messen
+
+`ab-harness.js` spielt gepaarte Selbstspiel-Partien und vergleicht zwei
+Parametersätze.
+
+```bash
+node ab-harness.js --paired 30 --seed 2026 --budget 250 \
+  --A mctsValueScale=200 --B mctsValueScale=350 --json lauf.json
+```
+
+**Gepaart** heißt: Beide Partien eines Paares starten aus derselben neutralen
+Eröffnung, danach werden die Farben getauscht. Paare, in denen der Sieger
+wechselt, tragen den Parametereffekt; Paare, in denen dieselbe Farbe zweimal
+gewinnt, den Farbeffekt. Das trennt beides bei einem Bruchteil der Partienzahl.
+
+**Reproduzierbar** wird ein Lauf erst mit fester Simulationszahl, und nur im
+Standardmodus — siehe die Zeitsteuerung unter „Bekannte Grenzen":
+
+```bash
+node ab-harness.js --games 40 --seed 20260922 \
+  --A mctsFixedSims=120 --B mctsFixedSims=120 --roh roh.jsonl
+```
+
+`--roh` schreibt einen zugweisen Rohdump als JSON Lines, eine Zeile je Partie,
+angehängt direkt nach deren Ende. Bricht ein Lauf ab, setzt ihn derselbe Befehl
+mit `--fortsetzen` nach der letzten fertigen Partie fort — jede Zeile trägt den
+Zustand des Zufallsstroms. Ein Abbruch kostet damit nur die laufende Partie.
+Bis zum 03.10. war der fortgesetzte Lauf **meist**, aber nicht immer derselbe
+wie ein ununterbrochener: in einem von vier Messläufen wich ab Partie 151 die
+Suche eines langlebigen Prozesses um einen numerischen Hauch ab. Die Ursache
+war ein Fehler in `evaluateBoard`: Lief ein Epochenzähler, der über Partien
+hinweg wächst, mitten in der Bewertung über, zählte sie schon gezählte
+Gruppen ein zweites Mal — abhängig nur davon, wie lange der Prozess schon
+lief. Behoben, mit Test (`tests/epochen.js`); Nachweis in
+`docs/endspielgrenze.md`, §9. Läufe auf älteren Commits sind Hash für Hash
+nur mit denselben Unterbrechungen nachvollziehbar. Jede
+Zeile trägt außerdem `params_hash` und `final_board_hash`; sind
+beide bei einer Wiederholung gleich, hat der Lauf dieselben Partien gespielt.
+`--roh` gibt es nur im Standardmodus; zusammen mit `--paired` bricht der
+Harness mit einer Meldung ab, statt stundenlang zu spielen und nichts zu
+schreiben. Schema und Zweck stehen in
+[`docs/pilot-benson-defense.md`](docs/pilot-benson-defense.md) §5.
+
+Phasenabhängige Parameter für Mechanismus-Tests:
+
+```bash
+--B mctsValueScale=200,mctsValueScale@200=1000   # ab Zug 200 umschalten
+```
+
+In CI läuft derselbe Harness über
+[`.github/workflows/ab-harness.yml`](.github/workflows/ab-harness.yml),
+manuell startbar mit Feldern für Partienzahl, Seed, Paarmodus und beide
+Parametersätze. Jeder Lauf archiviert Rohdaten, Log **und Hardware-Kontext** —
+Letzteres, weil GitHubs Runner unterschiedlich schnell sind und die
+Simulationszahl pro Zug direkt an der Rechenleistung hängt.
+
+## Belegte Ergebnisse
+
+**Lesart:** Die Tabelle ist eine Versuchschronik, keine Liste unabhängig
+addierbarer Gewinne und kein unveränderter Benchmark. Gegner, Vorgabe,
+Simulationszahl, Engine-Stand und Endpunkt stehen im jeweiligen Protokoll.
+Spätere Nachmessungen können frühere Hinweise überholen; den aktuellen
+Entscheidungsstand nennt die Übersicht oben.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/bilder/ergebnisse-dunkel.svg">
+  <img alt="Siegrate jeder gemessenen Änderung im Selbstspiel mit 95-%-Konfidenzintervall, dazu das Ergebnis gegen GNU Go; die Zahlen stehen in der Tabelle darunter" src="docs/bilder/ergebnisse-hell.svg" width="100%">
+</picture>
+
+Das Diagramm zeigt die Selbstspiel-Messungen aus der Tabelle. Neu zeichnen:
+`node auswertung/diagramm.js` (die Zahlen stehen oben im Skript).
+
+| Befund | Messung | Konsequenz |
+|---|---|---|
+| **`musterGewicht` 200 (Muster aus GNU-Go-Zügen: 3×3-Umgebung, Abstand zum letzten Zug, Linie)** | **gegen GNU Go Endstand +102,8 Punkte über 240 ausgespielte Paare (95 %: +93 bis +112, p = 8 · 10⁻⁵⁷), Siege 13 → 156 von 240; im Selbstspiel 98,6 % über 360 Partien** | **eingebaut** — Default 200; zum ersten Mal gewinnt die KI gegen GNU Go mit neun Vorgabesteinen die Mehrzahl der Partien (`docs/muster.md`) |
+| `musterTabelle` 2 (zweite Mustertabelle: gemeinsam gelernt, taktisches Merkmal, doppelt so viele Lehrdaten) | sagt GNU Gos Zug ab Zug 81 in 27,7 % statt 19,3 % voraus; gegen GNU Go aber Endstand −11,0 über 240 Paare (p = 0,04), im Selbstspiel 44,4 % über 360 Partien (p = 0,035) | verworfen — wieder entfernt; bessere Vorhersage ist nicht bessere Zugwahl (`docs/muster-ausbau.md`) |
+| `gebietSicher` 2 mit GNU Go als Orakel (Lebensurteil: kritische Gruppen zählen in `gebietZug` nur, wenn der Zug sie hält) | gegen GNU Go Endstand +13,6 über 240 Paare, 95 %: [+3,7; +23,4], p = 0,007; die erste Messung (−48,8) war durch einen Fehler ungültig, die KI passte vorzeitig | Obergrenze belegt, kein Default (braucht GNU Go); ein eigenes Urteil aus dem taktischen Leser trifft offline nur 3,4 % der Zugänderungen, nicht eingebaut (`docs/gebiet-sicher.md`) |
+| `mctsValueScale` 200 statt 350 | 65:35 über 100 gepaarte Partien, p = 0,0035; gegen GNU Go nachgeprüft: 350 −14,2 Punkte über 60 Paare (p = 0,30) | **eingebaut** (≈ +108 Elo im Selbstspiel); GNU Go widerspricht nicht (`docs/wertskala-gnugo.md`) |
+| Kurve 100/150/200/250/300/500/1000 | Plateau bei 150–250, Abfall zu beiden Seiten | Mitte des Plateaus gewählt, nicht der Höchstwert |
+| `endTieBreak` 1 statt 0 (Gleichstand im Endspiel ordnen statt losen) | 57,2 % und in der Wiederholung 59,4 % über je 360 Partien, p = 0,006 und 0,0003 (vor `gebietZug`); gegen GNU Go nachgeprüft: 0 statt 1 +0,4 Punkte über 60 Paare (p = 0,97) | **eingebaut** — Default 1; gegen GNU Go ohne Wirkung, neben `gebietZug` vermutlich überflüssig (`docs/gleichstand-gnugo.md`) |
+| `raumGewicht` + `raumZug` 1 (Raumrisiko im Laufkampf) | 45,3 % über 360 Partien, p = 0,073; Ausbrüche ×2, große Verluste unverändert | verworfen — Default 0 |
+| **`gebietZug` 80 statt 0 (Gebiet in der Zugbewertung)** | **gegen GNU Go +229 Punkte nach 120 Zügen (p = 8 · 10⁻³³), im Selbstspiel 83,3 % über 360 Partien** | **eingebaut** — Default 80, rund +280 Elo |
+| **`augenSchutz` 2 + `passUnabwendbar` 1 (eigene Augen nie füllen, passen, wenn nichts zu retten ist)** | **gegen GNU Go Endstand +217 Punkte über 60 ganze Partien (p = 3 · 10⁻¹⁷), im Selbstspiel 53,9 % über 360 Partien (n. s.)** | **eingebaut** — vorher endeten 57 von 60 Partien gegen GNU Go mit W +370,5 |
+| **`leseVerzicht` 1 (keine Züge, deren Kette der eigene Leser sofort fängt)** | **gegen GNU Go Endstand +56,1 Punkte über 60 Paare (p = 0,00007), im Selbstspiel 72,8 % über 360 Partien (p = 5 · 10⁻¹⁸)** | **eingebaut** — Default 1, rund +171 Elo im Selbstspiel (`docs/endspiel-verlust.md`) |
+| **`wurzelFrisch` 1 (bei übernommenem Suchbaum Wurzelkandidaten trotzdem aus der Zugbewertung)** | **gegen GNU Go Endstand +25,7 Punkte über 60 Paare (p = 0,021), im Selbstspiel 55,3 % über 360 Partien (p = 0,045)** | **eingebaut** — Default 1 (`docs/wurzel-frisch.md`) |
+| `gebietFreiheit` 1 (Gebietsgewinn schwacher neuer Ketten nur anteilig) | gegen GNU Go Endstand +19,5 über 60 Paare (p = 0,14), im Selbstspiel 53,6 % über 360 Partien (p = 0,17); nachgemessen mit ausgespielten Partien: +8,9 (p = 0,35), im Selbstspiel 45,6 % (p = 0,09) | verworfen — Default 0, in der Nachmessung kein Vorteil; Schalter im Dashboard (`docs/gebiet-freiheit.md` §8) |
+| `quickRettung` 1 (Rettungsbonus in Suche und Rollouts nur, wenn die Rettung wirkt) | gegen GNU Go Endstand −14,9 über 60 Paare (p = 0,13), im Selbstspiel 51,9 % über 360 Partien (p = 0,46); der Pilot hatte +25,6 über 20 Partien | verworfen — Default 0, in keiner Messung ein Vorteil (`docs/quick-rettung.md`) |
+| `atariVerzicht` 1 (aussichtslose Ataris fallen unter den Lese-Verzicht) | gegen GNU Go Endstand +2,4 über 60 ausgespielte Paare (p = 0,78), im Selbstspiel 50,6 % über 360 Partien (p = 0,83); verschenkte Züge je Partie −5 | verworfen — Default 0, wirkt auf die verschenkten Züge, nicht auf den Endstand (`docs/atari-verschenkt.md`) |
+| `openLineWeight` 160 (Eröffnung: Linie 1–2 ab-, Linie 3–4 aufwerten) | erstmals gegen GNU Go **ohne Vorgabe**: Endstand −6,0 über 60 ausgespielte Paare (p = 0,45), im Selbstspiel 53,9 % über 360 Partien (p = 0,14); zweite Linie in den Zügen 1–20 im Selbstspiel 25 % → 12 % | verworfen — Default 0; die KI verliert gegen GNU Go im Mittelspiel, nicht in der Eröffnung (`docs/eroeffnung-linie.md`) |
+| `captureCap` 200 (Gefangenen-Saldo deckeln, gegen falsche Aufgaben) | falsche Aufgaben 16 → 8 (p = 0,15), Siegrate 54,4 % (p = 0,017, nur Kontrolle); Wiederholung 53,6 % (p = 0,053) | **nicht beschlossen**, knapp — Schalter im Dashboard (`docs/aufgabe-deckel.md`) |
+| `gegnerWert` / `gegnerGebiet` (Wert des Punkts für den Gegner) | Pilot gegen GNU Go: Endstand −90 bis −126 | verworfen — Default 0 (`docs/gegnerwert.md`) |
+| `krisenKandidaten` (Rettung aus dem Atari und Schläge immer in die Suche) | Selbstspiel 51,7 % über 720 Partien (p = 0,37), gegen GNU Go +7,5 (p = 0,50) | verworfen — Default 0 |
+| **`leseRettung` 1 (taktischer Leser rettet gefährdete Ketten)** | **Selbstspiel 62,8 % über 720 Partien (p = 7 · 10⁻¹², +91 Elo)**, gegen GNU Go aber Endstand −30,5 (p = 0,011); nachgemessen mit ausgespielten Partien: gegen GNU Go −6,3 (p = 0,42), im Selbstspiel 58,1 % (p = 0,002) | **kein Default** — rettet Ketten für den Moment, zehn Züge später sind sie fast genauso oft tot; Schalter im Dashboard (`docs/laufkampf-lesen.md` §8) |
+| Suchbudget: 240 gegen 120, 480 gegen 240 Simulationen (03.10., Commit `94b59d0`) | 60,6 % und 57,8 % über je 360 Partien (+75 [38–112] und +55 [19–92] Elo je Verdopplung) | Mehr Suche hilft auf diesem Stand; Abflachen nicht gesichert, höhere Budgets und heutiger Default damit nicht gemessen ([Skalierung §5](docs/skalierung.md)) |
+| `resignQ` 0,95 gegen 0,997 | 29:31 über 60 Partien, p = 0,90 | 0,95 bleibt — rechtzeitiges Aufgeben kostet nichts |
+| Ko-Punkt in Suche und Rollouts (Fehler aus dem Code-Review vom 13.10.) | gegen GNU Go Endstand +0,9 über 240 ausgespielte Paare (95 %: [−5,3; +7,2], p = 0,77), Siege 149 → 157; 235 der 240 Partien ändern sich | **behoben** — Regelkorrektur, keine Stärkeänderung (`docs/code-review.md` §4) |
+| Endspiel-Muster, Schritt 1 (nur offline): eigene Tabelle für Stellungen ab Zug 81 mit Abstand zu den Steinen und Ringen um den Punkt | an 16 228 frischen Stellungen sagt sie GNU Gos Zug in der Liste der KI öfter voraus: Rang 1 **+12,6** Prozentpunkte (95 %: [+10,7; +14,5]), auf Linie 1–2 +8,7, in verlorenen Partien +5,5; alle vier vorab festgelegten Tore bestanden | Schritt 2 und Datenaggregation inzwischen abgeschlossen, Tabelle nicht übernommen; bessere Vorhersage ist nicht bessere Zugwahl (`docs/muster-endspiel.md`) |
+| Endspiel-Muster, Schritt 2: Schalter `musterEndspiel` (die Tabelle aus Schritt 1 an der Wurzel ab Zug 80) | Pilot gegen GNU Go, 60 ausgespielte Paare je Gewicht: Endstand −38,5 (100), −21,8 (200), −23,3 (400), −19,4 (800), p = 0,0001 bis 0,022, Siege 20 bis 33 gegen 35 von 60. Auf den Stellungen der alten KI zieht die Tabelle im Einzelnen besser (+2,0 Punkte nach GNU Go), auf den Stellungen, in die sie selbst führt, trifft sie nicht mehr besser | verworfen — Messung entfällt nach der vorab festgelegten Regel, Schalter wieder entfernt (Stand: Commit `63f727b`); Verschiebung der Stellungen, nicht schlechtere Einzelzüge (`docs/muster-endspiel-spiel.md`) |
+| Endspiel-Muster, Datenaggregation Runde 1 (in GitHub Actions): neue Tabelle aus den Stellungen, in die die alte führt, von GNU Go beschriftet | Pilot gegen GNU Go, 60 ausgespielte Paare, Seed 204: gegenüber dem Default +1,1 Punkte (95 %: [−13,7; +15,8], p = 0,89), gegenüber der alten Tabelle **+22,9** ([+11,1; +34,6], p = 0,0003); Actions spielt dieselben Partien wie der Container (120 von 120) | damaliger Zwischenstand; Runde 2 und 3 sowie abschließende Messung inzwischen abgeschlossen, kein Default (`docs/muster-endspiel-dagger.md` §4, §6) |
+| Endspiel-Muster, Datenaggregation Runde 2 (in GitHub Actions): Tabelle T2 spielt, GNU Go beschriftet 240 Partien, daraus T3 | Pilot gegen GNU Go, 60 ausgespielte Paare, Seed 205: T3 gegenüber dem Default +4,0 Punkte (95 %: [−14,8; +22,8], p = 0,67), T2 gegenüber dem Default +0,7 ([−15,4; +16,9], p = 0,93); beide Piloten zusammen T2 − A +0,9 ([−9,9; +11,7]); offline auf neuen Stellungen T2 und T3 gleichauf (Rang 1: 25,0 gegen 24,8 %) | kein Gewinn nachweisbar; Runde 3 und abschließende Messung inzwischen abgeschlossen (`docs/muster-endspiel-dagger.md` §4, §7) |
+| Endspiel-Muster, Datenaggregation Runde 3, die letzte (in GitHub Actions): Tabelle T3 spielt, GNU Go beschriftet 240 Partien, daraus T4 | Pilot gegen GNU Go, 60 ausgespielte Paare, Seed 210: T4 gegenüber dem Default −5,7 Punkte (95 %: [−20,4; +9,0], p = 0,44), T3 −7,0 ([−25,2; +11,2]); alle drei Piloten zusammen NEU − A −0,2 ([−9,4; +9,0], 180 Paare, p = 0,96); offline auf neuen Stellungen T4 vor T3 (Rang ≤ 16: 86,6 gegen 78,9 %), im Spiel nicht | negatives Ergebnis; zunächst keine Messung vorgesehen, danach dennoch 240 Paare gemessen (nächste Zeile); kein Schalter auf `main` (`docs/muster-endspiel-dagger.md` §7, §8) |
+| Endspiel-Muster, Messung mit 240 Paaren gegen GNU Go (in GitHub Actions): letzte Tabelle T4, Gewicht 200 gegen Default, Seed 206 | Endstand B − A **−3,7** (95 %: [−10,7; +3,3], p = 0,30), Siege 132 gegen 149, nach Zug 120 +0,1; Median +6, Vorzeichentest B besser in 135 gegen 102 (p = 0,037), Mittelwert von wenigen großen Verlusten bestimmt | verworfen (Obergrenze unter +10): T4 wird nicht übernommen, die Reihe zum Endspiel-Muster ist abgeschlossen (`docs/muster-endspiel-messung.md` §4, §8) |
+| Endspiel-Muster, Orakel-Test (in GitHub Actions): GNU Go Stufe 10 zieht für die KI ab Zug 81 (in 25 %, 50 % oder allen Zügen) oder ab Zug 161 (in allen), 120 Paare je Arm gegen GNU Go, Seed 206 | Endstand gegenüber Arm A (+22,9, 79 Siege): **D100 +78,7** (95 %: [+68,5; +88,9], 120 Siege), D50 +32,8, D25 +21,3, E100 +34,4, alle p < 0,001; ein geänderter Zug ist im Mittel +1,60 Punkte wert (vorab erwartet 0,6), die KI trifft den Orakelzug in rund 25 % ihrer Züge; der Gewinn hängt nicht am früheren Passen (die Stellung nach dem ersten Pass ergibt den Endstand auf ±1 Punkt) | Spielraum belegt, keine Änderung an der Engine: Messlatte für einen stärkeren Lerner ist ein Zuwachs von 4,0 Prozentpunkten bei den gespielten Zügen für +5 Punkte; T4 mit 2 bis 3 Prozentpunkten wäre rund +3 Punkte wert gewesen, unter der Nachweisgrenze von M1 (`docs/muster-endspiel-orakel.md` §4, §8) |
+| `raveK` 30 und 3000 gegen 300, RAVE ganz aus (je 240 Paare gegen GNU Go, 20.10.) | Endstand −1,4 [−9,8; +7,0], −0,4 [−8,1; +7,2], RAVE aus +3,6 [−4,6; +11,7]; Siege 153, 145, 152 gegen 149 | verworfen: kein Hebel bei 120 Simulationen, Default 300 bleibt (`docs/parameter-reihe.md` §8) |
+| `mctsPriorSharp` 0, 1, 9 gegen 3 (je 240 Paare gegen GNU Go, 20.10.) | Endstand −58,6, −42,2, **+7,3** [+0,2; +14,5, p = 0,045]; Siege 72, 100, **189** gegen 149 von 240 (McNemar für 9: p = 5 · 10⁻⁶) | damals Hinweis für 9 (α = 0,005 verfehlt); Nachmessungen abgeschlossen, auf dem Stand mit Endspiel-Netz verworfen; Default bleibt 3 (`docs/parameter-reihe.md` §8) |
+| `phaseBlendWidth` 0 und 24 gegen 8 (je 240 Paare gegen GNU Go, 20.10.) | Endstand −2,7 [−9,6; +4,3] und +0,3 [−8,5; +9,1] | verworfen: kein Hebel, Default 8 bleibt (`docs/parameter-reihe.md` §8) |
+| Pass-Kurve `passMinMc*`: Negativkontrolle (120 und 150 auf −1000), Stufe 80 auf 300, alle Stufen auf −50 (je 240 Paare gegen GNU Go, 20.10.) | 30 von 30 Partien Zug für Zug gleich; Endstand −1,6 [−3,8; +0,6] und +0,2 [−0,6; +1,0]; Partien 28 Züge kürzer und 14 länger | die Einträge für Zug 120 und 150 sind wirkungslos; die Höhe ändert nur, wann die KI aufhört; die Kurve bleibt, im Code steht jetzt, was sie tut (`docs/parameter-reihe.md` §8) |
+| `bensonAliveExempt` 1 gegen 0 (die Sterbe-Treppe in `evaluateBoard` nimmt Benson-lebende Ketten aus; 240 Paare gegen GNU Go, 20.10.) | Defekt belegt: in vier ganzen Partien trifft die Treppe in 38 % der Bewertungen mit Benson-Analyse eine bewiesen lebende Kette (13 % des Abzugs, meist die des Gegners); Endstand B − A **+1,3** (95 %: [−1,3; +4,0], p = 0,32), Siege 152 gegen 149 (McNemar p = 0,63); Arm A gibt M1-A in 240 von 240 Partien wieder | verworfen (Obergrenze unter +10): Schalter bleibt, Default 0; der Defekt ist belegt, ein Stärkegewinn nicht (`docs/benson-lebend-treppe.md` §8) |
+| `mctsPriorSharp` 9 nachgemessen, frischer Seed (480 Paare gegen GNU Go, dazu 15, 30 und 9 erst ab Zug 120; Selbstspiel 360 Partien, 20.10.) | gegen GNU Go **+7,3** [+2,1; +12,5], p = 0,0064, Siege 365 gegen 304; 15: +12,7, 30: +3,9, ab Zug 120: −0,3; **im Selbstspiel 25,6 %** (p = 4 · 10⁻²¹), 213 der 268 Niederlagen eigene Aufgaben | damals kein Default; inzwischen mit Endspiel-Netz und ohne Aufgabe nachgemessen und verworfen (nächste Zeile) (`docs/prior-nachmessung.md` §8) |
+| `mctsPriorSharp` 9 auf dem Default mit Endspiel-Netz (240 Paare gegen GNU Go, Selbstspiel ohne und mit Aufgabe je 360, 20.10.) | gegen GNU Go **−11,4** [−18,4; −4,5], p = 0,0014, Siege 197 gegen 222; Selbstspiel ohne Aufgabe 26,4 %, mit Aufgabe 18,6 % | **verworfen**, Default 3 bleibt; die Schwäche im Selbstspiel lag nicht an der Aufgabe (`docs/prior-neun.md` §8) |
+| `bensonDeathTransfer` 1 gegen GNU Go (240 Paare, Selbstspiel 360, 20.10.) | −0,8 [−2,4; +0,7], 50,8 % im Selbstspiel | verworfen, Default 0 (`docs/prior-nachmessung.md` §8) |
+| Endspiel-Lerner, Schritt 1 (offline, GitHub Actions): ein kleines Faltungsnetz greift an der Wurzel ab Zug 81 ein (4 beste Netzzüge in die Kandidaten, Prior zur Hälfte vom Netz) | 19 222 frische Stellungen (Seed 206): die gespielten Züge treffen GNU Gos Zug (Stufe 10) in **34,9 % statt 18,1 %**, +16,8 Prozentpunkte (Zug 81–160: +23,2, ab 161: +10,5); 48 % der Züge ändern sich | Offline-Tor (+4,0) bestanden; Schritt 2 inzwischen positiv abgeschlossen, danach Dosis 0,8 übernommen (folgende Zeilen) (`docs/endspiel-lerner.md` §8) |
+| **`endspielNetz` 0,5 (Endspiel-Netz im Spiel, Schritt 2; 240 Paare gegen GNU Go, Selbstspiel 360, 20.10.)** | **Endstand +46,9** [+40,4; +53,4], p = 10⁻³³, Siege 227 gegen 149 von 240; Selbstspiel 83,1 %; Kontrolle 15 von 15 | **damals Default 0,5, inzwischen 0,8** (`docs/endspiel-netz.md` §8; Dosis unten) |
+| **`endspielNetz` 0,8 (Dosis des Endspiel-Netzes; 240 Paare gegen GNU Go mit sechs Vorgabesteinen, Selbstspiel 360 ohne Aufgabe, 20.10.)** | **Endstand +15,5** [+7,9; +23,1] gegen 0,5, p = 7,5 · 10⁻⁵, Siege 154 gegen 123; Selbstspiel 56,4 %; `endspielNetzTop` 8 statt 4: +1,3 [−6,0; +8,6]; Kontrolle 15 von 15 | **Default 0,8**, Top 8 verworfen (`docs/netz-dosis.md` §8) |
+| `endspielNetz` 0,9 und 1 (höhere Dosis; 240 Paare gegen GNU Go mit sechs Vorgabesteinen, Selbstspiel 360 ohne Aufgabe, 24.10.) | gegen 0,8: 0,9 −1,9 [−9,3; +5,6], 1 −4,1 [−11,4; +3,2]; Selbstspiel 49,7 % und 53,1 %; Kontrolle 15 von 15 | verworfen — Default bleibt 0,8 (`docs/netz-hoch.md` §8) |
+| Komponenten Stufe A: Teile des Defaults abgeschaltet, gegen GNU Go und Fuego (6 Steine, je 480 bzw. 240 Paare, Seed 220, 29.10.) | ohne Netz −70,8 / −68,4, ohne Muster +2,0 / −10,1, ohne beide −113,6 / −112,1, ohne RAVE −5,5 / −1,1, reduzierte Engine −149,4 / −111,4 (gegen GNU Go / Fuego, 99 %); Wechselwirkung Netz × Muster −44,9 / −33,6; Kontrollen 15/15 und 10/10 | kein Default geändert; Netz und Muster übertragen sich auf Fuego (`docs/komponenten.md` §9) |
+| Komponenten Stufe B: die sieben übrigen Zusätze auf dem vollen Default einzeln und zusammen abgeschaltet, gegen GNU Go und Fuego (je 480 Paare, Seed 220, 29.10.) | alle sieben zusammen −4,7 / −2,0; ohne frische Wurzel −34,7 / −29,6 (ohne Baum-Übernahme dagegen −5,0 / +2,1); scharfer Prior −6,4 / −1,9; übrige nahe 0 (gegen GNU Go / Fuego, 99,4 %); kein Unterschied der Gegner schließt 0 aus; Kontrollen 20/20 und 20/20 | kein Default geändert; zusammen kein messbarer Beitrag unter diesen Bedingungen, einzeln unterschiedlich; frische Wurzel bei aktiver Baum-Übernahme wichtig (`docs/komponenten-b.md` §9) |
+| `musterAb` 40 und 80 (Muster erst ab Zug 40 bzw. 80; je 480 Paare gegen GNU Go und Fuego, Seed 220, Selbstspiel 360 ohne Aufgabe, 29.10.) | 40: −3,7 / +0,8; 80: +3,5 / −3,1 (gegen GNU Go / Fuego, 97,5 %); Selbstspiel 44,4 % und 27,8 %, beide signifikant unter 50 %; Probe 480/480, Kontrollen 20/20 | verworfen — Default bleibt 0; der frühe Vorsprung nach GNU Gos Schätzung war ein Merkmal der Schätzung (`docs/muster-eroeffnung.md` §9) |
+| `mctsTreeReuse` 0 (Baum nicht übernehmen; Nichtunterlegenheit mit Grenze −10, je 960 Paare bei 120 und 240 bei 600 Simulationen gegen GNU Go und Fuego, Seed 221, Selbstspiel 360 ohne Aufgabe, 29.10.) | 120 Sim.: −2,9 [−7,3; +1,4] / −0,2 [−5,6; +5,2], nicht unterlegen; 600 Sim.: −5,8 [−14,7; +3,1] / +0,1 [−12,1; +12,3] (gegen GNU Go / Fuego, 95 %); Selbstspiel 46,9 %; Kontrollen 20/20 | Default bleibt 1 — bei 600 Simulationen gegen GNU Go knapp unter der Schwelle −5 für den Mittelwert (`docs/baum-uebernahme.md` §9) |
+| Leeres Brett: D, ohne Muster (M0), ohne Netz (N0) und Muster erst ab Zug 80 (A80) gegen GNU Go Stufe 1 ohne Vorgabe (je 480 Paare, 120 Simulationen, Seed 222, 29.10.) | M0 **+14,3** [+7,8; +20,8], N0 −46,9 [−53,0; −40,7], A80 **+17,1** [+10,6; +23,5] (98,3 %); mit sechs Steinen +2,0, −70,8 und +3,5; D verliert 472 von 480, Ø −78,8; Proben und Kontrolle bestanden | kein Default geändert; ohne Vorgabe schaden die Muster gegen GNU Go, das Netz trägt (`docs/leeres-brett.md` §9) |
+| Aktuelle Engine gegen die ältere PWA-Fassung (ohne Endspiel-Netz) über `gtp-ki.js`, ohne Vorgabe, GNU Go zählt (360 Partien bei 120 Simulationen, 120 bei 1,8 s je Zug, Gleichstandsprobe 120, 29.10.) | **84,7 %** [80,6; 88,3] bei 120 Simulationen, Endstand +40,4; **71,7 %** [62,7; 79,5] bei 1,8 s je Zug (rund 4 700 Simulationen), +28,7; gegen sich selbst 51,7 %; Kontrolle 20/20 | kein Default geändert; die aktuelle Engine ist klar stärker, der Vorsprung entsteht nach Zug 80 (`docs/pwa-vergleich.md` §9) |
+| `musterOhneVorgabe` 0 und 0,5, `musterWeissOhneVorgabe` 0 (Muster ohne Vorgabe aus, halb, nur als Weiß aus; je 480 Paare gegen GNU Go und Fuego ohne Vorgabe, Seed 226, Selbstspiel 360, 30.10.) | 0: **+18,1** [+11,9; +24,4] / +0,6 [−5,4; +6,6]; 0,5: +15,2 / −0,3; nur Weiß: +13,1 / −4,1 (gegen GNU Go / Fuego, 98,3 %); Selbstspiel 26,9 %, 45,6 %, 38,6 %; Kontrollen 20/20 | verworfen — Default bleibt 1; gegen Fuego kein Schaden, der Schaden hängt an GNU Go (`docs/muster-ohne-vorgabe.md` §9) |
+| `musterOhneVorgabe` 0 und 0,5, Siege gegen Fuego mit 50 Spielen je Zug (je 960 Paare ohne Vorgabe, Seed 228, McNemar alpha 0,025, 31.10.) | Siegquote D 48,0 %, 0: 35,2 %, 0,5: 39,5 %; nur Arm / nur D: 180 / 303 und 196 / 278; Kontrolle 20/20 | verworfen — D gewinnt öfter (p 2,4e-8 und 0,0002), Default bleibt 1 (`docs/muster-fuego-siege.md` §10) |
+| k-Schätzung für Komi: `evaluateBoard` nach Zug 200/240/280 gegen den **späteren** komifreien Endstand (2 399 Alt-Partien ohne Vorgabe, 31.10.) | eigene Zählung: R² 0,33 / 0,31 / 0,34, k 44 / 57 / 78; GNU Gos `final_score`: R² 0,05 / 0,12 / 0,28, k 34 / 44 / 58; auch mit identischer Partieauswahl kein stabiler Faktor | abgeschlossen, kein k eingefroren; Stufen 2 und 3 zurückgestellt. Kein Nachweis eines Komi-Effekts oder eines nötigen Bewerterwechsels ([Komi §§5–7](docs/komi-bewusstsein.md)) |
+| Phasentausch früh/spät | +12,5 gegen +5,0 Prozentpunkte, Differenz 3 Partien | **nicht entschieden** — Mechanismus offen |
+| `openContactResponse` (neuer Term in `evalOpening`) | 48,8 % über 80 Partien, p = 0,91 | verworfen — Default 0 |
+| `phaseNormalize` (Experten vor dem Blend normieren) | 42,5 % über 80 Partien, p = 0,22 | verworfen — Default 0 |
+| `rolloutSample`, `evaluateMove`-Expansion, FPU-Vorzeichen | 60 %, 61 %, ±0,005 ΔQ | abgelehnt bzw. ohne Stärkeeffekt eingebaut |
+| Policy-Netz (`netMaxBlend`, nicht das Endspiel-Netz), Rang des Suchzugs | 4 von 4 Initialisierungen besser (111,7 → 90,3), Top-10 aber auf Zufallsniveau | `netMaxBlend` bleibt 0 — kein A/B, es gibt nichts zu blenden |
+| KataGo-Distillation fürs Policy-Netz, `netMaxBlend` 0,30 gegen 0 | vier Läufe über 250-fache Skalenspanne, monoton von unten gegen 50 %: 35,0 % (5000, p = 0,003), 41,7 % (800), 46,7 % (20→1000, p = 0,82) | verworfen — `netMaxBlend` bleibt 0. Keine Dosis über 50 %, also **kein** Kalibrierungsproblem; Engpass ist die Kopfgüte |
+| Entscheidungsspanne von `evaluateMove`, gemessen | Spanne zum Median 45–1206, Gap zum Zweitbesten aber 0,0–0,5 in Eröffnung und Mittelspiel | Jeder Prior kippt dort die Zugwahl, unabhängig von `netScoreScale` — Kalibrierung allein kann das nicht steuern |
+
+Zwei der Nullergebnisse sind **gehaltvoll, nicht leer**: Bei beiden ist per
+Verhaltensmessung belegt, dass der Parameter die Zugwahl ändert — bei
+`openContactResponse` steigen die lokalen Antworten von Rang 20 auf 4. Die
+Engine spielt also nachweislich anders und gewinnt dadurch nicht.
+
+Die vollständigen Zahlen samt Vorbehalten stehen im Kopfkommentar von
+[`ab-harness.js`](ab-harness.js).
+
+## Versuchschronik: frühere Befunde und ihre Nachmessungen
+
+Die folgenden Abschnitte bewahren den damaligen Verlauf. Zahlen und
+Erklärungen beziehen sich auf den beschriebenen Stand. Neue Untersuchungen
+nicht aus einem alten „als Nächstes“ ableiten, sondern zuerst die aktuelle
+Übersicht und die Ergebnisnachträge in `docs/` abgleichen.
+
+### Separates Policy-Netz: bisherige Lernversuche
+
+**Historische Lernversuche mit dem separaten Policy-Netz.** Gemeint ist das
+Policy-Netz hinter `netMaxBlend`, nicht das Endspiel-Netz (`endspielNetz`,
+oben unter „Funktioniert“), das deutlich gewinnt. Es sind zwei verschiedene
+Netze. Ein kleines Dense-Netz (3971→128→361) kann Wurzelzüge mitgewichten. Bis August 2026 war
+es doppelt tot: im Messrahmen gar nicht vorhanden, und im Spiel in einem
+geschlossenen Kreis gefangen, der `gamesPlayed` nie über 0 kommen ließ — es
+hat also nie gelernt, bei niemandem. Beides ist behoben. Danach gemessen:
+Distillation auf den Suchzug verbessert den mittleren Rang repliziert über
+vier Initialisierungen (111,7 → 90,3 bei Zufallserwartung 101,3), aber die
+Trefferquote im Kopf der Verteilung bleibt auf Zufallsniveau — der Suchzug
+landet nie auf Rang 1. Für PUCT zählt nur der Kopf. `netMaxBlend` steht
+deshalb auf 0: das Netz lernt mit, steuert aber nicht.
+ Der Nachfolgeversuch, überwacht aus KataGo-Partien zu lernen
+([`distillation/`](distillation/)), hebt den Kopf erstmals **über**
+Zufallsniveau — Top-1 1,2 %, Top-10 7,8 % gegen 0,28 % / 2,77 % bei Zufall —
+und gewinnt trotzdem in keinem A/B: 35,0 % über 120 gepaarte Partien bei
+`netScoreScale` 5000 (p = 0,003). Diese Skala ist **gemessen** kommensurabel
+— der Netzterm liegt bei 0,4× bis 5,6× der Entscheidungsspanne von
+`evaluateMove`, die spannenkalibrierten Werte streuen um Median 3841. Ein
+Gegentest mit 800 kam auf 41,7 %, schaltete das Netz dabei aber weitgehend ab
+(0,06×–0,35×) und belegt daher keine Neutralität. `netMaxBlend` bleibt 0.
+ Kalibrierung ist als Erklärung **erschöpft**. Über eine 250-fache
+Skalenspanne ergibt sich eine monotone Dosis-Wirkungs-Kurve, die von unten
+gegen 50 % läuft: 35,0 % (Skala 5000), 41,7 % (800), 46,7 % (20, ab Zug 250
+auf 1000). Wäre die Skala nur falsch eingestellt, müsste eine Zwischendosis
+über 50 % schießen — keine tut es, und das beste Ergebnis ist dasjenige, bei
+dem das Netz fast nichts tut. Der Engpass ist die Kopfgüte: der Abstand
+zwischen bestem und zweitbestem Heuristikzug ist in Eröffnung und Mittelspiel
+praktisch null (Gap 0,0–0,5 bei einer Spanne von 45–236), dort entscheidet
+der Prior bei jeder Skala — und ein Netz mit Top-1 1,2 % bringt dort fast
+Zufall ein.
+ Und die Kopfgüte hängt an der **Datenmenge**, nicht an Kapazität oder
+Merkmalsform: 554 985 Parameter auf 56 363 Beispiele waren 9,8×
+überparametrisiert. Eine Datenmengen-Kurve bei identischem Testsatz steigt
+monoton und ohne Plateau — Top-1 0,37 % → 0,99 % und Top-10 3,77 % → 8,24 %
+(Mittel über die letzten zehn Epochen, Endpunkte rund 4 SD getrennt)
+über 15 k bis 120 k Zeilen, wobei der Trainingsverlust dabei von 2,43 auf
+4,21 *steigt*: das Netz verlässt den Memorierbereich. Benutzt wurden bisher
+vier `val/`-Shards mit zusammen 61 363 Zeilen; verfügbar sind **8160
+`train/`-Shards**, und die sind 22,7× größer (348 571 nutzbare Zeilen gegen
+15 388) — hochgerechnet von einem gemessenen train-Shard rund 2,8 Milliarden
+Stellungen, von denen der Referenzlauf **0,002 %** gesehen hat. Die höchste
+Hebelwirkung liegt damit in der Datenpipeline, und dort im **Durchsatz**,
+nicht in der Verfügbarkeit: dicht gespeichert wären das 45 TB, sparse noch
+7–13 TB. Streaming ist der einzige Weg für den vollen Bestand, sparse das
+RAM-Format für den Arbeitsausschnitt. Ob all das der Spielstärke hilft, ist
+**nicht** gemessen.
+
+### Gemessen heißt nicht wirksam: gespeicherte Parameter überschreiben jeden Default
+
+Ein exportierter Spielstand vom 18.08.2026 (Zug 204, Stufe „hard") zeigt die
+Grenze dieser ganzen Messreihe. Die Partie lief mit:
+
+| Parameter | Default im Repo | im Spiel | Messlage |
+|---|---|---|---|
+| `mctsValueScale` | 200 | **350** | 200 schlägt 350 mit 65:35, p = 0,0035 (≈ +108 Elo) |
+| `netMaxBlend` | 0,00 | **0,3** | Policy-Netz: 0,3 verliert mit 35 % über 120 Partien, p = 0,003 |
+| `resignQ` | 0,95 | **0,9** | — |
+
+Beide belegten Verschlechterungen waren gleichzeitig aktiv. Die KI spielte
+also gegen zwei selbst gemessene Handicaps, und keine Analyse ihres
+Zugverhaltens ist ohne diesen Hinweis interpretierbar.
+
+**Der Mechanismus ist strukturell, kein Bedienfehler.** `dashSave` legt mit
+`JSON.stringify(PARAMS)` den **vollständigen** Parametersatz unter
+`localStorage['go_params']` ab (`index.html:3669`), und beim Start übernimmt
+`dashLoadSaved` **jeden** Schlüssel daraus, der in `PARAMS_DEFAULT` vorkommt
+und eine endliche Zahl ist (`index.html:3689`). Der Speichern-Knopf ist dabei
+völlig legitim bedient — die Semantik dahinter ist das Problem: gespeichert
+wird nicht „was ich geändert habe", sondern „der gesamte Stand von damals".
+Wer einmal
+gespeichert hat, friert alle Defaults ein — jede spätere Messung erreicht
+diesen Browser nie, ohne Versionsstempel und ohne sichtbare Warnung.
+
+Naheliegende Abhilfe, ungetestet: nur Abweichungen sichern
+(`PARAMS[k] !== PARAMS_DEFAULT[k]`), dann wandern neue Defaults automatisch
+mit und bewusste Abweichungen bleiben trotzdem erhalten. Bis dahin gilt:
+`dashReset` (`index.html:3697`) löscht den Speicher und stellt die gemessenen
+Werte wieder her.
+
+**Behoben am 13.10.:** `dashSave` speichert nur noch Abweichungen vom
+Default, mit Versionsnummer. Ein Speicherstand im alten Format wird einmal
+verworfen, mit Hinweis im Protokoll ([`docs/code-review.md`](docs/code-review.md)).
+
+### Divergierendes Training, NaN-Priors, toter PUCT-Knoten
+
+Derselbe Speicher-Mechanismus hat einen zweiten Fehler sichtbar gemacht. Ein
+Bug-Report mit `netMaxBlend: 0,09` (Default im Repo: 0) meldete ab dem ersten
+KI-Zug einen `TypeError: Cannot read properties of null (reading 'idx')` in
+`mctsPUCT` — im Worker **und** im synchronen Fallback, also bei jedem Zug.
+
+Die Kette, von hinten aufgerollt:
+
+1. **REINFORCE hier divergiert.** Bei negativem Advantage maximiert der
+   Schritt `−log p(a)`; das hat kein Optimum, denn `p(a) → 0` erreicht man nur
+   mit `‖W‖ → ∞`. Der Gradient des gespielten Zuges ist `(1−p)·|lr|` und
+   schrumpft dabei *nicht*. Daraus wird eine Rückkopplung: größeres `W1` →
+   größere Aktivierungen → größere `W2`-Updates (`dL·hidden`) → größeres `dH`
+   → größeres `W1`. Gemessen an einem Repro über den `policy-net`-Block
+   (400 Züge/Partie): in **5 von 6 Läufen nicht-finite Float32-Gewichte binnen
+   30 Partien**, `|W2|` zuletzt Faktor ~10 pro Partie.
+2. **`save()` machte es dauerhaft.** Die NaN-Gewichte gingen ungeprüft nach
+   `localStorage['go_pnet']` und wurden beim nächsten Start ebenso ungeprüft
+   geladen. Kein Reload heilte das.
+3. **`forward()` gab NaN aus.** Sobald die Logits die Float32-Grenze reißen,
+   ist `logits[k] − maxL` gleich `Inf − Inf` = `NaN` — und damit *jede*
+   Wahrscheinlichkeit.
+4. **Ein einzelnes NaN vergiftete den ganzen Knoten.** Über den Score-Blend
+   (`(1−bw)·MoE + bw·Prior·scale`) landete es in `_mctsKids`, wo `Z = Σ w`
+   zu `NaN` wird und damit `P[r] = w[r]/Z` für **alle** Kinder.
+5. **PUCT stand ohne Kandidat da.** `NaN > -Infinity` ist `false`, also blieb
+   `best` auf `null` — und die nächste Zeile las `best.idx`.
+
+Behoben auf beiden Ebenen. Verteidigung: `_mctsKids` bildet Spannweite und
+Summe nur über finite Scores und fällt bei entarteter Softmax auf den
+Rang-Prior zurück; die PUCT-Auswahl vergleicht nur finite Scores und hat einen
+Fallback; der Score-Blend überspringt nicht-finite Priors; `forward()` liefert
+im Fehlerfall eine Gleichverteilung und zieht über `_healthy` den Blend
+sofort auf 0. Ursache: `netGradClip` (elementweise **und** über die
+Update-Norm), `netWeightDecay`, `netMaxNorm` (Max-Norm-Projektion je Schicht
+als Vielfaches der Init-Norm) und eine Dämpfung des negativen Advantage
+unterhalb von `1/361` — dort ist nichts mehr zu verlernen. Dazu Prüfungen vor
+jedem `save()`, beim `load()` (Selbstheilung für bereits vergiftete Browser)
+und ein Rollback auf den letzten gültigen Stand nach jeder Partie.
+
+Belege aus dem Repro über die ausgeschnittenen Skript-Blöcke:
+
+| Messung | vorher | nachher |
+|---|---|---|
+| Ein NaN unter 8 Wurzel-Scores | 8 von 8 Priors `NaN` | 0 von 8, Summe 1,000 |
+| `mctsPUCT` mit reiner NaN-Wurzelliste | `TypeError … 'idx'` | 482 Sims, Zug geliefert |
+| Vergiftete `go_pnet` (NaN) geladen | Crash bei jedem KI-Zug | verworfen, Netz startet frisch |
+| Vergiftete `go_pnet` (endlich, 1e20) | Crash bei jedem KI-Zug | Netz meldet sich ab, Partie läuft |
+| 40 Trainingspartien, reines Rauschen | nicht-finite Gewichte | `‖W1‖` 9,20 → 7,92, nie `NaN` |
+| 24 Trainingspartien im Harness | — | `‖W1‖` 8,91 / `‖W2‖` 14,92, Projektion greift nie |
+| `_mctsKids` bei finiten Scores | — | 94 212 Priors bitgleich zu vorher |
+
+`dashReset` setzt `netMaxBlend` auf 0 zurück und umgeht den Pfad damit — das
+war der Workaround, nicht der Fix.
+
+Gegen Rückfall abgesichert in [`tests/`](tests/): 37 Fälle in sechs Dateien,
+drei davon im echten Browser mit Web Worker. Am Stand vor dem Fix fallen
+16 davon durch — die übrigen prüfen bewusst unverändertes Verhalten und
+müssen auf beiden Ständen halten.
+
+### Die KI gab in ausgeglichener Stellung auf — widerlegt am 21.09.
+
+> **Dieser Abschnitt stand zehn Monate lang falsch hier.** Die Stellungen
+> waren nicht ausgeglichen; die KI lag in allen vier Fällen zurück. Die
+> ursprüngliche Fassung bleibt stehen, die Korrektur folgt darunter — sonst
+> ist nicht nachvollziehbar, was behauptet und was widerrufen wurde.
+
+Elf exportierte Partien vom 29.08. — vier auf „schwer", sieben auf „einfach",
+alle verloren. Die sieben Easy-Niederlagen sind echt: rund 100 Gebietspunkte
+Rückstand, ausgespielt bis zum Ende. Die vier Hard-Partien nicht.
+
+Dort gab die KI jedes Mal auf (`RE[B+R]`). Das Gebiet zum Zeitpunkt der
+Aufgabe, mit der Engine nachgerechnet und gegen `finalAreaScore` geprüft:
+
+| Partie | Gebiet KI | Mensch | mit Komi | Differenz |
+|---|---|---|---|---|
+| 197 Züge | 104 | 98 | 111,5 | **+13,5** |
+| 269 Züge | 139 | 150 | 146,5 | −3,5 |
+| 249 Züge | 125 | 138 | 132,5 | −5,5 |
+| 305 Züge | 170 | 173 | 177,5 | **+4,5** |
+
+In zwei von vier Partien gab sie aus einer Führung heraus auf. Die Aufgaben
+waren dabei intern korrekt — `Q ≤ −0,95`, die Schwelle war gerissen. Nur sagt
+Q nichts über den Spielstand: es kommt aus `tanh(evaluateBoard/200)`, und
+`evaluateBoard` wird vom Gefangenen-Term beherrscht. Die KI hatte 20–27 Steine
+verloren; der Term `(cap[eigen] − cap[fremd]) · 20` lag bei −380 bis −540 und
+machte **92–105 % der gesamten Bewertung** aus. Ohne ihn liegt `evaluateBoard`
+bei −35 bis +25, also ausgeglichen und in Übereinstimmung mit `estimateArea`.
+
+Strukturell doppelt gezählt: ein Stein auf dem Brett zählt in derselben
+Funktion `size·5 + libs·3`, also rund 5–8. Wird er gefangen, verschwindet er
+aus dieser Summe **und** schlägt zusätzlich mit 20 zu Buche.
+
+#### Die Korrektur (21.09.): die Gegenprobe war blind
+
+Nach der [`estimateArea`-Korrektur](#estimatearea-taugt-nicht-als-maßstab-für-wer-liegt-vorn)
+blieb hier offen, ob diese vier Partien betroffen sind. Sie sind es.
+
+Der Satz oben — „mit der Engine nachgerechnet und gegen `finalAreaScore`
+geprüft" — klingt nach einer unabhängigen Gegenprobe. Das Skript von damals
+zeigt, dass es keine war: es enthält eine eigene Nachbildung von
+`finalAreaScore`, die Steine und umschlossenes Gebiet zählt, **aber
+`resolveLifeAndDeath` nie aufruft**. Sie hat also denselben blinden Fleck wie
+`estimateArea`. Die Spalte „gleich? ja" bestätigte nur, dass zwei Maßstäbe mit
+demselben Fehler denselben Wert liefern.
+
+Nachgemessen mit drei Lesarten derselben Stellung — aus Sicht der KI (Weiß),
+Komi eingerechnet, negativ heißt Rückstand:
+
+| Partie | roh (= der alte Maßstab) | nur Benson-**bewiesen** tot | volle Schlussauswertung |
+|---|---:|---:|---:|
+| 197 Züge | **+13,5** | +13,5 (0 Steine) | −14,5 (8) |
+| 249 Züge | −5,5 | −5,5 (0) | −44,5 (14) |
+| 269 Züge | −3,5 | −3,5 (0) | −56,5 (21) |
+| 305 Züge | **+4,5** | **−19,5 (5)** | −19,5 (6) |
+
+Die mittlere Spalte entfernt nur, was nach Benson **beweisbar** tot ist — keine
+Heuristik, kein Ermessen. Die rechte nutzt zusätzlich die Augen/Freiheiten-
+Heuristik, die für die Schlussstellung gedacht ist.
+
+Der Vorwurf lautete: „in zwei von vier Partien gab sie aus einer Führung heraus
+auf". Gemeint waren die Partien mit 197 und 305 Zügen. Beide fallen:
+
+* **305 Züge — beweisbar.** Fünf weiße Steine sind Benson-tot. Allein sie zu
+  entfernen kippt +4,5 auf −19,5. Hier braucht es keine Heuristik.
+* **197 Züge — nur unter der Endstellungs-Lesart.** Benson beweist hier nichts;
+  die acht toten Steine sind samt und sonders Heuristik-Urteile. Das „+13,5"
+  übersteht also die exakte Prüfung.
+
+**Vorbehalt, der hier wirklich zählt:** diese Partien endeten durch Aufgabe,
+nicht durch zweimaliges Passen. `resolveLifeAndDeath` ist für die
+Schlussstellung gebaut; bei Zug 197 kann die Heuristik Gruppen totsagen, die
+noch laufen könnten. Die beiden Maßstäbe sind **gegenläufig verzerrt** — der
+rohe zugunsten dessen, der todgeweihte Gruppen hält, der volle zulasten dessen,
+der schwache, aber kämpfende Gruppen hält. Die Wahrheit liegt dazwischen.
+Deshalb die Spanne statt einer Zahl, und deshalb die Benson-Spalte.
+
+Was die Spanne in jedem Fall hergibt: in **keiner** der vier Partien ist die
+Lesart „die KI liegt komfortabel vorn" haltbar, und in dreien lag sie unter
+jeder Lesart zurück. Die Aufgaben waren nicht die Fehlalarme, für die ich sie
+gehalten habe.
+
+Auffällig ist noch, wem die toten Steine gehören: 8:0, 12:2, 20:1 und 5:1 zu
+Lasten von Weiß — verstreute Einzelsteine tief in Schwarz' Gebiet. Das ist das
+Bild einer KI, die Steine ins gegnerische Gebiet streut, nicht das einer, die
+knapp vorn liegt.
+
+#### Das Gewicht zu senken hilft nicht — gemessen
+
+Naheliegend wäre, `captureWeight` kleiner zu setzen. Drei gepaarte A/B-Läufe
+zu je 40 Partien (Seed 2026, Sims/Zug zwischen A und B abgeglichen):
+
+| A | B | Siegrate A:B | B-Anteil | p | Aufgaben A:B | p |
+|---|---|---|---|---|---|---|
+| 20 | 5 | 19 : 21 | 52,5 % | 0,88 | 19 : 7 | 0,029 |
+| 20 | 10 | 16 : 24 | 60,0 % | 0,27 | 20 : 9 | 0,061 |
+| 20 | 0 | 15 : 25 | 62,5 % | 0,15 | **14 : 1** | **0,001** |
+
+Der Effekt auf die **Aufgabequote** ist stark und monoton, der auf die
+**Siegrate** in keiner Dosis signifikant — und nicht einmal monoton. Das
+Gewicht treibt also das Aufgabeverhalten, nicht die Spielstärke. `captureWeight`
+bleibt deshalb bei 20; es zu senken wäre ein Eingriff in die gesamte Suche für
+einen unbewiesenen Nutzen.
+
+Nebenbefund derselben Messung: die vielen Aufgaben kosten im Selbstspiel kaum
+Partien. Die KI gibt zu früh auf, aber meist in Stellungen, die sie ohnehin
+verloren hätte. Gegen einen Menschen kann das anders aussehen — der Harness
+misst KI gegen KI und sagt dazu nichts.
+
+#### Behoben wurde stattdessen das Kriterium — auf falscher Grundlage
+
+`resignAreaMargin` (damaliger Default 30, heute `-1` — siehe Korrektur unten)
+verlangte, dass **auch** die Gebietsschätzung
+verloren sagt. `estimateArea` ist dafür kein neuer willkürlicher Maßstab: auf
+allen vier Stellungen liefert es exakt dasselbe wie `finalAreaScore`, also die
+Endabrechnung des Spiels. Die vier Rückstände lagen bei −6, +3, +11 und +13
+Punkten; ab Marge 14 wären alle vier verhindert, 30 lässt Luft. Bei echtem
+Rückstand wird weiterhin aufgegeben.
+
+Bewusste Unschärfe: Komi 7,5 fließt nicht ein — die Engine ist komi-blind, und
+den Worker dafür an den Zählmodus zu koppeln wäre der teurere Fehler. Weiß gibt
+dadurch um 7,5 Punkte zu früh auf, Schwarz ebenso viel zu spät.
+
+> **Korrektur (21.09.).** Der Satz „liefert exakt dasselbe wie
+> `finalAreaScore`" ist der tragende Teil dieser Begründung, und er ist falsch.
+> Verglichen wurde gegen eine Nachbildung ohne `resolveLifeAndDeath` (siehe
+> [oben](#die-korrektur-2109-die-gegenprobe-war-blind)). Gegen die echte
+> Endabrechnung weichen alle vier Stellungen ab, um 6 bis 53 Punkte.
+>
+> Damit fällt der Anlass: die vier Aufgaben waren keine Fehlalarme. Gemessen
+> am heutigen Default **blockiert Marge 30 alle vier** — also genau die
+> Aufgaben, die richtig waren. Der Parameter unterdrückt, wofür er gebaut
+> wurde.
+>
+> Die Gegenprobe, die weiterhin trägt: bei den sieben Easy-Niederlagen sind
+> roher und echter Maßstab identisch (kein einziger toter Stein), die
+> Rückstände liegen bei 47 bis 153 Punkten, und Marge 30 lässt dort jede
+> Aufgabe zu. Das Kriterium schadet also nicht überall — es stützt sich nur
+> auf einen Befund, den es nicht gibt.
+>
+> **Gemessen und abgeschaltet (21.09.).** Die Dosisreihe steht
+> [weiter unten](#resignareamargin-stark-wirksam-ohne-messbare-folge): der
+> Parameter greift hart, kostet aber keine messbare Spielstärke — und ihn zu
+> entfernen ebenfalls nicht. Entschieden hat deshalb nicht die Messung, sondern
+> der widerlegte Anlass. **Default jetzt `-1`, das Kriterium ist aus;** Q allein
+> entscheidet wieder über die Aufgabe.
+
+**Fürs Auswerten von Spielständen:** `reproduktion.board` ist die Stellung
+**vor** dem letzten KI-Zug — es ist die Eingabe, mit der die KI gerechnet hat
+(`mc`, `lastMove` und `aiColor` passen dazu). `meta.zug` und die ASCII-Anzeige
+`brett` zeigen dagegen die Stellung danach. Beide sind korrekt, aber sie
+liegen einen Zug auseinander.
+
+### Randspiel im Mittelspiel: Diagnose bestätigt, Therapie widerlegt
+
+Die KI spielt im Mittelspiel deutlich zu oft am Rand. Nach dominierendem
+Experten gebucketet (fünf Hard-Partien, alle `RE[B+R]`, also von der KI
+aufgegeben):
+
+| Experte | Stellungen | Zugbereich | verfügbar | Heuristik Top-1 | KI gespielt | Mensch |
+|---|---:|---:|---:|---:|---:|---:|
+| `evalOpening` | 45 | 2–18 | 39 % | 0 % | 0 % | 0 % |
+| `evalMidgame` | 150 | 20–78 | 39 % | 58 % | 68 % | 17 % |
+| `evalEndgame` | 476 | 80–326 | 42 % | 53 % | 42 % | 29 % |
+
+„Verfügbar" ist der Anteil der legalen Züge auf Linie 1-2 — die Nulllinie.
+Eröffnung und Endspiel sind unauffällig; die Lücke sitzt allein im Mittelspiel.
+
+**Warnung zur Methode:** Ein Bucket nach Zugnummer misst hier falsch. Bei
+`openingMoves 20` und `endgameMoves 80` spannt „Zug 51–150" über zwei Experten.
+Dieser Fehler ist in diesem Projekt zweimal passiert und hat jedes Mal eine
+falsche Zuordnung erzeugt. Nach Phasengewicht bucketen, nicht nach Zugnummer.
+
+`evalMidgame` hat keinen Positionsterm. Die Ablation aller `mid*`-Parameter
+zeigt `midLibBonus` als Treiber: auf 0 gesetzt fällt der Anteil Top-1 auf
+Linie 1-2 von 60 % auf 17 %. Ursache ist, dass `lib` die Freiheitszahl der
+entstehenden **Gruppe** ist — ein Zug an eine bestehende Kette erbt deren
+Freiheiten, und Freiheiten sind dort am billigsten, wo niemand widerspricht.
+
+#### Den Term zu deckeln hilft nicht — gemessen
+
+`midLibCap` deckelt `lib` wie `midExtBonus` es mit `Math.min(ext, 12)` tut.
+A/B gegen Default 99, je eigener Kontrollarm, 250 ms/Zug, Farbwechsel:
+
+| `midLibCap` | 12 | 8 | 6 | 4 | gepoolt |
+|---|---:|---:|---:|---:|---:|
+| Partien | 15 | 14 | 13 | 14 | 56 |
+| Siegrate des Deckels | 20 % | 29 % | 31 % | 14 % | **23 %** |
+
+Exakter Binomialtest einseitig p = 3,7 · 10⁻⁵; Simulationen pro Zug in jedem
+Lauf gleich. Der Schaden zeigt **keine Dosis-Abstufung**: `cap=12` greift nur
+bei 4,8 % der Kandidatenzüge und kostet trotzdem rund 30 Punkte Siegrate. Die
+seltenen Stellungen mit über zwölf Gruppenfreiheiten sind die entscheidenden —
+der Term trägt Randanreiz **und** Kampfbewertung, und ein harter Schnitt trifft
+beide. Der Parameter bleibt mit Default 99 als Negativbefund stehen.
+
+Zwei Nachprüfungen, weil beide den Befund hätten kippen können:
+
+**Misst die Siegrate den Resign-Detektor?** 41 der 56 Partien endeten durch
+Aufgabe, 38 davon durch die gedeckelte Seite. Test über den mitgeschriebenen
+Gebietsstand bei Partieende: in **38 von 38** Fällen lag die aufgebende Seite
+tatsächlich hinten, im Mittel 76 Punkte. Die Aufgaben waren berechtigt, die
+Siegrate misst nicht den Detektor.
+
+**Der Mechanismus, bestätigt.** Bestätigungslauf über GitHub Actions (Lauf 23,
+30 Partien, Seed 4711, A = 999 als beweisbar neutraler Kontrollarm, B = 12,
+547 gegen 546 Sims/Zug). Erlittene Schläge, gepaarter Vorzeichentest — beide
+Konfigurationen ziehen in derselben Partie:
+
+| erlittene Schläge | A (999) | B (12) | Faktor | p (einseitig) |
+|---|---:|---:|---:|---:|
+| Ø größter Einzelschlag | 9,4 | 17,7 | 1,88× | 3,1 · 10⁻² |
+| Ø Verluste ab 5 Steinen | 1,6 | 2,3 | 1,49× | 2,2 · 10⁻² |
+| Ø Steine gesamt | 23,7 | 38,7 | 1,63× | 2,6 · 10⁻³ |
+
+Die gedeckelte Seite verliert messbar größere Gruppen. Oberhalb des Deckels ist
+jede weitere Freiheit gratis, damit wird der Unterschied zwischen „atmet" und
+„eingekesselt" unsichtbar. Siegrate im selben Lauf 24:6 (20 %, p = 7,2 · 10⁻⁴)
+— identisch zur lokalen Messung bei `cap=12`, was zugleich zeigt, dass der
+Kontrollarm 99 gegen 999 praktisch keinen Unterschied machte.
+
+**Zurückgenommen:** aus 10 von 15 ausgezählten Partien war zunächst gelesen
+worden, der Schaden sei „konzentriert, nicht flächig". Lauf 23 liefert dort 2
+von 9, gepoolt 12 von 24 — eine Münze. Die Aussage war das Rauschen, das bei
+ihr selbst angemerkt war.
+
+Der Default ist **999** und damit beweisbar neutral: Freiheiten sind
+verschiedene leere Punkte, also ≤ 361. Vorher stand 99 mit empirischer
+Begründung — eine konstruierte Kammkette hat 162 Freiheiten, dort hätte 99
+geschnitten.
+
+#### Weiche Sättigung hilft auch nicht — und widerlegt die Erklärung
+
+Naheliegende Antwort auf den gescheiterten Deckel: nicht abschneiden, sondern
+dämpfen, damit der Grenznutzen fällt statt auf null zu springen. `midLibSoft`
+tut das über eine Kniestelle — unterhalb von k exakt `lib`, oberhalb
+`k + (lib−k)/(1+(lib−k)/k)`, Grenznutzen `1/(1+d/k)²`, fallend aber strikt
+positiv. Statischer Randanteil des Top-1 fällt monoton: 60 % bei k=0 auf 29 %
+bei k=6.
+
+Zwei Läufe à 30 Partien, A = aus:
+
+| Variante | Siegrate B | Ø größter Schlag A→B | p (Verlust) |
+|---|---:|---:|---:|
+| weich k=6 (Rand 29 %) | 5:25 = **17 %** | 7,0 → 16,0 (2,27×) | 3,0 · 10⁻⁵ |
+| weich k=12 (Rand 47 %) | 5:25 = **17 %** | 7,7 → 12,4 (1,61×) | 7,2 · 10⁻⁴ |
+| harter Deckel 12 (Referenz) | 6:24 = 20 % | 9,4 → 17,7 (1,88×) | 3,1 · 10⁻² |
+
+Siegrate-p je 1,6 · 10⁻⁴. Sims/Zug in beiden Läufen gleich.
+
+**Die Gradienten-Erklärung ist damit widerlegt.** Sie lautete: der harte Deckel
+scheitert, weil er den Grenznutzen auf exakt null setzt und die KI für Leben
+und Tod großer Gruppen blind macht. `k=12` hält den Grenznutzen bei 0,791 an
+der Stelle 13→14 und den Bereich 1–12 exakt — und verliert genauso, mit
+denselben vergrößerten Gruppenverlusten.
+
+#### Der Kontrolltest: nicht der Betrag, sondern die Spreizung
+
+`midLibBonus` gleichmäßig von 30 auf 20 (×0,67 — derselbe Faktor, den `k=12`
+bei `lib=30` erzeugt), 30 Partien: **17:13, B-Rate 43 %, zweiseitig p = 0,59**.
+Gruppenverlust 1,09–1,29× bei p ≥ 0,12. Nicht von Rauschen unterscheidbar.
+
+Eine gleichmäßige Absenkung desselben Terms um ein Drittel ist also harmlos,
+eine Kompression nur am oberen Ende kostet 30 Punkte. Beiträge zum Score
+(Gewicht × f(lib)):
+
+| lib | Basis 30×lib | uniform 20×lib | Knie k=12 (30×f) |
+|---:|---:|---:|---:|
+| 4 | 120 | 80 | 120 |
+| 12 | 360 | 240 | 360 |
+| 30 | 900 | 600 | **576** |
+| 34 | 1020 | 680 | 593 |
+
+Bei `lib=30` liegt der Knie-Beitrag mit 576 **unter** dem uniformen mit 600 —
+der schädliche Eingriff hat dort den kleineren Betrag. „Absoluter Betrag bei
+hohen Freiheitszahlen" ist damit als Erklärung ebenfalls widerlegt, und mit ihr
+die Lesart „lokales Optimum, jede Störung kostet": die uniforme Störung trifft
+jeden Zug, ist also größer, und kostet nichts.
+
+**Was übrig bleibt und von allen drei Läufen getragen wird: die Spreizung.**
+`f(30)/f(4)` ist 7,50 in der Basis, 7,50 bei uniformer Absenkung — und 4,80
+beim Knie. Die Rangfolge zwischen einem Zug mit vielen und einem mit wenigen
+Gruppenfreiheiten muss erhalten bleiben; das Gewicht dieser Rangfolge gegenüber
+anderen Termen darf sich ändern.
+
+Damit ist auch erklärt, warum drei Eingriffe scheitern mussten: der Randvorteil
+**ist** die hohe Freiheitszahl. Jeder Eingriff, der Randspiel über diesen Term
+dämpft, komprimiert notwendig dessen Spreizung. Der Freiheitsterm ist als Hebel
+strukturell unbrauchbar. Was fehlt, ist ein eigener Positionsterm in
+`evalMidgame` — das Gegenstück zu `openLineWeight`. Ungemessen.
+
+### Der entkoppelte Positionsterm: erster Eingriff ohne Schaden
+
+Nach drei gescheiterten Eingriffen am Freiheitsterm ist `midLineWeight` additiv
+— ein eigener Summand, kein Faktor auf `lib`, sodass die tragende Spreizung
+`f(30)/f(4) = 7,50` unberührt bleibt. `MID_LINIE` bestraft die erste Linie
+voll, die zweite halb, ab der dritten neutral; kein Zentrumsbonus, damit die
+Dosisreihe eindeutig bleibt.
+
+Statischer Randanteil des Top-1 (Nulllinie 39 %, Mensch 17 %): 60 / 48 / 46 /
+34 / 5 / 1 % bei Gewicht 0 / 10 / 20 / 40 / 80 / 160 — monoton, ab 80 unter der
+menschlichen Rate.
+
+Vier Läufe à 30 Partien, A = 0:
+
+| Gewicht | A : B | B-Rate | Ø größter erlittener Schlag A → B |
+|---:|---:|---:|---:|
+| 20 | 12:18 | 60 % | 11,8 → 10,6 |
+| 40 | 16:14 | 47 % | 12,7 → 12,3 |
+| 60 | 12:18 | 60 % | 13,1 → 10,9 |
+| 80 | 12:18 | 60 % | 19,1 → 10,1 |
+
+Gepoolt **68:52 über 120 Partien, B-Rate 56,7 %**, 95 %-CI (Clopper-Pearson)
+**47,3 – 65,7 %**. Sims/Zug je Lauf gleich.
+
+**Belegt:** der Term kostet keine Spielstärke. Das CI schließt die
+Größenordnung der drei gescheiterten Eingriffe aus (harter Deckel 20 %, CI
+7,7–38,6; weich k=6 und k=12 je 17 %, CI 5,6–34,7). Der Gruppenverlust sinkt in
+allen vier Läufen statt zu steigen — das Gegenrisiko der Vorgänger tritt nicht
+auf.
+
+**Nicht belegt:** ein Spielstärke-Gewinn. Das CI enthält 50 %, einseitig
+p = 0,085, und es gibt keinen Dosis-Trend (60/47/60/60 ist flach).
+
+#### Nachmessung auf Dosis 60: 210 Partien, Gewinn bleibt unbelegt
+
+Sechs weitere Läufe (Seeds 7200–7205), gepoolt mit dem ersten Lauf dort.
+Einzelergebnisse 60 / 50 / 53 / 47 / 57 / 50 / 57 %:
+
+| | B : A | B-Rate | 95 %-CI | p (zweiseitig) |
+|---|---:|---:|---:|---:|
+| Dosis 60 (210 Partien) | 112:98 | 53,3 % | 46,3 – 60,2 % | 0,37 |
+| alle Dosen (300 Partien) | 162:138 | 54,0 % | 48,2 – 59,7 % | 0,18 |
+
+Die 60 % des ersten Laufs waren überwiegend Rauschen — genau die Regression
+zur Mitte, vor der bei der Einzelzahl gewarnt war. Ein Gewinn ist damit
+weiterhin **nicht belegt**.
+
+Was 300 Partien dagegen fest machen: **der Term schadet nicht.** Das
+Konfidenzintervall liegt vollständig oberhalb der drei gescheiterten Eingriffe
+(harter Deckel 20 %, CI 7,7–38,6; weich k=6 und k=12 je 17 %, CI 5,6–34,7).
+Der Gruppenverlust bleibt günstig: Ø größter Einzelschlag 12,4 → 10,5, B
+kleiner in 111 von 205 entschiedenen Paaren (einseitig p = 0,13 — ein Trend
+ohne Signifikanz, aber in keinem Fall die Verschlechterung, an der die
+Vorgänger gescheitert sind).
+
+Der Default bleibt 0. Die Frage abschließend zu entscheiden bräuchte rund
+1500 Partien für einen 54-%-Effekt; das steht in keinem Verhältnis zum
+erwarteten Nutzen.
+
+### Der Sterbe-Abschlag: Ehrlichkeit ist gratis, aber sie repariert nichts
+
+Ausgangspunkt waren zwei Partielogs, in denen große eigene Gruppen plötzlich
+starben. Die Autopsie (Zug 274 der rekonstruierten Partie, alle acht
+Schlagzahlen als Prüfsumme verifiziert) schloss Suchtiefe und Move-Ordering
+aus: von 275 auf 20 000 Simulationen wählt die Engine denselben Zug mit
+demselben Q, und die Crisis-Heuristik feuerte korrekt. Die Ursache liegt in
+`evaluateBoard`, die eine 22er-Kette mit zwei Freiheiten als vollwertiges
+Material zählt — mit Gruppe +78, ohne Gruppe −532.
+
+`deathDiscount` schlägt große Gruppen mit wenigen Freiheiten ab, symmetrisch
+für beide Farben, über eine Rampe 1 / 1 / 0,5 / 0,25 nach Freiheiten. Er greift
+über 254 Stellungen und 4938 Gruppen bei 1,6 % — chirurgisch.
+
+Vier Läufe à 30 Partien, A = 0, Sims/Zug paritätisch 657:657:
+
+| Dosis | B-Siege | B-Rate | 95 %-CI | p (exakt) |
+|---:|---:|---:|---:|---:|
+| 0,25 | 17/30 | 56,7 % | 37,4 – 74,5 % | 0,585 |
+| 0,50 | 16/30 | 53,3 % | 34,3 – 71,7 % | 0,856 |
+| 0,75 | 15/30 | 50,0 % | 31,3 – 68,7 % | 1,000 |
+| 1,00 | 17/30 | 56,7 % | 37,4 – 74,5 % | 0,585 |
+| **gepoolt** | **65/120** | **54,2 %** | **44,8 – 63,3 %** | **0,411** |
+
+Kein Dosis-Trend. Die vorab benannte Sorge — der Abschlag könne rettbare
+Gruppen abschreiben oder die Engine beim Töten passiv machen — tritt nicht ein.
+Im direkten Duell ist der zugefügte Verlust der einen Seite der erlittene der
+anderen, und B fügt *mehr* zu als A (gepaart, n = 120):
+
+| erlitten | A | B | Vorzeichentest |
+|---|---:|---:|---:|
+| größter Einzelschlag | 12,8 | 10,4 | 65:49, p = 0,16 |
+| Gesamtverlust | 32,1 | 29,1 | 68:50, p = 0,12 |
+| Schläge ab 5 Steinen | 1,85 | 1,91 | 48:49, p = 1,00 |
+
+Aufgaben: A gibt 41× auf, B 32×, bei ähnlichem Zug (329 vs. 334) und ähnlichem
+Rückstand (57 vs. 52 Punkte) — kein Frühaufgabe-Schaden.
+
+**Belegt:** der Term macht Q ehrlich (Zug 274: +0,23 → −0,35), ohne
+Spielstärke zu kosten. **Nicht belegt:** ein Gewinn.
+
+**Was er strukturell nicht kann**, und das ist der eigentliche Befund: der
+Abschlag schließt nur ~20 % der Bewertungslücke. Er kann höchstens den
+Eigenwert der Gruppe entfernen (22×5 + 2×3 = 116 Punkte). Die restlichen ~490
+sind der Gefangenen-Bonus, den der *Gegner* beim Schlagen erhält (22 Steine ×
+`captureWeight` 20 = 440). Eine ehrliche Bewertung müsste die Gruppe
+**übertragen**, nicht nur abschlagen. Default 0.
+
+### Die Übertragung: erster Hinweis auf einen echten Gewinn
+
+`deathTransfer` bucht den fehlenden Gefangenen-Bonus: die sterbende Gruppe
+gilt anteilig als bereits geschlagen, über dieselbe Freiheiten-Rampe. Das ist
+kein Gebietsterm — `evaluateBoard` benutzt `estimateArea` nicht, und die
+gemessene Lücke besteht aus Material und Gefangenen, nicht aus Gebiet.
+
+An der rekonstruierten Stellung vor Zug 274 (Zielwert −532, Basis +78):
+Abschlag 1,00 allein schließt 20 %, Übertragung 1,00 allein 77 %, beide
+zusammen **97 %**.
+
+Vier Läufe à 30 Partien, A = 0, `deathDiscount` = 0, Sims/Zug 582:583:
+
+| Dosis | B-Siege | B-Rate | 95 %-CI | p (exakt) |
+|---:|---:|---:|---:|---:|
+| 0,25 | 16/30 | 53,3 % | 34,3–71,7 % | 0,856 |
+| 0,50 | 15/30 | 50,0 % | 31,3–68,7 % | 1,000 |
+| 0,75 | 19/30 | 63,3 % | 43,9–80,1 % | 0,200 |
+| 1,00 | 21/30 | 70,0 % | 50,6–85,3 % | 0,043 |
+| **gepoolt** | **71/120** | **59,2 %** | **49,8–68,0 %** | **0,055** |
+
+**Nicht belegt.** Das gepoolte CI enthält 50 %; die 70 % bei Dosis 1,00 sind
+eine von vier Dosen (Bonferroni p = 0,17); der Trendtest über die Dosis gibt
+z = 1,58, p = 0,11. Der Rauschboden sagt, bei 120 Partien ist erst ab ~59 %
+etwas nachweisbar — der Wert liegt genau auf der Kante. Und `midLineWeight`
+zeigte im ersten Lauf 60 % und fiel über 210 Partien auf 53 %: dieselbe Form.
+
+**Besser belegt ist der Wirkmechanismus.** Der erlittene größte Einzelschlag
+sinkt von 14,2 auf 9,9 Steine, gepaart über 120 Partien 73:45, p = 0,013 —
+und zwar dosisabhängig, im selben Muster wie die Siegrate:
+
+| Dosis | Ø größter erlitten A → B | Vorzeichen B:A | p |
+|---:|---:|---:|---:|
+| 0,25 | 11,6 → 11,7 | 16:14 | 0,856 |
+| 0,50 | 12,7 → 10,0 | 14:15 | 1,000 |
+| 0,75 | 19,1 → 8,6 | 22:8 | 0,016 |
+| 1,00 | 13,3 → 9,2 | 21:8 | 0,024 |
+
+Die Engine verliert seltener große Gruppen, genau ab der Dosis, ab der auch
+die Siegrate steigt. Der Mechanismus ist damit besser abgesichert als die
+Wirkung, die er erzeugen soll.
+
+**Das vorab benannte Hauptrisiko tritt nicht ein.** Die Sorge war, die
+Übertragung drücke Q so früh unter `resignQ`, dass rettbare Partien
+abgeschrieben werden — in der Einzelpartie-Analyse fiel Q schon bei Zug 262
+auf −0,87 statt +0,24. Gemessen ergibt sich das Gegenteil: A gibt 39× auf
+(Ø Zug 322, Ø Rückstand 48,7 Punkte), B nur 25× (Ø Zug 323, Ø Rückstand
+54,6 Punkte). B gibt seltener und bei größerem Rückstand auf — plausibel,
+weil B seltener in die Lage gerät, in der Q kollabiert.
+
+#### Nachmessung auf Dosis 1,00: 210 Partien, der Gewinn hält
+
+Sechs weitere Läufe (Seeds 8200–8205), gepoolt mit Lauf 44. Einzelergebnisse
+70 / 80 / 60 / 70 / 57 / 50 / 70 %. **Kein Lauf unter 50 %.**
+
+| | B : A | B-Rate | 95 %-CI | p (zweiseitig) |
+|---|---:|---:|---:|---:|
+| Dosis 1,00 (210 Partien) | 137:73 | **65,2 %** | **58,4 – 71,7 %** | 1,2 · 10⁻⁵ |
+| alle Dosen (300 Partien) | 187:113 | 62,3 % | 56,6 – 67,8 % | 2,3 · 10⁻⁵ |
+
+Die Regression zur Mitte, die `midLineWeight` entzaubert hat, tritt hier
+nicht ein — die Rate steigt sogar von 59 auf 65 %. Das Konfidenzintervall
+liegt vollständig über 50 %. **Das ist der erste belegte Spielstärkegewinn
+dieses Projekts.**
+
+Der Gruppenverlust folgt in allen drei Maßen, gepaart über 210 Partien:
+
+| erlitten | A | B | Vorzeichentest |
+|---|---:|---:|---:|
+| größter Einzelschlag | 12,9 | 10,3 | 130:68, p = 1,3 · 10⁻⁵ |
+| Gesamtverlust | 34,8 | 27,8 | 135:71, p = 9,7 · 10⁻⁶ |
+| Schläge ab 5 Steinen | 2,36 | 1,60 | 121:55, p = 7,2 · 10⁻⁷ |
+
+Aufgaben: A gibt 78× auf (Ø Zug 324, Ø Rückstand 50,6 Punkte), B nur 29×
+(Ø Zug 335, Ø Rückstand 60,8). Bemerkenswert, weil **A die optimistische
+Bewertung hat** und trotzdem fast dreimal so oft aufgibt — A steht wirklich
+häufiger verloren, es ist kein Schwellenartefakt.
+
+**Einschränkung, und sie gehört dazu:** der Effekt sitzt fast ganz in den
+durch Aufgabe entschiedenen Partien.
+
+| | B-Rate | 95 %-CI | p |
+|---|---:|---:|---:|
+| nur ausgezählte Partien (n = 103) | 57,3 % | 47,2 – 67,0 % | 0,17 |
+| nur Partien mit Aufgabe (n = 107) | 72,9 % | 63,4 – 81,0 % | 2,4 · 10⁻⁶ |
+
+Das passt zum Mechanismus, statt ihm zu widersprechen: der Term greift bei
+1,6 % der Gruppen, nämlich genau dann, wenn eine große Gruppe stirbt. Ruhige
+Partien zählt er aus wie vorher (Ø Endmarge −3,0 Punkte aus A-Sicht); Partien
+mit Katastrophe entscheidet er. **Der Term verhindert Desaster, er verbessert
+nicht das Endspiel.**
+
+Confounds geprüft: Farbbalance exakt 105:105, B gewinnt in beiden Rollen
+(70,5 % als Weiß-Gegner, 60,0 % als Schwarz-Gegner); Sims/Zug 570:571.
+
+#### Default gesetzt: `deathTransfer = 1,0`
+
+Nach Vorlage der 210-Partien-Messung vom Projektinhaber freigegeben. Damit ist
+dies **der erste Parameter dieses Projekts, der aufgrund eines belegten
+Spielstärkegewinns aktiv geschaltet wurde**. Alle Vorgänger — `captureWeight`,
+`openLineWeight`, `midLibCap`, `midLibSoft`, `midLineWeight`, `deathDiscount` —
+blieben auf ihrem neutralen Wert, weil die Messung den Gewinn nicht hergab.
+(`midLineWeight` ist später nachgezogen — siehe unten; zum Zeitpunkt dieser
+Freigabe stand es noch auf 0.)
+
+Abschaltbarkeit geprüft, nicht behauptet: mit `deathTransfer = 0` ist der Stand
+über 6554 `evaluateBoard`-Aufrufe **bitgenau identisch** zum Vorstand. Als
+Gegenprobe derselbe Vergleich ohne Erzwingen — 1758 Abweichungen, der Default
+wirkt also wirklich. Ein Test, der in beide Richtungen prüft, ist einer, dem man
+glauben kann; einer, der nur Gleichheit zeigt, könnte auch nur schlafen.
+
+#### Abschlag *plus* Übertragung: weitgehend redundant
+
+Letzte offene Frage der Serie: bringt `deathDiscount` auf der Übertragungs-Basis
+noch etwas? An der Einzelstellung schließen beide zusammen 97 % der Lücke statt
+77 %. A = `deathTransfer 1,0` + `deathDiscount 0` gegen B = beide auf 1,0,
+Sims/Zug 586:586.
+
+| | B : A | B-Rate | 95 %-CI | p |
+|---|---:|---:|---:|---:|
+| erster Durchgang (120 Partien) | 71:49 | 59,2 % | 49,8–68,0 % | 0,055 |
+| Nachmessung (180 Partien) | 97:83 | 53,9 % | 46,3–61,3 % | 0,33 |
+| **gepoolt (300 Partien)** | **168:132** | **56,0 %** | **50,2–61,7 %** | **0,043** |
+
+Das ist der `midLineWeight`-Verlauf, nicht der `deathTransfer`-Verlauf: die Rate
+**fällt** bei mehr Partien statt zu steigen. Beim Transfer ging sie von 59,2 auf
+65,2 % hoch, hier von 59,2 auf 53,9 % herunter.
+
+Beim Wirkmechanismus noch deutlicher. Erster Durchgang: erlittener größter
+Einzelschlag 13,11 → 9,75, gepaart 69:45, p = 0,031. Nachmessung: 12,49 → 11,98,
+93:83, **p = 0,50**. Über alle 300 Partien 12,74 → 11,09, 162:128, p = 0,053.
+Der Mechanismus-Effekt, der beim reinen Transfer bei p = 1,3 · 10⁻⁵ lag, ist
+hier nicht belegbar.
+
+**Befund: weitgehend redundant.** Ein kleiner Restnutzen ist nicht
+ausgeschlossen — gepoolt p = 0,043 —, aber die untere CI-Grenze liegt bei 50,2 %
+und der Effekt *schrumpft* mit wachsendem n. Das ist die Signatur von Rauschen,
+nicht die eines echten Effekts. Zum Vergleich: der Transfer lieferte bei nur 210
+Partien 65,2 % mit CI 58,4–71,7 %. Default bleibt 0.
+
+#### Der methodische Ertrag: „Prozent der Lücke geschlossen" ist keine Zielgröße
+
+Der Befund reicht über den Parameter hinaus. Die Serie hat eine 610-Punkte-Lücke
+in `evaluateBoard` freigelegt und drei Eingriffe daran gemessen:
+
+| Eingriff | Lücke geschlossen | Siegrate |
+|---|---:|---:|
+| `deathDiscount` allein | 20 % | 54,2 % (n = 120), nicht belegt |
+| `deathTransfer` allein | 77 % | **65,2 %** (n = 210), belegt |
+| beide zusammen | 97 % | 56,0 % (n = 300), im Rauschen |
+
+Die beiden Spalten laufen nicht parallel. Die letzten 20 Prozentpunkte der Lücke
+kosten nichts und bringen nichts. Die Lücke war nie linear in Spielstärke
+umrechenbar — sie war der Wegweiser zur richtigen Ursache, nicht das Maß des
+Erfolgs. Wer eine Bewertungsfunktion nach „wie nah am ehrlichen Wert" optimiert,
+optimiert eine Hilfsgröße.
+
+### Randspiel als Ursache: erst verworfen, in der Nachmessung belegt
+
+Fünf Partien gegen einen Menschen (alle mit `deathTransfer 1,0`) legten eine
+Synthese nahe: die KI schlägt in fünf Partien **keine einzige** Gruppe ab 5
+Steinen, verliert aber neun — und fünf der neun sind Randgruppen mit 70–100 %
+ihrer Steine auf Linie 1–2. Es sind die späten, spielentscheidenden (Zug 213,
+249, 271, 313, 317, 345). In `3120944b` führt die KI bei Zug 325 mit 20,5
+Punkten, verliert bei Zug 345 eine 16er-Randkette und verliert mit 13,5.
+
+These: `deathTransfer` heilt die *Fehlbewertung* toter Gruppen,
+`midLineWeight` verhindert ihre *Entstehung*. Dafür kam die Randanteil-
+Telemetrie in den Harness.
+
+A = `deathTransfer 1,0` + `midLineWeight 0`, B = plus 40 bzw. 80, je 120
+Partien, Sims/Zug paritätisch.
+
+**Der Eingriff trifft die Struktur, zweifelsfrei:**
+
+| Dosis | Randanteil A → B | gepaart | p |
+|---:|---|---:|---:|
+| 40 | 38,2 % → 32,6 % | 83:37 | 3,2 · 10⁻⁵ |
+| 80 | 40,8 % → 30,1 % | 97:23 | 5,3 · 10⁻¹² |
+
+**Die Spielstärke folgt nicht:**
+
+| Dosis | B-Siege | Rate | 95 %-CI | p (Bonferroni ×2) |
+|---:|---:|---:|---:|---:|
+| 40 | 61/120 | 50,8 % | 41,6–60,1 % | 0,93 (1,00) |
+| 80 | 67/120 | 55,8 % | 46,5–64,9 % | 0,235 (0,47) |
+
+Auch das Zwischenglied trägt kaum: Gruppenverlust bei Dosis 80 nur
+11,78 → 10,79 (p = 0,16); Schläge ab 5 Steinen 2,23 → 1,77 (p = 0,043,
+Bonferroni 0,086). Der Vorteil sitzt zudem ganz in den Aufgabe-Partien — in
+den ausgezählten steht B bei 48,2 %.
+
+**Korrektur einer eigenen Aussage.** Der Rauchtest zur Telemetrie ergab für
+die Baseline 50,7 % und schien damit die 51,0 % aus den Menschpartien zu
+bestätigen — das wurde hier zunächst als Validierung der Diagnose verbucht.
+Zu stark: bei vollem Budget (250 ms, ~550 Sims/Zug) liegt die Baseline bei
+**38–41 %**, der Rauchtest lief mit 60 ms. Die Übereinstimmung hing am
+kleinen Budget.
+
+Das ist selbst ein Befund: **mehr Suche senkt das Randkriechen schon von
+allein** (60 ms: 50,7 % · 250 ms: 38–41 %). Ein Teil der Randneigung ist
+Symptom flacher Suche, nicht des Bewertungsterms. Dazu passt, dass die
+einzige Menschpartie mit sicher hohem Budget den niedrigsten Randanteil aller
+fünf hatte (33,3 %) und der klarste KI-Sieg war.
+
+#### Nachmessung auf Dosis 80: die Kette schließt sich
+
+Erwartet war Regression zur Mitte. Eingetreten ist das Gegenteil:
+
+| | B : A | B-Rate | 95 %-CI | p |
+|---|---:|---:|---:|---:|
+| erster Durchgang (120) | 67:53 | 55,8 % | 46,5–64,9 % | 0,235 |
+| Nachmessung (180) | 109:71 | **60,6 %** | **53,0–67,7 %** | 0,0057 |
+| gepoolt (300) | 176:124 | 58,7 % | 52,9–64,3 % | 0,0032 |
+
+Die unabhängige Zahl ist die **Nachmessung allein: 60,6 %**. Der gepoolte Wert
+enthält den ersten Durchgang, der gerade wegen seines Anscheins zur
+Nachmessung ausgewählt wurde, und ist dadurch leicht nach oben verzerrt. Beide
+liegen vollständig über 50 %.
+
+**Alle drei Glieder der Kausalkette sind belegt:**
+
+| Glied | A → B | gepaart | p |
+|---|---|---:|---:|
+| Randanteil | 41,5 % → 29,8 % | 245:55 | 8,8 · 10⁻³⁰ |
+| größter Einzelschlag | 13,19 → 10,69 | 180:111 | 6,2 · 10⁻⁵ |
+| Gesamtverlust | 35,53 → 29,36 | 179:119 | 6,1 · 10⁻⁴ |
+| Schläge ab 5 Steinen | 2,33 → 1,71 | 160:93 | 3,0 · 10⁻⁵ |
+| **Siegrate** | | **58,7 %** | **0,0032** |
+
+Die Dosis-Wirkung stützt die Kausalität zusätzlich: Gewicht 40 senkt den
+Randanteil um 5,6 Punkte und bringt 50,8 %; Gewicht 80 senkt ihn um 11,7
+Punkte und bringt 58,7 %. Aufgaben A 101× / B 66×. Sims 552:553,
+Farbbalance exakt 150:150.
+
+**Revidiert** wird damit die Einschätzung nach dem ersten Durchgang, die
+Synthese stehe schlecht. Sie war verfrüht: 120 Partien konnten zwischen
+55,8 % als Rauschen und als echtem Effekt nicht unterscheiden, und die
+Vermutung fiel auf die falsche Seite. Der Befund aus den Menschpartien —
+Randgruppen sterben, und sie entscheiden die Partien — ist nicht nur richtig
+beobachtet, sondern auch richtig kausal gedeutet.
+
+Was das nicht aufhebt: mehr Suche senkt den Randanteil ebenfalls (60 ms
+50,7 %, 250 ms 38–41 %). Beide Wege wirken auf dieselbe Schwäche; ob sie sich
+addieren, ist ungemessen.
+
+#### Default gesetzt: `midLineWeight = 80`
+
+Vom Projektinhaber freigegeben. Damit ist dies der **zweite** Parameter des
+Projekts, der aufgrund eines belegten Spielstärkegewinns aktiv geschaltet
+wurde — und der erste, bei dem nicht nur die Wirkung, sondern auch die
+**Ursache** durchgemessen ist: bei `deathTransfer` steht die Siegrate allein,
+hier steht die Kette Randanteil → Gruppenverlust → Siegrate.
+
+**Abschaltbarkeit geprüft, beide Richtungen**, 28 802 `evalMidgame`-Aufrufe je
+Variante über 60 Stellungen von 10 bis 305 Steinen:
+
+| Richtung | Ergebnis |
+|---|---|
+| auf 0 zurückgesetzt | **bitgenau identisch** zum Vorstand, 0 Abweichungen |
+| auf dem Default 80 | Differenz **genau** der Linienabschlag, 0 Abweichungen |
+| | Linie 1: −80 · Linie 2: −40 · ab Linie 3: exakt 0 |
+| | wirksam auf 10 714 von 28 802 Zügen = 37,2 % |
+
+Die 37,2 % sind keine Eigenschaft des Parameters, sondern der Geometrie: auf
+19×19 liegen 136 der 361 Punkte auf Linie 1–2, also 37,7 %. Die Messung trifft
+den Erwartungswert — der Abschlag greift auf allen Randpunkten und auf keinem
+anderen.
+
+Zwei Dinge gingen beim ersten Anlauf der Probe schief und stehen deshalb hier.
+`evalMidgame` endet auf `s + Math.random() * 4`, einem Rauschterm zur
+Zugstreuung; ohne deterministisch gesetzten Generator vergleicht die Probe
+Rauschen statt Bewertung, und der erste Durchlauf meldete prompt 100 %
+Abweichung. Und Bit-Gleichheit ist nur ab Linie 3 die richtige Forderung: auf
+Linie 1–2 verschiebt der zusätzliche Summand die Rundung der Gleitkommasumme um
+ein ULP (größte beobachtete Abweichung 2,3 · 10⁻¹³). Dort Bit-Gleichheit zu
+verlangen hieße, Rundung für einen Fehler zu halten — der zweite Durchlauf
+meldete 1580 „Abweichungen", von denen keine eine war.
+
+**Was der Default nicht trägt**, ausdrücklich: alles Gemessene ist Selfplay. Der
+Anlass dieser ganzen Spur war gerade, dass ein Selfplay-Gewinn gegen einen
+Menschen verpuffen kann, wenn beide Seiten dieselbe Schwäche teilen — genau so
+war es bei `deathTransfer` (65 % im Selfplay, gegen einen Menschen
+unauffällig). Hier ist das Risiko geringer, weil der Term auf die *Entstehung*
+des Randkriechens zielt und der Mensch diese Struktur nicht hat (Randanteil
+20,7 % gegen 51,0 %). Geringer ist aber nicht gemessen; der Beleg gegen einen
+Menschen fehlt und wird nicht behauptet.
+
+**Vorbehalt für bestehende Installationen:** `dashSave` serialisiert das ganze
+`PARAMS`-Objekt, `dashLoad` schreibt jeden Schlüssel zurück. Wer im Dashboard je
+„Speichern" gedrückt hat, hat `midLineWeight: 0` in `localStorage`
+festgeschrieben und bekommt den neuen Default **nicht**, bis er „Zurücksetzen"
+drückt. Das ist Absicht der Speicherfunktion — eine gespeicherte Konfiguration
+soll nicht von einem Update überschrieben werden —, heißt aber: der neue Default
+wirkt nur für frische Profile und nach einem Reset.
+
+### Die KI erstickt ihre eigene Gruppe: `atariSizeWeight`
+
+Zwei Partien gegen einen Menschen (13.09., KI als Weiß) brachten einen Befund
+anderer Art als die bisherigen. In der zweiten, über 407 Züge, hatte die KI in
+der linken unteren Ecke eine Gruppe mit **über 30 Zügen lang konstant vier
+Freiheiten** (B2, A1, E3, E1). Schwarz passte neunmal in Folge. Die KI zog in
+dieser Zeit zehnmal — F19, G19, J19, M19, L19, O19, A15, S3, T2, S1, **alle auf
+Rand-Abstand 0 oder 1**, keiner an der Gruppe. Dann setzte sie sich in drei
+Zügen selbst matt:
+
+| Zug | Weiß spielt | Gruppe | Freiheiten | `evalEndgame` |
+|---:|---|---:|---|---:|
+| 394 | E3 | 35 → 36 | 4 → 3 | **+0,2** |
+| 396 | A1 | 36 → 37 | 3 → 2 | **+0,3** |
+| 398 | E1 | 37 → 38 | 2 → 1 | −399,7 |
+| 399 | *Schwarz B2* | — | — | **38 geschlagen** |
+
+Der Gebietsstand fiel dadurch von −13 auf −52. Die Bewertungen sind an genau
+diesen Stellungen gemessen, der Rauschterm über 400 Aufrufe ausgemittelt.
+
+Zwei Lücken stecken darin. **Freiheitsverlust oberhalb von Atari kostet
+nichts** — der Bewerter kennt nur `if (lib === 1 && cap === 0)`. Und die
+**Atari-Strafe ist flach**: 38 Steine kosten dieselben 400 wie ein einzelner
+Stein. In Area-Wertung kostet der Verlust 38 Gebietspunkte plus 38 Gefangene,
+in Einheiten von `endAreaGain` also rund 2280.
+
+`atariSizeWeight` greift die zweite an: `Strafe = Basis × (1 + w × (Größe − 1))`,
+für Mittel- und Endspiel gemeinsam. Multiplikativ, weil die beiden Evaluatoren
+auf verschiedenen Skalen rechnen (`midCapBonus` 800 gegen `endCapBonus` 18) —
+eine additive Konstante je Stein bräuchte zwei Parameter und damit zwei
+Dosisachsen. Der Freiheitsterm oberhalb von Atari bleibt bewusst unangetastet:
+ein zweiter Eingriff machte die Dosisreihe mehrdeutig.
+
+An der echten Stellung, für E1 mit einer 38er-Gruppe:
+
+| `atariSizeWeight` | Strafe |
+|---:|---:|
+| 0 (Default) | −400 |
+| 0,05 | −1140 |
+| 0,1 | −1880 |
+| 0,25 | −4100 |
+
+Ein Einzelstein im Atari bleibt bei jedem Gewicht unverändert bei −400, weil
+der Faktor bei Größe 1 exakt 1 ist.
+
+**Was nicht belegt ist:** dass diese Lücke den Zug in jener Partie *verursacht*
+hat. Mit kaltem Suchbaum und 2000 ms passt die Engine in derselben Stellung,
+statt E3 zu spielen — in alter wie neuer Konfiguration. Der Unterschied kann an
+Tree-Reuse, Budget oder Zughistorie liegen und ist ungeklärt. Belegt ist die
+Lücke im Bewerter, nicht ihre Wirkung im Spiel.
+
+**Geprüft, drei Richtungen.** `countGroupSize` — eine allokationsfreie
+Primitive nach dem Muster von `countLiberties` — stimmt über 5253
+Gruppenabfragen exakt mit `floodFill` überein. Mit Gewicht 0 sind
+`evalMidgame` und `evalEndgame` über 36 748 Aufrufpaare **bitgleich** zum
+Vorstand, bei identischem Zufallsverbrauch. Mit Gewicht 0,1 ändert sich die
+Bewertung um **genau** den vorhergesagten Betrag und nur auf Zügen mit
+Selbst-Atari (2,69 % der geprüften Züge), größte Abweichung 1,1 · 10⁻¹³.
+
+Ein eigener Wächter im Harness zählt, wo die Entscheidung fällt: Aufrufe der
+Skalierung je Zug, Anteil an Gruppen ab 6 Steinen, größte berührte Gruppe.
+Rauchtest über 4 Partien: Arm A (Gewicht 0) **0,00** Aufrufe je Zug, Arm B
+(0,1) **1,98**, größte berührte Gruppe 17 Steine. Ein Arm ohne Aufrufe wäre
+nicht verdrahtet, und ein Nullergebnis dort bedeutungslos.
+
+#### Gemessen: die Lücke ist real, ihre Behebung bringt nichts
+
+Läufe 83–88, drei Dosen zu je 120 Partien:
+
+| Dosis | B-Siege | Rate | 95 %-CI | p (Bonferroni ×3) |
+|---:|---:|---:|---:|---:|
+| 0,05 | 65/120 | 54,2 % | 44,8–63,3 % | 0,41 (1,00) |
+| 0,1 | 57/120 | 47,5 % | 38,3–56,8 % | 0,65 (1,00) |
+| 0,25 | 57/120 | 47,5 % | 38,3–56,8 % | 0,65 (1,00) |
+| **gepoolt** | **179/360** | **49,7 %** | 44,4–55,0 % | 0,96 |
+
+Kein Gewinn, kein Dosis-Trend — die Punktschätzer *fallen* mit der Dosis. Der
+Eingriff ist dabei nachweislich aktiv: der Wächter zählt in Arm A 0,00 Aufrufe
+je Zug, in Arm B 2,54 bis 3,15, mit größten berührten Gruppen von 37 bis 100
+Steinen. Auch die Mechanismus-Metrik trägt nicht: Ø größter erlittener Schlag
+12,05 → 11,65 (−3,3 %), Schläge ab 5 Steinen 806 → 800, Gesamtverlust
+12 079 → 11 845.
+
+**Der eigentliche Befund dieses Laufs ist methodisch.** Je Dosis sah der
+Gruppenverlust so aus: 0,05 → −13,5 %, 0,1 → −2,1 %, 0,25 → +7,0 %. Das liest
+sich wie eine saubere, wenn auch unerwünschte Dosis-Wirkung. Es ist keine:
+
+| | |
+|---|---|
+| Streuung der **Kontrollarme** allein | 11,3 bis 13,3 (18 %) |
+| Korrelation Kontrollarm ↔ gemessene „Verbesserung" | **r = −0,90** |
+
+Je schlechter der Kontrollarm zufällig ausfiel, desto größer die scheinbare
+Wirkung — und die Dosis 0,05 hat zufällig die beiden schlechtesten erwischt
+(13,3 und 12,7). Das ist Regression zur Mitte, nicht Dosis-Wirkung. Dass jeder
+Lauf seinen eigenen Kontrollarm trägt, schützt gegen *Verzerrung*, nicht gegen
+diese Täuschung: bei drei Dosen zu je zwei Läufen ist die Zuordnung guter und
+schlechter Kontrollarme zu den Dosen selbst zufällig. Die Gegenprüfung ist
+billig — die Streuung der Kontrollarme neben die Effektgröße legen — und
+gehört ab jetzt zu jeder Dosisreihe.
+
+Damit ist dies der **dritte** Eingriff dieser Art: ein real belegter Defekt,
+dessen Behebung messbar nichts bringt (Min-Sims-Boden, Hungerzone, jetzt die
+Atari-Skalierung). Power-Vorbehalt, vorab benannt: 120 Partien je Dosis lösen
+erst ab rund 63 % auf.
+
+Der Default bleibt 0. Der Parameter bleibt im Code, weil die Messung ihn
+belegt und weil er abschaltbar geprüft ist — nicht, weil er wirkt.
+
+### Der Freiheitsterm oberhalb von Atari: `endLibPressure`
+
+`atariSizeWeight` hat nur den letzten Schritt teurer gemacht (2→1 Freiheiten) —
+und da war es schon zu spät. Der Fehler sind die beiden davor: 4→3 kostete
++0,2, 3→2 kostete +0,3. `endLibPressure` greift sie an, mit
+`Strafe = Gewicht × Gruppengröße / Freiheiten` für 2 und 3 Freiheiten.
+
+Der Term ist viel breiter als sein Vorgänger: er feuert auf **34 %** aller
+geprüften Endspielzüge, gegen 2,7 % bei `atariSizeWeight`. Deshalb begann die
+Dosisreihe niedrig.
+
+| Dosis | B-Siege | Rate | 95 %-CI | p (Bonferroni ×3) |
+|---:|---:|---:|---:|---:|
+| 5 | 63/120 | 52,5 % | 43,2–61,7 % | 0,65 (1,00) |
+| 15 | 61/120 | 50,8 % | 41,6–60,1 % | 0,93 (1,00) |
+| 40 | 68/120 | 56,7 % | 47,3–65,7 % | 0,17 (0,51) |
+| **gepoolt** | **192/360** | **53,3 %** | 48,0–58,6 % | 0,225 |
+
+Verdrahtet: Wächter A 0,00 Aufrufe je Zug, B 42,5–45,3, größte berührte Gruppe
+37 bis 175 Steine. Die Mechanismus-Metrik zeigt in die richtige Richtung —
+Ø größter erlittener Schlag 11,72 → 10,50, Schläge ab 5 Steinen 704 → 636,
+Gesamtverlust 11 409 → 10 292, jeweils B besser in 5 von 6 Läufen (p = 0,22).
+
+**Unentschieden, nicht belegt.** Zwei Vorbehalte stehen ausdrücklich dagegen.
+Die Kontrollarme streuen für sich zwischen 9,3 und 15,6 (68 %), und die
+Korrelation zwischen Kontrollarm und gemessener Verbesserung liegt wieder bei
+**r = −0,90** — die Dosiszeile ist damit nicht als Dosis-Wirkung lesbar. Und
+ein einzelner Lauf trägt die Hälfte: ohne `r90`, dessen Kontrollarm mit 15,6
+der schlechteste der Serie war, fällt der gepoolte Gruppenverlust von −10,4 %
+auf −4,0 %.
+
+Was die sechs Läufe dennoch zeigen, und was `r90` nicht allein erklärt, ist die
+**Streuung**:
+
+| | Spanne | SD | ohne `r90` |
+|---|---|---:|---:|
+| Kontrollarm A | 9,3–15,6 | 2,21 | 1,25 |
+| Testarm B | 9,6–11,8 | **0,82** | 0,92 |
+
+B hat in keinem Lauf eine Katastrophenserie. Das ist genau das, was ein
+Freiheitsdruck tun sollte: nicht den Schnitt senken, sondern den Schwanz
+abschneiden. Belegt ist es damit nicht — sechs Läufe sind für eine
+Varianzaussage wenig.
+
+#### Nachmessung auf Dosis 40: der erste belegte Bewertungsfix
+
+Erwartet war Regression zur Mitte. Eingetreten ist das Gegenteil.
+
+| | B : A | Rate | 95 %-CI | p |
+|---|---:|---:|---:|---:|
+| erster Durchgang (120) | 68:52 | 56,7 % | 47,3–65,7 % | 0,17 |
+| **Nachmessung (180)** | **123:57** | **68,3 %** | **61,0–75,1 %** | **9,7 · 10⁻⁷** |
+| gepoolt (300) | 191:109 | 63,7 % | 57,9–69,1 % | 2,6 · 10⁻⁶ |
+
+Die unabhängige Zahl ist die **Nachmessung allein**; der gepoolte Wert enthält
+den Durchgang, der wegen seines Anscheins zur Nachmessung ausgewählt wurde.
+Einzelläufe 42:18 · 39:21 · 42:18 — kein Ausreißer trägt das Ergebnis. Die
+Mechanismus-Metrik trägt mit: Ø größter erlittener Schlag 12,23 → 9,30
+(−24,0 %, B besser in 3/3), Schläge ab 5 Steinen 378 → 298, Gesamtverlust
+6073 → 4685.
+
+**Warum das diesmal keine Regression zur Mitte ist** — die Prüfung, an der
+`atariSizeWeight` und der erste Durchgang gescheitert sind:
+
+| | Streuung der Kontrollarme |
+|---|---|
+| erster Durchgang | 9,3 bis 15,6 — **68 %** |
+| Nachmessung | 11,9 bis 12,8 — **8 %** |
+
+Im ersten Durchgang war die Streuung der Kontrollarme so groß wie der gesuchte
+Effekt; hier ist sie ein Drittel davon. Ein Effekt von −24 % kann aus einer
+8-Prozent-Streuung nicht entstehen. Die Korrelation liegt zwar wieder bei
+r = −0,81, aber über drei Punkte mit 8 % Spannweite beschreibt sie Rauschen,
+nicht den Effekt.
+
+Confounds geprüft: Sims 622:622, 619:618, 890:888; Zeit −0,6/−0,8/−0,8 %, also
+wenn überhaupt zu Bs Ungunsten; Komi-0-Wertung in gleicher Richtung.
+**Code-Identität geprüft**, weil die Durchgänge auf verschiedenen Commits
+liefen: der Diff ist reiner Kommentar, und über 48 552 Bewertungspaare liefern
+beide Stände bitgleiche Werte.
+
+Offen bleibt, dass die beiden Durchgänge sich mit p = 0,040 unterscheiden. Das
+ist mit Zufall vereinbar, heißt aber: die wahre Rate liegt eher im Bereich
+57–75 % als genau bei 68 %.
+
+Damit ist dies nach `midLineWeight` der **zweite Eingriff mit belegtem
+Spielstärkegewinn** — und der erste, der einen *Bewertungsfehler* behebt statt
+einer Gewohnheit. Die vier Vorgänger dieser Art waren allesamt wirkungslos.
+
+#### Default gesetzt: `endLibPressure = 40`
+
+Vom Projektinhaber freigegeben. **Dritter Parameter des Projekts, der auf
+belegter Spielstärke aktiviert wird** — nach `deathTransfer` und
+`midLineWeight`, und der mit der stärksten Beweislage.
+
+Abschaltbarkeit geprüft, beide Richtungen, 18 228 `evalEndgame`-Aufrufe je
+Variante über 40 Stellungen von 20 bis 332 Steinen:
+
+| Richtung | Ergebnis |
+|---|---|
+| auf 0 zurückgesetzt | **bitgleich** zum Vorstand, gleicher Zufallsverbrauch |
+| auf dem Default 40 | Änderung **genau** Gewicht × Größe / Freiheiten, nur auf Zügen mit 2–3 Freiheiten |
+
+Im Harness gegengeprüft, mit vertauschten Rollen: Arm A (Default) 43,02
+Aufrufe je Zug, Arm B (erzwungen 0) 0,00.
+
+**Laufzeit:** mit dem Default wechselt der Freiheits-Deckel in
+`countLiberties` von 2 auf 4, und `countGroupSize` läuft auf dem Atari-Pfad
+mit. Gemessen kostet das nichts — in den drei Nachmessungsläufen lag die
+Gesamtzeit je Partie bei −0,6/−0,8/−0,8 % bei gleicher Simulationszahl.
+
+**Vorbehalt für bestehende Installationen**, wie bei `midLineWeight`:
+`dashSave` serialisiert das ganze `PARAMS`-Objekt, `dashLoad` schreibt jeden
+Schlüssel zurück. Wer im Dashboard je „Speichern" gedrückt hat, hat
+`endLibPressure: 0` in `localStorage` festgeschrieben und bekommt den neuen
+Default **nicht** — bis er „Zurücksetzen" drückt.
+
+### Der Augen-Überzähler: `tsumegoEyeOpenPenalty`
+
+| Dosis | B-Siege | Rate | p (Bonferroni ×3) |
+|---:|---:|---:|---:|
+| 30 | 64/120 | 53,3 % | 0,52 (1,00) |
+| 60 | 62/120 | 51,7 % | 0,78 (1,00) |
+| 100 | 54/120 | 45,0 % | 0,32 (0,95) |
+| **gepoolt** | **180/360** | **50,0 %** | 1,00 |
+
+Exakt 50,0 %, kein Dosis-Trend. Der Gruppenverlust sinkt um 4,0 %, aber die
+Kontrollarme streuen für sich um 21 % — die Zahl trägt nicht.
+
+**Der Überzähler ist bestätigt**, im vollen Spielbetrieb: über alle sechs Läufe
+sind im Mittel **25,1 %** der gezählten Augenpunkte offen (22,9 bis 26,5 %), bei
+rund 800 gezählten Augenpunkten je Zug. Jeder vierte Punkt, den der Bewerter
+„potenzielles Auge" nennt, ist einer, durch den der Gegner noch hineinlaufen
+kann. Der Defekt ist real und groß — seine Behebung ändert nichts.
+
+**Widerlegt wird damit eine eigene Erklärung.** Nach fünf Nullergebnissen und
+dem einen Treffer hatte ich vermutet, der Unterschied liege in der
+*Reichweite*: `endLibPressure` greift auf 34 % der Endspielzüge,
+`atariSizeWeight` nur auf 2,7 %. Dieser Term greift auf rund 25 % und bringt
+exakt nichts. Die Reichweite ist es nicht.
+
+Was als struktureller Unterschied übrig bleibt: `evalTsumego` wird nur über
+`getCrisisWeight` eingeblendet, also ausschließlich auf den Freiheiten einer
+Gruppe, die **bereits** in der Krise ist — dasselbe gilt für `tsumegoSunkCost`.
+`atariSizeWeight` preist Atari, den Moment, in dem es zu spät ist.
+`endLibPressure` ist der einzige Eingriff der Serie, der auf gewöhnlichen Zügen
+wirkt, *bevor* eine Gruppe in Not ist. Das ist eine Hypothese, keine Messung —
+aber die einzige, die nach diesem Lauf noch steht.
+
+### Versenkte Kosten: `tsumegoSunkCost`
+
+Eine Gruppe, die zum dritten Mal in Folge gerettet wird und immer noch keine
+Form hat, soll eher fallengelassen als weiter gefüttert werden.
+
+| Dosis | B-Siege | Rate | p (Bonferroni ×3) |
+|---:|---:|---:|---:|
+| 100 | 56/120 | 46,7 % | 0,52 (1,00) |
+| 300 | 65/120 | 54,2 % | 0,41 (1,00) |
+| 700 | 57/120 | 47,5 % | 0,65 (1,00) |
+| **gepoolt** | **178/360** | **49,4 %** | 0,87 |
+
+Kein Gewinn, kein Dosis-Trend. Der Eingriff greift dabei kräftig: Wächter
+A 0,0 %, B **24,6–30,6 %** aller Tsumego-Bewertungen.
+
+**Der Mechanismus arbeitet, dosisgeordnet.** Wie oft der B-Arm die Partie
+aufgab, je Dosis: **34 → 30 → 26**. Je teurer die Rettung, desto seltener muss
+B aufgeben — genau die erwartete Kette: Gruppe früher fallenlassen, weniger
+Material verlieren, länger im Spiel bleiben. Nur zahlt es sich nicht in Siegen
+aus.
+
+**Ein Befund unabhängig vom Parameter:** die längste ununterbrochene
+Krisendauer einer Gruppe lag je Lauf bei **48 bis 76 Zügen**. Es gibt also
+tatsächlich Gruppen, die über siebzig Züge gefüttert werden, ohne
+herauszukommen. Die Beobachtung, die den Parameter veranlasst hat, ist
+bestätigt — nur ihre Behandlung ändert nichts.
+
+**Warum die Gruppenverlust-Zahl hier nicht zählt.** Gepoolt sinkt der Ø größte
+erlittene Schlag von 13,18 auf 11,67 (−11,5 %), B besser in 4 von 6 Läufen.
+Sieht gut aus, ist aber nicht belastbar:
+
+| | Streuung der Kontrollarme | Effekt | r |
+|---|---|---:|---:|
+| `tsumegoSunkCost` | 11,1–16,1 — **45 %** | −11,5 % | −0,92 |
+| `endLibPressure` (Nachmessung) | 11,9–12,8 — **8 %** | −24,0 % | −0,81 |
+
+Hier ist die Streuung der Kontrollarme größer als der Effekt, dort ein Drittel
+davon. Derselbe Test, zwei Ausgänge — und genau dafür ist er da.
+
+Der Default bleibt 0.
+
+### Die Q-Sättigung deckeln: `captureCap`
+
+| Dosis | B-Siege | Rate | 95 %-CI | p (Bonferroni ×3) |
+|---:|---:|---:|---:|---:|
+| 200 | 67/120 | 55,8 % | 46,5–64,9 % | 0,24 (0,71) |
+| 300 | 64/120 | 53,3 % | 44,0–62,5 % | 0,52 (1,00) |
+| 400 | 52/120 | 43,3 % | 34,3–52,7 % | 0,17 (0,51) |
+| **gepoolt** | **183/360** | **50,8 %** | 45,5–56,1 % | 0,79 |
+
+Kein Gewinn. Der Deckel tut dabei nachweislich genau das, wofür er gebaut ist,
+und **beide** Wirkungen sind sauber dosisgeordnet:
+
+| Dosis | Deckel schnitt bei | Aufgabe-Siege A : B |
+|---:|---|---:|
+| 200 | 10,0 % / 9,4 % | 28 : 41 |
+| 300 | 5,0 % / 4,4 % | 31 : 31 |
+| 400 | 2,0 % / 2,3 % | 37 : 24 |
+
+Je enger der Deckel, desto seltener gibt B auf — die vorhergesagte
+Nebenwirkung, in der vorhergesagten Reihenfolge. Der Mechanismus ist bestätigt,
+der Nutzen nicht.
+
+Die **Kostenseite** ist konsistent: B erlitt in fünf von sechs Läufen *mehr*
+Schläge ab 5 Steinen (769 → 788 gepoolt). Das passt zum Eingriff — wer den
+Gefangenen-Saldo deckelt, gewichtet ihn im Spiel geringer und lässt eher große
+Gruppen fallen.
+
+Der Default bleibt 0.
+
+#### Korrektur (20.09.): der Anlass war ein Messfehler
+
+Dieser Parameter wurde gebaut, weil ich in zwei Partien gegen einen Menschen
+berichtet hatte, das Q sättige, während die Stellung noch ausgeglichen sei —
+in einem Fall sogar „Weiß liegt mit +10 vorn". Diese Gebietsstände stammten
+aus `estimateArea`. **Dieser Maßstab zählt zum Tode verurteilte, aber noch
+stehende Gruppen als lebendiges Material.** Mit der echten Schlussauswertung
+(`resolveLifeAndDeath` + `finalAreaScore`) an denselben Stellen:
+
+| | mein Maßstab | wahr |
+|---|---:|---:|
+| Partie 1, Zug 208 | −4 | **−54** |
+| Partie 2, Zug 260 | **+10** | **−16** |
+| Partie 3, Zug 250 | 0 | **−36** |
+
+Das Q hatte recht, der Maßstab nicht. Die Sättigung kam nicht daher, dass das
+Wertsignal die Stellung verliert, sondern daher, dass die Stellung verloren
+*war*. Damit fällt die Deutung, die den Parameter veranlasst hat — und ebenso
+die Korrelationszahlen (0,62 ungesättigt gegen 0,31 gesättigt), die gegen
+denselben schiefen Maßstab gerechnet sind.
+
+Das erklärt rückwirkend das Nullergebnis: hier wurde ein Problem behandelt,
+das größtenteils ein eigener Messfehler war. Die 360 Partien sind nicht
+verloren — sie zeigen, dass der Deckel nichts bringt, und jetzt ist auch klar,
+warum.
+
+**Was bestehen bleibt** ist die Arithmetik: 19 Gefangene Rückstand genügen, um
+`tanh` in den flachen Bereich zu schieben, und die Empfindlichkeit bricht dabei
+15-fach ein. Das ist eine Rechnung, keine Messung, und sie stimmt weiter — nur
+war sie in diesen Partien kein Fehlalarm.
+
+**Inzwischen nachgemessen (21.09.):** die vier Partien vom 29.08., auf die sich
+der Kommentar an `captureWeight` und die Einführung von `resignAreaMargin`
+stützen, sind betroffen — die dortige „Gegenprobe gegen `finalAreaScore`" lief
+ohne `resolveLifeAndDeath` und hatte denselben blinden Fleck. Ergebnis und
+Folgen stehen bei
+[Die Korrektur (21.09.)](#die-korrektur-2109-die-gegenprobe-war-blind).
+
+Die Zählung der wirkungslosen Eingriffe bleibt davon unberührt — `captureCap`
+ist einer, nur aus einem anderen Grund als angenommen.
+
+### Praxistest der drei Defaults, und ein Werkzeug, dem ich nicht mehr traue
+
+Erste Partie gegen einen Menschen mit `deathTransfer 1,0`, `midLineWeight 80`
+und `endLibPressure 40` gleichzeitig aktiv (20.09., 335 Züge, KI als Weiß,
+Aufgabe). Nachgespielt mit 0 Abweichungen zum Protokoll und 0 Feldunterschieden
+zum gelieferten Endbrett.
+
+**Der Randanteil ist gefallen, zum ersten Mal außerhalb der bisherigen
+Spanne:**
+
+| | KI | Mensch |
+|---|---:|---:|
+| drei Partien ohne `midLineWeight` | 51,0 / 51,3 / 52,6 % | 20,7 / 18,9 / 22,0 % |
+| **diese Partie** | **39,7 %** | 28,5 % |
+
+Der erste Hinweis, dass ein im Selfplay gemessener Parameter sich gegen einen
+Menschen überträgt. Vorbehalt: der Mensch spielte hier selbst randnäher, der
+Abstand ist also von rund 30 auf 11 Punkte geschrumpft und nicht nur die KI hat
+sich bewegt. Und es ist eine Partie.
+
+#### `estimateArea` taugt nicht als Maßstab für „wer liegt vorn"
+
+Der wichtigere Befund dieser Partie ist methodisch, und er korrigiert meine
+eigene Auswertung aus drei Partien. Ich hatte dreimal berichtet, das Q sättige,
+während die Stellung noch ausgeglichen sei. Gemessen war das mit
+`estimateArea` — und dieser Maßstab zählt zum Tode verurteilte, aber noch
+stehende Gruppen als lebendiges Material.
+
+Mit der echten Schlussauswertung (`resolveLifeAndDeath` + `finalAreaScore`)
+sieht der Verlauf dieser Partie so aus:
+
+| Zug | `estimateArea` | wahr | Q |
+|---:|---:|---:|---:|
+| 125 | +11 | +6 | −0,25 |
+| 150 | +9 | −10 | +0,01 |
+| 200 | −5 | **−47** | −0,80 |
+| 250 | 0 | **−36** | −0,98 |
+| 300 | −4 | −28 | −1,00 |
+
+Die Partie kippte zwischen Zug 125 und 200, nicht im Endspiel, wie der rohe
+Maßstab nahelegte. Die Aufgabe bei Zug 335 erfolgte bei einem wahren Rückstand
+von −65 und war eher zu spät als zu früh.
+
+**Regel für künftige Auswertungen:** „Wer liegt vorn" wird mit
+`resolveLifeAndDeath` + `finalAreaScore` beantwortet, nicht mit
+`estimateArea`. Der rohe Maßstab ist für die Engine als schnelle Heuristik
+gedacht, nicht als Schiedsrichter in der Analyse. Wo er trotzdem auftaucht,
+gilt: er begünstigt systematisch die Seite mit den todgeweihten Gruppen.
+
+Die Folgen stehen bei [`captureCap`](#die-q-sättigung-deckeln-capturecap).
+
+#### Konvention: jede Partie-Auswertung nennt ihren Maßstab
+
+Die Regel allein hätte den Fehler nicht verhindert. Er ist entstanden, weil
+nirgends stand, womit gemessen wurde — und die eine Stelle, an der es
+dranstand („gegen `finalAreaScore` geprüft"), war eine Nachbildung ohne
+`resolveLifeAndDeath`. Es hat zehn Monate gedauert, das zu bemerken, und das
+Nachbessern war jedes Mal teurer als das Hinschreiben gewesen wäre.
+
+**Ab jetzt nennt jede Partie-Auswertung — in der README, im Commit und im
+Code-Kommentar — den Maßstab beim Namen**, in einer der drei Formen:
+
+| Form | bedeutet | wann |
+|---|---|---|
+| `[roh]` | `estimateArea`, ohne Totsteinbereinigung | nur für Engine-interne Fragen, nie für „wer liegt vorn" |
+| `[benson]` | nur Benson-**bewiesen** Totes entfernt | wenn es belastbar sein muss |
+| `[voll]` | `resolveLifeAndDeath` + `finalAreaScore` | Schlussstellungen, Standardfall |
+
+Zwei Zusatzregeln, beide aus einem eigenen Fehler:
+
+1. **Eine Gegenprobe zählt nur, wenn sie einen anderen blinden Fleck hat.**
+   `finalAreaScore` ohne `resolveLifeAndDeath` gegen `estimateArea` zu
+   stellen ist keine — beide zählen tote Gruppen mit. Wer gegenprüft, sagt
+   dazu, worin sich die beiden Verfahren unterscheiden.
+2. **Auf Nicht-Schlussstellungen wird eine Spanne angegeben, keine Zahl.**
+   `[roh]` und `[voll]` sind gegenläufig verzerrt; bei einer Aufgabe im
+   Mittelspiel liegt die Wahrheit dazwischen, und `[benson]` sagt, wie viel
+   davon beweisbar ist.
+
+Das ist die dritte Regel dieser Art, nach der
+[Kontrollarm-Prüfung](#die-ki-erstickt-ihre-eigene-gruppe-atarisizeweight) und
+dem Maßstab selbst. Alle drei kosten beim Schreiben eine Zeile und haben beim
+Nicht-Schreiben Monate gekostet.
+
+#### Ein zweiter Irrtum, rechtzeitig bemerkt
+
+Zwei Zugpaare im Endspiel sahen nach einem Snapback aus: Zug 316 (Weiß schlägt
+1, verliert 6) und 326 (Weiß schlägt 1, verliert 11). Dazu gibt es eine
+passende Codestelle — die Selbst-Atari-Strafe ist in allen drei Bewertern an
+`cap === 0` gebunden, ein schlagender Zug ist also ausgenommen, und
+`evalTsumego` belohnt ihn zusätzlich mit `tsumegoCapBonus` 1200. Gemessen
+bekommen die beiden Züge +188 bzw. +2021.
+
+Nur standen beide Weiß-Gruppen **schon vor dem Zug im Atari**, mit der
+Schlagstelle als einziger Freiheit. Es war jeweils ein verlorenes
+Schlagrennen, kein Fehler; Weiß verlor einen Stein mehr als beim Nichtstun.
+Die Codestelle ist real, aber diese Partie belegt nicht, dass sie etwas kostet.
+
+### Die Hungerzone: eine echte Fehlfunktion, deren Behebung nichts bringt
+
+Eine externe Messreihe (hard gegen easy, Zugzeit und Simulationen je Zug) legte
+eine Fehlfunktion im adaptiven Zeitbudget offen:
+
+| Zug | dt (ms) | Faktor | ms/Sim | Sims |
+|---:|---:|---:|---:|---:|
+| 0 | 1817 | 1,01 | 8,8 | **206** |
+| 160 | 1815 | **1,01** | 12,9 | 141 |
+| 206 | 1859 | **1,03** | 14,3 | **130** |
+| 320 | 3891 | 2,16 | 16,9 | 234 |
+| 360 | 4142 | 2,30 | 11,9 | **349** |
+
+Die Simulationszahl bricht über **Zug 136–238** auf 130 ein, während der
+Skalierungsfaktor dort noch bei 1,03 steht. Die Kompensation kommt eine Phase
+zu spät: bei Zug 320–360 gibt es Faktor 2,2–2,3 und ohnehin wieder 234–349
+Sims. Ursache ist eine Entkopplung — ausgelöst wird über die **Kandidatenzahl**
+(`adaptiveBudgetRefEmpty`, trotz des Namens nicht die freien Felder), teuer
+wird es durch **wachsende Gruppen**: `ms/Sim` steigt ab Zug 0 stetig von 8,8
+auf 14,4.
+
+`refEmpty` heraufzusetzen lässt die Skalierung früher einsetzen. A ist der
+ausgelieferte Default, die Budgets sind aus E[factor] über das gemessene
+Kandidatenprofil abgeleitet (1,326 / 1,478 / 1,642), nicht aus Zeitquotienten.
+
+| Arm | Skalierung ab | B-Siege | Rate | 95 %-CI | p (Bonferroni ×2) |
+|---|---:|---:|---:|---:|---:|
+| B1 `ref 220` @ 224 ms | Zug 137 | 60/120 | **50,0 %** | 40,7–59,3 % | 1,00 (1,00) |
+| B2 `ref 300` @ 202 ms | Zug 62 | 65/120 | 54,2 % | 44,8–63,3 % | 0,41 (0,82) |
+
+**Dass die Behandlung stattfand, ist belegt** — ohne diesen Nachweis wäre das
+Ergebnis nicht deutbar. Anteil der Züge mit Skalierungsfaktor > 1 ab Zug 20:
+A 43,6–45,1 % · B1 63,8–65,4 % · B2 87,1–87,5 %. Vorhergesagt aus dem Profil:
+45 / 62 / 83 %. Phasensplit spät/früh 1,58 → 1,85 → 1,95. Gepoolte Zeitparität
++0,53 % und +1,58 %, beide im Band. Sims paritätisch, Farbbalance 60:60.
+
+**Befund: die Fehlfunktion ist real, das Beheben bringt nichts Messbares.**
+`ref 220` setzt die Skalierung exakt am Beginn der Hungerzone an (Zug 137 gegen
+gemessene 136) und liefert exakt 50,0 %.
+
+**Einschränkung, vorab gerechnet:** 120 Partien je Dosis erlauben einen
+Nachweis erst ab 62,8 % (80 % Power). Ein kleiner Effekt bei B2 ist nicht
+ausgeschlossen; ausgeschlossen ist ein *großer*. Zum Vergleich: `deathTransfer`
+65,2 % über 210 Partien, `midLineWeight` 58,7 % über 300. Einen 54-%-Effekt
+aufzulösen bräuchte rund 1500 Partien.
+
+Der Default bleibt 150.
+
+### `resignAreaMargin`: stark wirksam, ohne messbare Folge
+
+Der Parameter, dessen Begründung die
+[Nachmessung der vier Partien](#die-korrektur-2109-die-gegenprobe-war-blind)
+widerlegt hat. 160 Partien, A = 30 (heutiger Default) gegen vier Dosen, je
+40 Partien auf disjunkten Seeds.
+
+**Der Arm beißt, und er ist saubere Dosisordnung.** Der neue Aufgabe-Wächter
+zählt, wie oft Q die Aufgabeschwelle riss und wie oft das Gebietskriterium die
+Aufgabe dann abfing:
+
+| Lauf | B-Dosis | A fängt ab | B fängt ab | größter blockierter Rückstand B | B gab auf |
+|---|---|---:|---:|---:|---:|
+| 116 | aus (−1) | 83,3 % | **0,0 %** | 0 | 15× |
+| 117 | 0 | 77,8 % | 6,7 % | 0 | 11× |
+| 118 | 15 | 70,2 % | 58,2 % | 15 | 11× |
+| 119 | 60 | 84,9 % | **93,4 %** | 60 | 2× |
+
+Der größte blockierte Rückstand ist **exakt die Dosis** — der Parameter tut
+genau das, was auf der Packung steht. Bei Marge 30 fängt er vier von fünf
+Aufgaben ab, die Q auslösen will.
+
+**Auf die Siegrate schlägt davon nichts durch:**
+
+| B-Dosis | A : B | B-Anteil | 95 %-KI | p |
+|---|---|---:|---|---:|
+| aus (−1) | 21 : 19 | 47,5 % | [31,5; 63,9] | 0,875 |
+| 0 | 22 : 18 | 45,0 % | [29,3; 61,5] | 0,636 |
+| 15 | 20 : 20 | 50,0 % | [33,8; 66,2] | 1,000 |
+| 60 | 26 : 14 | 35,0 % | [20,6; 51,7] | 0,081 |
+| **gepoolt** | **89 : 71** | **44,4 %** | **[36,5; 52,4]** | **0,179** |
+
+Keine Dosis signifikant (kleinstes p = 0,081 gegen eine Bonferroni-Schwelle von
+0,0125), das gepoolte KI schließt 50 % ein, und die Werte sind **nicht
+dosisgeordnet** — 47,5 / 45,0 / 50,0 / 35,0 %. Derselbe Befund wie bei
+`atariSizeWeight`.
+
+Der Kontrollarm ist diesmal unauffällig: A ist in allen vier Läufen identisch
+konfiguriert, und seine unabhängigen Kennzahlen streuen nur um 11 %
+(Gruppenverlust 24,1–26,8, Randanteil 33,9–36,0 %). Die Siegrate taugt hier
+übrigens **nicht** als Kontrollarm-Maß: sie ist innerhalb eines Laufs
+nullsummig, A ist per Konstruktion 100 % minus B.
+
+#### Warum das Nullergebnis diesmal vorhersagbar war
+
+Ich hatte vorab das Gegenteil vermutet: eine Aufgabe ist eine sofortige
+Niederlage, wer seltener aufgibt kann nur gewinnen oder gleichziehen, also
+müsste die hohe Marge dominieren. **Das war falsch, und die Zahlen zeigen
+warum.** Weiterspielen wandelt eine Aufgabe-Niederlage meistens in eine
+Zähl-Niederlage um — nur manchmal in einen Sieg. Gemessen an der Kreuzung
+„Marge hat in dieser Partie eine Aufgabe abgefangen" gegen den Ausgang:
+
+| | Partien mit Block | davon gewonnen |
+|---|---:|---:|
+| A (Marge 30) | 58 | 8 (13,8 %) |
+| B (alle Dosen) | 37 | 6 (16,2 %) |
+| **zusammen** | **95** | **14 (14,7 %)** |
+
+Rund jede siebte abgefangene Aufgabe wird noch gewonnen. Hochgerechnet auf die
+20 Partien je Lauf, die überhaupt per Aufgabe endeten, ist die **Obergrenze des
+Effekts 3,2 Partien je 40 = 8,1 Prozentpunkte** — und das ist großzügig
+gerechnet. Um 8,1 Punkte mit 80 % Macht nachzuweisen, bräuchte es rund **612
+Partien je Dosis**; diese Kampagne hatte 40. Das 95 %-KI ist hier ±16 Punkte
+breit.
+
+Die Kampagne war also **unterdimensioniert, und zwar von der Bauart her**: der
+Mechanismus kann gar nicht mehr als ein Achtel der Aufgabepartien bewegen.
+Diese Zahl hätte ich vor dem Start ausrechnen können, nicht danach.
+
+Die 14,7 % sind dabei eine **Obergrenze**, keine Rettungsquote: die
+Aufgabe-Serie verlangt fünf qualifizierende Züge in Folge. Ein einzelner Block
+bricht die Serie, aber ob sie ohne ihn je fünf erreicht hätte, sagt die
+Messung nicht.
+
+#### Eine Zahl, die ich nachgeprüft und nicht erklärt habe
+
+In Lauf 119 sinken die Gesamtaufgaben von rund 20 auf 6. Der größere Teil ist
+der Mechanismus: B fängt 93,4 % seiner Aufgaben ab, es bleiben fast nur noch
+A-Aufgaben übrig, und 4 + 2 ergibt genau die 6. Aber auch **A** gab dort
+seltener auf — 4-mal gegen 6/8/11 in den anderen Läufen, bei identischer
+Konfiguration. Poisson-Streuung bei diesen Zahlen ist ±2,7; alle vier Werte
+liegen innerhalb von 1,5 sd. Das Zug-Limit ist es nicht: **keine einzige
+Partie** erreichte die 600 Züge. Also Rauschen, und kein Anlass, dafür einen
+Mechanismus zu erfinden.
+
+#### Was die Messung entscheidet und was nicht
+
+Sie kann **nicht** sagen, ob die Marge weg soll. Sie sagt zwei Dinge:
+
+1. Der Anlass ist widerlegt — die vier Aufgaben waren richtig.
+2. Die Marge kostet **keine messbare Spielstärke**, in keiner Dosis. Sie zu
+   entfernen kostet ebenfalls keine.
+
+Damit ist die Frage keine Messfrage mehr, sondern eine Geschmacksfrage: soll
+die KI bei 30 Punkten Rückstand `[roh]` — und `[roh]` unterschätzt den
+Rückstand systematisch — aufgeben oder auspielen? Gegen einen Menschen ist das
+Auspielen einer verlorenen Partie eher Ärgernis als Dienst, und genau das
+bewirkt der Parameter heute. Das Gegenteil von dem, wofür er gebaut wurde.
+
+#### Entschieden: abgeschaltet
+
+**Der Default steht jetzt auf `-1`, das Kriterium ist aus.** Q allein
+entscheidet wieder über die Aufgabe, wie vor dem vermeintlichen Fix.
+
+Den Ausschlag gab nicht die Messung — die sagt bei beiden Wegen dasselbe —,
+sondern der widerlegte Anlass. Ein Parameter, der gegen vier Fehlaufgaben
+gebaut wurde, die keine waren, hat keine Grundlage mehr. Was ohne diese
+Grundlage übrig bleibt, ist ein Kriterium, das die KI bei bis zu 30 Punkten
+Rückstand `[roh]` weiterspielen lässt, wobei `[roh]` den Rückstand systematisch
+unterschätzt.
+
+Eine größere Kampagne hätte daran nichts geändert: 612 Partien je Dosis für
+einen Effekt, dessen Obergrenze bei 8 Punkten liegt — teuer für eine Frage,
+die keine Stärkefrage ist.
+
+Die Mechanik bleibt unverändert in `gebietSagtVerloren` stehen und ist durch
+den Aufgabe-Wächter messbar. Wer das Kriterium zurückholen will, setzt einen
+Wert ≥ 0.
+
+**Nebenwirkung, die man kennen muss:** wer eine Dashboard-Konfiguration
+gespeichert hat, trägt darin weiterhin die 30 — `dashSave`/`dashLoad`
+serialisieren das gesamte `PARAMS`-Objekt. Erst „Zurücksetzen" holt den neuen
+Default.
+
+### Transfer-Wächter: was `deathTransfer` wirklich anrichtet
+
+`deathTransfer` zieht einer sterbenden Gruppe anteilig ihren Wert ab und
+schreibt ihn dem Gegner als Gefangene gut. Der Parameter steht seit Ende
+August auf 1,0 — aber niemand konnte sehen, wie oft er greift und wie groß
+der Abzug ausfällt. Der Wächter macht das sichtbar.
+
+**Hinter einem Schalter, und das ist der Punkt.** `evaluateBoard` läuft einmal
+je Simulation, bei ~500 Sims/Zug also hunderte Male pro Zug — es ist die
+heißeste Funktion der Engine. `transferTelemetrie` steht deshalb auf **0**;
+dann wird kein zusätzlicher Zweig betreten und die Zähler kosten nichts.
+
+Gemessen wird, je Farbe getrennt:
+
+| Kennzahl | Frage |
+|---|---|
+| Rufe, Gruppen, je 1000 Bewertungen | greift die Übertragung überhaupt? |
+| Abzug Ø und Maximum | wie hart trifft sie eine einzelne Gruppe? |
+| **überkompensiert** | wie oft ist der Abzug **größer als der Gruppenwert**? |
+| Gefangenen-Anteil | wie sehr beherrscht der Gefangenen-Term die Bewertung? |
+
+Die dritte Zeile ist die interessante: übersteigt der Abzug den Gruppenwert,
+zählt die Gruppe danach **negativ**, obwohl sie noch auf dem Brett steht.
+
+**Erste Ablesung, zwei Partien, ausdrücklich kein Befund:** 4973 Eingriffe,
+204,7 je 1000 Bewertungen, mittlerer Abzug 96, größter 820 — und **56 %
+überkompensiert**. Das ist eine Stichprobe von zwei Partien auf einem
+nicht reproduzierbaren Harness; ob die Quote hält und ob sie schadet, ist
+offen. Sie wäre eine Dosisreihe wert.
+
+**Bit-Identität in beide Richtungen**, über 8000 Bewertungen auf zufälligen
+Brettern, verglichen gegen den Stand vor dem Eingriff und bitgenau (nicht
+„ungefähr", `Object.is` trennt auch −0 von 0):
+
+| | Abweichungen |
+|---|---:|
+| alt gegen neu, Telemetrie **aus** | **0** |
+| alt gegen neu, Telemetrie **an** | **0** |
+
+Bei ausgeschalteter Telemetrie zählt der Wächter 0 Rufe und 0 Gruppen; bei
+eingeschalteter 8000 Rufe und 7716 Gruppen. Neutral bei 0, und er beißt
+nachweislich.
+
+#### Die Dosisreihe: die Ueberkompensation ist kein Schaden
+
+360 Partien, A = `deathTransfer 1,0` (Default) gegen drei Dosen, je zwei
+Läufe auf disjunkten Seeds, Telemetrie in **beiden** Armen. Der gemessene
+Aufschlag der Zähler ist nicht von null zu unterscheiden (−1,1 % über 40 000
+Aufrufe, also Rauschen), der Vergleich bleibt fair.
+
+**Vorab festgehalten, bevor Rechenzeit floss:** primärer Endpunkt ist die
+Ueberkompensationsquote, nicht die Siegrate. Bei 120 Partien je Dosis ist erst
+ab 60 % etwas nachweisbar, und eine *Teildosis* gegen 1,0 muss kleiner
+ausfallen als die 65,2 %, die 0 gegen 1,0 geliefert hat. Ein Nullergebnis bei
+der Siegrate war also erwartet.
+
+##### Die 56 % waren zu hoch — und es ist eine Treppe, kein Anstieg
+
+Über **10,8 Millionen** Gruppen im 1,0-Arm: **38,0 %**, nicht 56 %. Die
+Ablesung aus zwei Partien lag um die Hälfte daneben.
+
+| `deathTransfer` | überkompensiert | Gruppen |
+|---:|---:|---:|
+| 0,5 | **3,9 %** | 4,33 Mio |
+| 0,75 | 38,5 % | 3,22 Mio |
+| **1,0 (Default)** | **38,0 %** | 10,79 Mio |
+| 1,5 | **100,0 %** | 3,27 Mio |
+
+Dass 0,75 und 1,0 praktisch gleich liegen, ist kein Zufall. Die Bedingung
+`dT · RAMPE[libs] · size · captureWeight > size·5 + libs·3` ist mit
+`STERBE_RAMPE = [1, 1, 0,5, 0,25]`, `captureWeight 20` und
+`deathDiscountSize 6` reine Arithmetik:
+
+| `dT` | libs 1 | libs 2 | libs 3 | ergibt |
+|---:|---|---|---|---|
+| 0,5 | alle | nie | nie | 3,9 % |
+| 0,75 | alle | alle | nie | 38,5 % |
+| 1,0 | alle | alle | nie | 38,0 % |
+| 1,5 | alle | alle | alle | 100 % |
+
+**0,75 und 1,0 treffen dieselbe Gruppenmenge.** Zwischen diesen beiden Werten
+zu justieren kann die Ueberkompensation gar nicht verändern — die Stellschraube
+ist die Rampe, nicht die Dosis.
+
+##### Die Vermutung, die diese Kampagne ausgelöst hat, ist widerlegt
+
+Der Verdacht war: wenn der Abzug den Gruppenwert übersteigt, zählt die Gruppe
+negativ, obwohl sie noch steht — die Engine würde Stellungen zu schlecht
+bewerten. **Der Arm mit 100 % Ueberkompensation hat am besten abgeschnitten,
+nicht am schlechtesten.**
+
+| B-Dosis | A : B | B-Anteil | 95 %-KI | p |
+|---:|---|---:|---|---:|
+| 0,5 | 64 : 56 | 46,7 % | [37,5; 56,0] | 0,523 |
+| 0,75 | 69 : 51 | 42,5 % | [33,5; 51,9] | 0,120 |
+| 1,5 | 50 : 70 | **58,3 %** | [49,0; 67,3] | 0,082 |
+
+Keine Dosis signifikant (Bonferroni-Schwelle 0,0167). Die Richtung ist aber
+über alle Messungen dieselbe: **mehr Übertragung ist besser, weniger ist
+schlechter.**
+
+##### Der Mechanismus ist deutlicher als die Siegrate — wie schon 2025
+
+Gepaart **je Partie** gerechnet, nicht über Lauf-Mittelwerte: A und B spielen
+dieselbe Partie gegeneinander, der Vergleich ist von Natur aus gepaart.
+
+| B-Dosis | größter erlittener Einzelschlag | p | Gruppenverlust | p |
+|---:|---:|---:|---:|---:|
+| 0,5 | **+1,25** (B schlechter) | 0,035 | +0,19 | 0,714 |
+| 0,75 | **+1,78** (B schlechter) | 0,031 | **+2,07** | 0,034 |
+| 1,5 | −1,59 (B besser) | 0,223 | −2,17 | 0,195 |
+
+Alle vier Vorzeichen zeigen in dieselbe Richtung. Die Übertragung zu
+**senken** verschlechtert den Mechanismus messbar; sie zu **erhöhen** zeigt
+denselben Trend nach oben, ohne die Schwelle zu reißen.
+
+**Methodischer Punkt, der hier zählt:** der Kontrollarm A streut über die sechs
+Läufe um 15 % (Gruppenverlust) bzw. 24 % (größter Schlag) — in der
+Größenordnung des Effekts. Das entwertet die Tabelle oben aber **nicht**: die
+Kontrollarm-Prüfung trifft Vergleiche *zwischen* Läufen, und diese Rechnung
+ist *innerhalb* eines Laufs gepaart. Wo sie greift — bei der Siegrate je
+Dosis — habe ich sie angewandt.
+
+##### Was bleibt
+
+**Default bleibt 1,0.** Die Messung gibt keine Änderung her: 1,5 zeigt in
+jeder einzelnen Kennzahl in dieselbe Richtung, aber 58,3 % bei p = 0,082
+liegt unter der vorab festgelegten Nachweisschwelle von 60 %.
+
+Was die Kampagne **entschieden** hat, ist etwas anderes und war ihr Zweck: die
+Ueberkompensation ist kein Schaden. Damit fällt der Anlass, einen Deckel zu
+bauen, der den Abzug auf den Gruppenwert begrenzt — er hätte genau das
+weggenommen, was der beste Arm am meisten tut.
+
+Offen und billig zu klären: hält der 1,5-Trend? Bei 240 Partien je Dosis läge
+dieselbe Rate bei p = 0,012 und damit unter der Bonferroni-Schwelle. Das ist
+eine Verdopplung der Partienzahl, kein neuer Apparat.
+
+#### Nachgemessen: der 1,5-Trend war Rauschen
+
+480 Partien, 240 je Dosis, A = 1,0 gegen 1,5 und 2,0, vier disjunkte Seeds je
+Dosis. **Vorab festgehalten** war: Regression zur Mitte ist hier die
+Hauptgefahr, weil die 58,3 % das Maximum aus drei Dosen waren und
+nachträglich für die Nachmessung ausgewählt wurden. Eine Rate deutlich unter
+58 % heißt, die erste Ablesung war Rauschen.
+
+Genau das ist eingetreten — und die Rate ist nicht auf 50 % regrediert,
+sondern darunter:
+
+| Dosis | erste Kampagne (n=120) | **Nachmessung (n=240)** | 95 %-KI | p |
+|---:|---:|---:|---|---:|
+| 1,5 | 58,3 % | **43,8 %** | [37,4; 50,3] | 0,061 |
+| 2,0 | — | **51,3 %** | [44,7; 57,7] | 0,747 |
+
+Keine Dosis reißt die vorab gesetzte Bonferroni-Schwelle von 0,025. Und es
+gibt **keine Dosisordnung**: 43,8 % bei 1,5, 51,3 % bei 2,0 — nicht monoton,
+dieselbe Signatur wie bei `atariSizeWeight`.
+
+Beide Ablesungen für 1,5 zusammen: **48,6 %** über 360 Partien, KI
+[43,3; 53,9], p = 0,635. Das ist 50 %.
+
+Die beiden Kampagnen unterscheiden sich dabei stärker als Zufall allein
+erwarten ließe (Fisher exakt, p = 0,008). **Das ist kein Hinweis darauf, dass
+sich etwas geändert hätte** — beide Läufe benutzen denselben Code. Ein
+ausgewähltes Maximum gegen eine unausgewählte Wiederholung zu testen zeigt
+häufiger einen Unterschied als der Zufall: das *ist* die Regression zur Mitte.
+Der kleine p-Wert misst, wie weit die erste Ablesung oben lag.
+
+##### Der Mechanismus bei 2,0 — und warum er trotzdem nichts ändert
+
+Gepaart je Partie:
+
+| Dosis | größter erlittener Schlag | p | Gruppenverlust | p |
+|---:|---:|---:|---:|---:|
+| 1,5 | −0,25 | 0,793 | +1,00 | 0,148 |
+| 2,0 | **−1,60** | **0,016** | −1,47 | 0,059 |
+
+Bei 2,0 erleidet der Arm messbar kleinere Einzelschläge. Mit vier
+Mechanismus-Tests liegt die korrigierte Schwelle allerdings bei 0,0125, und
+0,016 reißt sie nicht — knapp, aber nicht darunter. **Vor allem übersetzt
+sich der Gewinn nicht: die Siegrate bei 2,0 ist 51,3 %.**
+
+Das ist zum dritten Mal dasselbe Muster in diesem Projekt: `deathDiscount`
+schloss 20 % der Lücke ohne Spielstärke, Abschlag plus Übertragung 97 % ohne
+Spielstärke, und jetzt senkt 2,0 die erlittenen Schläge ohne Spielstärke. Die
+Notiz von damals gilt unverändert: **ein verbesserter Mechanismus ist keine
+Zielgröße.**
+
+##### Kontrollarm: diesmal die größere Warnung
+
+Arm A ist in allen acht Läufen identisch konfiguriert und streut trotzdem um
+**28 %** (Gruppenverlust 18,93–25,10) bzw. **31 %** (größter Schlag
+7,30–9,95) — deutlich mehr als die 15/24 % der ersten Kampagne und größer
+als jeder gesuchte Effekt. Vergleiche *zwischen* Läufen tragen hier nichts.
+Die Mechanismus-Tabelle oben überlebt das, weil sie *innerhalb* eines Laufs
+gepaart rechnet; die Siegraten sind gepoolt über vier Seeds je Dosis, was die
+Streuung mittelt, aber nicht wegzaubert.
+
+##### Ergebnis
+
+**`deathTransfer` bleibt bei 1,0.** Weder 1,5 noch 2,0 zeigen einen
+Spielstärkegewinn; 1,5 liegt über 360 Partien bei 48,6 %, also auf 50 %.
+
+Der Wert 1,0 ist damit nicht nur der bestbelegte des Projekts (65,2 % gegen 0
+über 210 Partien), sondern auch gegen beide Richtungen abgesichert: senken
+verschlechtert den Mechanismus messbar, erhöhen bringt nichts.
+
+Was die zwei Kampagnen zusammen gekostet haben: 840 Partien für ein
+Nullergebnis und einen Widerruf. Was sie eingebracht haben: der Parameter ist
+jetzt in beide Richtungen vermessen, die Überkompensation ist als
+Nicht-Problem erledigt, und die Vorab-Festlegung hat funktioniert — die
+Regression zur Mitte stand als Hauptrisiko im Protokoll, bevor die Zahlen da
+waren, und ist genau so eingetreten.
+
+#### Zwei Fehler, die dabei aufgefallen sind
+
+**Der Harness-Rauchtest hat einen Namenskonflikt gefangen:** meine lokale
+Variable `mxA` gab es in dem Ausgabeblock schon. Syntaxfehler, der jeden
+Messlauf getötet hätte — bemerkt, bevor Rechenzeit verbrannt war.
+
+**Die erste Fassung der Ausgabe hat gelogen.** Sie zeigte „Gruppen je
+Bewertung **0.00**" direkt neben „50 % überkompensiert, Abzug Ø 30". Die
+Rate war so klein, dass sie auf zwei Nachkommastellen verschwand — ein Leser
+schließt daraus „greift nie" und deutet jedes Nullergebnis falsch. Jetzt
+stehen dort absolute Zahlen plus eine Rate je 1000. Ein Wächter, der eine
+missverständliche Zahl meldet, ist schlimmer als keiner: man glaubt ihm.
+
+### Der Benson-Übertrag: bewegt den Mechanismus, nicht die Partie
+
+Eine echte Partie vom 22.09. verliert bei Zug 195 achtzehn weiße Steine am
+Stück. Die Rekonstruktion widerlegte zuerst die naheliegende Vermutung: die
+Kandidatenliste war **nicht** schuld. Zwischen Zug 160 und 184 stand der Zug,
+der die Freiheiten der bedrohten Gruppe am stärksten hebt, achtmal auf Rang 1
+oder 3, und jedes dieser acht Male spielte die KI ihn. Die sieben Rang-1-Fälle
+blieben es über 200 Ziehungen, obwohl `evaluateMove` rauscht.
+
+Schuld war die Bewertung, und zwar auf eine Art, die man nur sieht, wenn man
+sie über den ganzen Kampf aufträgt: die Spitzen von `evaluateBoard` **stiegen**
+durch den gesamten Verfall (108 bei Zug 152, 153 bei Zug 184), dazwischen fiel
+der Wert immer wieder auf 42 bis 59. Der Höchstwert fiel auf Zug 184 — einen Zug,
+bevor Benson die Gruppe für unbedingt tot erklärt. Die Einschließung wuchs
+derweil von 8 auf 24 gegnerische Steine an der Gruppe. Dafür gibt es keinen
+Term. Was die Bewertung stattdessen sah, war eine Stufenfunktion auf
+Freiheiten: drei Freiheiten kosten `0,25 × 18 × 20 = 90` Punkte, vier
+Freiheiten **null**. Jede Rettung um eine Freiheit war +90 wert, der Gegner
+nahm sie mit einem Zug zurück. Achtmal.
+
+Darunter lag ein konkreter Defekt. Der Benson-Zweig in `evaluateBoard` bucht
+eine bewiesen tote Kette als Material 0 — und bog dabei **vor** dem
+Transfer-Block ab. Eine Kette im Atari kostete damit `size × captureWeight`,
+dieselbe Kette als unbedingt tot bewiesen kostete nichts. Die stärkste
+verfügbare Evidenz erzeugte die schwächste Buchung; bei geöffnetem Tor machte
+der Beweis die Lage sogar **besser** (+71 statt −188). `bensonDeathTransfer`
+(Default 0) schließt das. Mit Übertrag steht die Bewertung schon beim
+Benson-Beweis (Zug 185: −342) dort, wo sie nach dem Schlagen landet (Zug 195:
+−345). Beim Schlagen selbst springt sie bei offenem Tor ohne Übertrag um 413
+Punkte, mit Übertrag um 53.
+
+Gemessen nach vorab registrierter Planung
+([`docs/pilot-benson-defense.md`](docs/pilot-benson-defense.md)): zwei
+Vergleiche zu je **360 Partien**, getrennte Seeds, primär die Zahl der Züge
+in Gruppen, die später bewiesen sterben (V2), gepaart, Bonferroni α = 0,025.
+A–B ist inzwischen mit frischem Seed **wiederholt** (unten); B–E nicht.
+
+Erster Vergleich, Übertrag an oder aus:
+
+| | A (160/0) | B (160/1) | t | p |
+|---|---|---|---|---|
+| Züge in später sterbende Gruppen (V2) | 1,850 | 1,147 | −5,57 | < 0,0001 |
+| dieselben, je toter Gruppe | 0,346 | 0,247 | −4,08 | < 0,0001 |
+| tote Steine je Partie | 12,85 | 9,59 | −5,78 | < 0,0001 |
+| Züge unter totem Bestand | 62,33 | 53,55 | −3,88 | 0,0001 |
+| **Siegrate** | | **51,7 %** | | **n. s.** |
+
+Zweiter Vergleich, das Tor weiter öffnen — `bensonEvalMaxEmpty` von 160 auf
+361, also Benson-Analyse in **jeder** Stellung statt erst im Spätspiel:
+
+| | B (160/1) | E (361/1) | t | p |
+|---|---|---|---|---|
+| Züge in später sterbende Gruppen (V2) | 1,306 | 1,567 | +2,19 | 0,0285 |
+| dieselben, je toter Gruppe | 0,273 | 0,302 | +1,42 | 0,155 |
+| Siegrate | | 46,4 % | | n. s. |
+
+**Das Tor weiter zu öffnen hilft nicht.** Vorhergesagt war das Gegenteil:
+mit offenem Tor bewertet die Suche schon in ihren Blättern Stellungen mit
+benson-toter Gruppe, sollte den Tod also früher sehen und seltener in
+Gruppen investieren, die später sterben. Gemessen ist die Gegenrichtung — nominal p = 0,0285, also unter
+0,05, aber über der korrigierten Schwelle von 0,025; auf die Zahl toter
+Gruppen normiert nicht signifikant (p = 0,155). Weder Nutzen noch Schaden ist
+damit belegt. Getestet sind nur zwei Werte, 160 und 361 — eine
+Dosis-Wirkungs-Kurve ist das nicht. Für „dann eben das Tor aufreißen" spricht
+nichts; `bensonEvalMaxEmpty` bleibt auf 160.
+
+Projektweit ist das **kein** großer Befund: `deathTransfer` (65,2 %),
+`endLibPressure` (63,7 %) und `midLineWeight` (58,7 %) haben belegte
+Siegraten, dieser Eingriff hat keine. Der Default bleibt deshalb 0 — dieselbe
+Lage wie beim Augen-Überzähler (`tsumegoEyeOpenPenalty`): Defekt belegt,
+Behebung ohne Stärkeeffekt.
+
+**Wiederholung, vorab festgelegt** (`docs/pilot-benson-defense.md` §14–15):
+zuerst ein Kontrolllauf mit dem alten Seed, der jede Zahl der Tabelle oben
+exakt wieder ergab — damit war das neu zusammengesetzte Auswertewerkzeug
+geprüft. Dann 360 neue Partien:
+
+| | A (160/0) | B (160/1) | Differenz | p |
+|---|---|---|---|---|
+| Züge in später sterbende Gruppen, je toter Gruppe | 0,330 | 0,258 | −0,056 | 0,027 |
+| Siegrate B | | 48,3 % | | n. s. |
+
+**Repliziert, mit halbem Effekt** (Erstlauf −0,111) — der übliche Schwund
+eines Erstlaufs. Und **V2 hängt am Ausgang:** in jeder Partie investiert der
+Verlierer öfter in später sterbende Gruppen als der Gewinner, auch auf die
+Zahl toter Gruppen normiert (+0,073, p = 0,004). Der Übertrag senkt also eine
+Größe, die mit Verlieren einhergeht — und trotzdem gewinnt B über beide Läufe
+gepoolt genau 360 von 720 Partien. Der Default bleibt 0.
+
+Eine Einschränkung bleibt: Arm B sieht seiner Tor-Grenze wegen nur 39,9 % der
+V2-Gelegenheiten überhaupt voraus, A–B misst also eine verdünnte Wirkung.
+
+**Bit-Identität**, gegen Referenzwerte vom Stand vor dem Eingriff
+(Commit `0b80584`), über `Object.is`, in drei Richtungen: Regler auf 0,
+Tor geschlossen, Benson-Ebene ganz aus. Dazu der Gegenbeweis, dass er beißt —
+bei offenem Tor verschiebt er den Wert um genau die Summe über alle toten
+Ketten, im Test unabhängig nachgerechnet statt aus `evaluateBoard` abgelesen.
+
+Diese Prüfung ist **schmaler** als bei den übrigen Termen: gemessen ist die
+Identität an vier Stellungen aus einer echten Partie, nicht an Tausenden
+Zufallsbrettern. Dass sie für jede Stellung gilt, ist aus dem Code **gelesen**,
+nicht gemessen — die Abfrage steht vor der Arithmetik, bei 0 wird `s` nicht
+angefasst.
+
+Drei Dinge fielen dabei nebenbei an, die eigenständig zählen. **Der Harness
+war nicht reproduzierbar** — behoben mit `mctsFixedSims` für den
+Standardmodus, siehe „Bekannte Grenzen". **Ein Endpunkt war unmessbar, nicht
+null:** Züge, die eine bereits benson-tote Gruppe verteidigen, kommen in 80 von 80 Farb-Partien nicht vor —
+weil `bensonMoveFilter` 6000 von 6000 der dafür nötigen Punkte aus der
+Kandidatenliste entfernt. Der zweite Weg — die einschließende Kette schlagen —
+ist per Konstruktion zu; die Herleitung steht in
+[`docs/pilot-benson-defense.md`](docs/pilot-benson-defense.md) §10.2. Und **ein
+Einschließungs-Term ist nicht begründbar:** der starke
+Rohkontrast (76 % gegen 34 %) ist fast vollständig ein Freiheitseffekt; nach
+Freiheitsband geschichtet trennt Einschließung nichts (78,4 % gegen 79,2 %),
+und von 3422 Gruppen mit mindestens acht Freiheiten stirbt keine einzige
+binnen 40 Zügen.
+
+### Die Wurzel-Kandidaten sind ein Los — an Gleichständen, nicht am Rauschen
+
+MCTS prüft an der Wurzel nur die besten 16 Züge nach `evaluateMove`. Zwei
+Ziehungen auf demselben Brett teilen davon im Mittel nur 51 %. Die naheliegende
+Erklärung war das Rauschen der Phasen-Experten (`+rnd*3`, `*4`, `*0,5`, `*3`).
+Sie stimmt nicht: Wird `Math.random` während der Bewertung auf ein Millionstel
+skaliert, sodass es nur noch Gleichstände bricht, bleibt die Überlappung bei
+51,5 % — genau dem Wert, den ein reines Los an Gleichständen erwarten lässt.
+
+| Experte | Zugbereich | Gleichstand an Platz 16 | gelost von 16 | gespielter Zug aus dem Los |
+|---|---|---:|---:|---:|
+| Eröffnung | bis Zug 19 | 100 % | 5,0 | 0 % |
+| Mittelspiel | Zug 20–79 | 80 % | 4,5 | 0 % |
+| **Endspiel** | **ab Zug 80** | **99 %** | **13,2** | **37 %** |
+
+Ab Zug 80 bewertet der Endspiel-Experte allein (`endgameMoves`), und für ihn
+kostet jeder ruhige Zug in offenem Gelände dasselbe: `estimateArea` zählt nur
+umschlossene Regionen, der Zug ändert sie um genau seinen eigenen Stein, eins
+mal `endAreaGain` ist **30** — der häufigste Wert an der Grenze. Über alle
+Stellungen teilen sich im Median 45 Züge den Wert an Platz 16, und nur zwei
+stehen darüber. Mehr als jeder dritte Endspielzug, den die Engine spielt, kam
+nur per Los überhaupt in die Suche. Weniger Rauschen würde daran nichts
+ändern; gar keins wäre schlechter, dann entschiede der Feldindex.
+
+Ob das Los Spielstärke kostet, ist damit nicht gemessen. Die Rekonstruktion ist
+geprüft: ohne Tree-Reuse liegt jeder gespielte Zug in der nachgebauten Liste.
+Mit Reuse liegen 15 % der Züge darunter — sie stammen aus wiederverwendeten
+Teilbäumen, deren Kinder `quickEval` gewählt hat. Methode und Zahlen:
+[`docs/wurzel-gleichstand.md`](docs/wurzel-gleichstand.md).
+
+Zwei Versuche, das Los zu verkleinern, beide vorab festgelegt, je 360
+Partien:
+
+| Eingriff | Los im Endspiel | Siegrate des Eingriffs | Lesart |
+|---|---|---:|---|
+| Endspielgrenze `endgameMoves` 80 → 150 | 26,9 % → 16,7 % der Züge | **31,4 %** (p < 0,0001) | deutlich schwächer |
+| Einflusskarte `influenceInvade`/`influenceOwn` = 150 | Züge in der Gegnerzone 4,6 % → 10,0 % | 45,0 % (p = 0,058) | kein Effekt nachweisbar¹ |
+
+Beide Eingriffe wirken — der Mechanismus bewegt sich jeweils deutlich —, und
+keiner macht die Engine stärker. Die Phasengrenze später zu setzen verringert
+das Los, übergibt die Züge 80 bis 150 aber dem Mittelspiel-Experten, und das
+kostet weit mehr. `endgameMoves` bleibt 80, jetzt gemessen statt gesetzt; die
+Einflusskarte bleibt aus. Der Hebel wäre ein Endspiel-Experte, der offenes
+Gebiet sieht — gebaut ist er nicht. Einzelheiten:
+[`docs/endspielgrenze.md`](docs/endspielgrenze.md),
+[`docs/einflusskarte.md`](docs/einflusskarte.md).
+
+¹ Die 45 % sind zum Teil ein Effekt der Aufgabe: B gab doppelt so oft eine
+Partie auf, die weitergespielt noch zu gewinnen war (14,5 % gegen 7,3 % der
+Aufgaben). Ohne diese Fehlaufgaben liegt B bei 49,4 %. In den drei anderen
+Läufen sind die Aufgaben zu rund 95 % richtig und die Siegraten unverändert.
+Explorativ, mit dem Weiterspiel-Werkzeug:
+[`docs/aufgaben.md`](docs/aufgaben.md). Dort steht auch, warum die
+Aufgabe-Meldung jetzt die Fläche ohne beweisbar tote Steine nennt — ein
+Bug-Report hatte „Gebiet 132:123" für die aufgebende Seite gezeigt, bei 46
+toten eigenen Steinen.
+
+**Dritter Versuch, der erste mit Wirkung:** das Los nicht verschieben,
+sondern ordnen. `endTieBreak` sortiert im Endspiel-Experten nur die gleich
+bewerteten ruhigen Züge nach ihrer Wirkung auf die Einflusskarte. Vorab
+gemessen kippt er keine einzige Reihenfolge verschieden bewerteter Züge.
+
+| Lauf (je 360 Partien) | Los im Endspiel | Siegrate des Eingriffs |
+|---|---|---:|
+| Erstlauf, Seeds 20261006–09 | 38,6 % → 17,5 % der Züge | **57,2 %** (p = 0,006) |
+| Wiederholung, Seeds 20261010–13 | 38,6 % → 18,1 % der Züge | **59,4 %** (p = 0,0003) |
+
+Ohne falsche Aufgaben 57,5 % und 59,4 %. Nach der vorab festgelegten Regel
+ist `endTieBreak` = 1 seitdem der Default. Er verlängert die Antwortzeit um
+rund 10 ms (inkrementelle Einflusskarte, bitgleich zur vollen);
+das Suchbudget bleibt gleich, denn dessen Uhr startet erst nach der
+Wurzelbewertung. Anlass war auch eine echte Partie, in der Weiß von Zug 88
+bis 122 achtzehnmal in Folge aus einer Gruppe von über 140 gleich bewerteten
+Zügen zog — für den Spieler sah das aus, als ignoriere ihn die KI.
+Festlegung und Ergebnis:
+[`docs/endspiel-gleichstand.md`](docs/endspiel-gleichstand.md).
+
+**Für ältere Läufe heißt das:** Ein Arm „Default" meint seitdem
+`endTieBreak` = 1. Wer einen Lauf von vorher wiederholt, nimmt dessen Commit
+aus der Hash-Liste in [`docs/daten/`](docs/daten/). Bis zum 12.10. ging auch
+`endTieBreak=0` in beiden Armen; seit der Ko-Korrektur vom 13.10. nicht mehr
+(siehe „Für ältere Läufe“ unten). Wer im Spiel einmal Parameter gespeichert
+hat, behält den gespeicherten Wert (siehe oben, „gespeicherte Parameter
+überschreiben jeden Default"); Gespeichertes von vor dem 03.10. kennt den
+Parameter nicht und bekommt den neuen Default.
+
+### Blindheit im Laufkampf
+
+Zweimal ging in echten Partien eine große weiße Gruppe verloren, ohne dass
+sie ausbrach (22.09.: 18 Steine; 03.10.: 13 Steine). Zwischen „wenige
+Freiheiten" und dem Benson-Beweis hatte die Bewertung nichts. Ein
+Einschließungs-Term galt seit `pilot-benson-defense.md` §10.5 als
+unbegründet, weil die damalige Fassung nach Freiheiten geschichtet nichts
+trennte. Vorab festgelegt geprüft wurden vier Fassungen an 720 Partien,
+getrennt in Entwicklung und Bestätigung. Eine besteht: der **Einflussraum**,
+die Felder der eigenen Bouzy-Zone, die mit der Gruppe zusammenhängen. Bei 4–7
+Freiheiten trennt er sterbende von überlebenden Gruppen mit AUC 0,80, auf
+beiden Hälften. In beiden Partien stand er 12 bzw. 25 Züge vor dem
+Benson-Beweis auf 0. Darauf stehen zwei Parameter, beide Default 0:
+`raumGewicht` bucht gefährdete Ketten in der Stellungsbewertung anteilig
+als geschlagen, `raumZug` bewertet Wurzelkandidaten nach der Änderung
+dieses Risikos. An der Partie vom 03.10. findet die KI damit den einen
+rettenden Punkt (M11), den sie vorher nie spielte.
+
+Im A/B-Lauf (360 Partien, vorab festgelegt) gewinnt die Fassung mit beiden
+Teilen **45,3 %** (p = 0,073): kein Stärkeeffekt, eher Schaden. Sie bricht
+doppelt so oft aus (10,1 % statt 5,5 % der Züge in solchen Lagen), große
+Verluste werden aber nicht seltener. Ein Zug auf eine Freiheit ist noch
+keine Rettung; ob ein Ausbruch durchkommt, ist eine Lesefrage für die
+Suche, nicht für die Bewertung. Beide Parameter bleiben 0:
+[`docs/laufkampf.md`](docs/laufkampf.md), §8.
+
+### Gegen GNU Go: der erste fremde Gegner
+
+**Historischer Stand Anfang Oktober, vor Mustern und Endspiel-Netz.**
+Die frühen Versuche waren Selbstspiel. Der erste Pilot gegen GNU Go 3.8
+([`gnugo-duell.js`](gnugo-duell.js), über GTP) ergab **0 Siege in 39 Partien**,
+auch mit neun Vorgabesteinen gegen die schwächste Stufe und in einem Teil
+der Partien mit 1 000 Simulationen. Damals baute die KI lange Mauern,
+ließ eigene Steine im Stich und füllte am Ende ihre Flächen selbst auf.
+Pilot und Analyse: [`docs/gnugo.md`](docs/gnugo.md).
+Das ist kein Leistungsstand des heutigen Defaults.
+
+Die damalige Selbstspiel-Skalierung belegte +75 bzw. +55 Elo je Verdopplung
+im Bereich 120–480 Simulationen; ein Abflachen war nicht gesichert
+([`docs/skalierung.md`](docs/skalierung.md) §5).
+Gegen GNU Go waren es 0/8 Siege bei 1 000 und 0/17 bei 120 Simulationen.
+Diese kleinen Stichproben isolieren keinen Engpass. Die damalige
+Schlussfolgerung „Mehr Suche schließt die Lücke nicht, der Hebel liegt in
+der Bewertung“ war eine Interpretation. Die folgenden Versuche belegen
+konkrete Verbesserungen an Zugauswahl und Spielverhalten, keine allgemeine
+Entscheidung zwischen Suche und Bewertung.
+
+**Gebiet in der Zugbewertung — der größte Sprung der Reihe.** Der Mauerbau
+kommt aus dem Freiheitsterm in `evalMidgame`. Er ist absolut: Ein Stein an
+einer langen Kette erbt alle ihre Freiheiten. Den Term zu schwächen schadet,
+auch gegen GNU Go, denn er trägt das Leben der Gruppen. Gebiet in der
+Stellungsbewertung wirkt nicht, weil bei 120 Simulationen die Zugwahl fast
+ganz aus `evaluateMove` kommt. Gebiet in der **Zugbewertung** wirkt:
+`gebietZug` gibt jedem Kandidaten seine Änderung der Bouzy-Bilanz. Vorab
+festgelegt gemessen: gegen GNU Go (9 Vorgabesteine, Stufe 1) **+229 Punkte**
+in GNU Gos Schätzung nach 120 Zügen, gepaart über 56 Partien, und erstmals
+Partien, in denen GNU Go aufgibt (4 von 60). Im Selbstspiel **83,3 %** über
+360 Partien. Seitdem Default 80. Ganze Partien gegen GNU Go gehen weiter
+meist verloren, der Vorsprung schmilzt im Mittel- und Endspiel:
+[`docs/gebiet.md`](docs/gebiet.md).
+
+**Augen füllen statt passen.** In ganzen Partien passt GNU Go, sobald
+nichts mehr zu holen ist. Unsere KI passte nie: Eine tote eigene Gruppe im
+Atari verbot den Pass, obwohl kein Zug sie retten konnte. Stattdessen
+spielte sie in ihr eigenes Gebiet, bis jede Gruppe nur noch ein Auge hatte.
+57 von 60 Partien endeten so mit W +370,5, dem ganzen Brett für Weiß. Auch
+im Selbstspiel füllte die KI in 224 von 360 Partien ein eigenes echtes
+Auge. Zwei Schalter beheben das: `augenSchutz` (kein Zug in ein eigenes
+echtes Auge, auch nicht in Suche und Rollouts) und `passUnabwendbar`
+(passen, wenn kein eigener Zug den großen Gegnerzug verhindern kann).
+Vorab festgelegt gemessen: Endstand gegen GNU Go **+217 Punkte**, im
+Selbstspiel 53,9 % (nicht signifikant). Seitdem Default.
+Den großen Verlust zwischen Zug 120 und 200 behebt das nicht; GNU Go dringt
+dort in den offenen Rahmen ein. Gebiet in der Stellungsbewertung half im
+Pilot auch dagegen nicht:
+[`docs/endspiel-augen.md`](docs/endspiel-augen.md).
+
+**Falsche Aufgaben.** Eine Partie gegen einen Menschen gab die KI bei
+W +63,5 (GNU Go) auf, Q stand bei −0,99. Im Selbstspiel sind 13 % der
+Aufgaben mit `gebietZug` 80 falsch. Gebiet in der Stellungsbewertung
+verschiebt Q, behebt es aber nicht. Die Ursache liegt in den Rollouts, die
+viele schwache, aber lebende Gruppen schlagen. Befunde ohne Default:
+[`docs/falsche-aufgabe.md`](docs/falsche-aufgabe.md).
+
+**Verschenkte Züge.** Die Nachprüfungen von `mctsValueScale` und
+`endTieBreak` gegen GNU Go änderten am Endstand nichts. Eine Diagnose Zug
+für Zug zeigte warum: Ab Zug 100 setzte die KI in mehr als der Hälfte ihrer
+Züge Steine, die später geschlagen wurden oder am Ende tot waren, GNU Go in
+5–7 %. Bei einem Drittel dieser Züge wusste unser eigener taktischer Leser
+schon vorher, dass die Kette fällt. `leseVerzicht` spielt solche Züge nicht
+mehr: gegen GNU Go **+56 Punkte** im Endstand, im Selbstspiel **72,8 %**.
+Seitdem Default: [`docs/endspiel-verlust.md`](docs/endspiel-verlust.md).
+
+**Warum die Züge verschenkt werden.** Die Suche folgt mit 120 Simulationen
+fast immer dem Favoriten der Zugbewertung, und die rechnet Gebiet und
+Rettung so, als überlebe der neue Stein
+([`docs/verschenkt-warum.md`](docs/verschenkt-warum.md)). Den
+Gebietsgewinn schwacher Ketten zu dämpfen (`gebietFreiheit`) zeigte in die
+richtige Richtung, blieb aber unter der Schwelle. Eine Lücke in der Suche
+selbst war wirksamer: Übernahm sie den Baum des vorigen Zuges, kamen die
+Kandidaten an der Wurzel aus der schnellen Bewertung `quickEval`, nicht aus
+der Zugbewertung. `wurzelFrisch` bildet die Wurzel dann neu: gegen GNU Go
+**+26 Punkte**, im Selbstspiel 55,3 %. Seitdem Default:
+[`docs/wurzel-frisch.md`](docs/wurzel-frisch.md). Den Rettungsbonus der
+schnellen Bewertung auf wirksame Rettungen zu beschränken (`quickRettung`)
+brachte nichts: Ein Pilot mit +26 Punkten hielt in der vollen Messung nicht
+(−15, n. s., im Selbstspiel 51,9 %):
+[`docs/quick-rettung.md`](docs/quick-rettung.md).
+
+**Weniger verschenkte Steine sind nicht mehr Punkte.** Seit dem 10.10. wird
+gegen GNU Go ausgespielt. Zwei weitere Schalter senken die verschenkten
+Züge je Partie um fünf bis sechs, ohne den Endstand messbar zu ändern: die
+Nachmessung von `gebietFreiheit` (+8,9, n. s.) und `atariVerzicht`, der
+aussichtslose Ataris streicht (+2,4, n. s.;
+[`docs/atari-verschenkt.md`](docs/atari-verschenkt.md)). Ein verschenkter
+Stein kostet bei Flächenzählung wenig. Die Punkte gehen woanders verloren:
+In GNU Gos Schätzung liegt die KI nach Zug 120 rund 45 Punkte vorn, nach
+Zug 200 rund 45 hinten.
+
+**Wohin die Punkte gehen.** Zug für Zug gegen GNU Gos Vorschlag lässt
+sich der Verlust nicht zuordnen; der Vergleich bevorzugt erzwingende Züge.
+Eine Buchung jedes Brettpunkts nach GNU Gos Status zwischen Zug 100 und 200
+zeigt dagegen, woraus der Abstieg von 94,5 Punkten besteht (gerundet): −63
+über eigenes Gebiet, −21 netto über neutrales Gebiet, nur −20 über eigene
+Steine, die sterben, und +10, die die KI GNU Go abnimmt.
+GNU Go reduziert vom Rand her. Die KI antwortet meist direkt daneben, und
+trotzdem leben 86 % dieser Steine. Kritische große Gruppen rettet die KI in
+33 % der Fälle, GNU Go in 89 %. GNU Gos Rettungspunkt steht dann meist gar
+nicht unter den Kandidaten der Suche, obwohl der eigene Leser die Gefahr in
+zwei Dritteln der Fälle kennt:
+[`docs/punktverlust.md`](docs/punktverlust.md).
+Das betrifft 120 Partien vor den Mustern, mit neun Vorgabesteinen.
+Die anschließende Nachmessung von `leseRettung` (§8) brachte gegen GNU Go
+keinen belegten Gewinn (−6,3 Punkte, p = 0,42): Direkt gerettete Gruppen
+waren zehn Züge später fast genauso oft tot.
+
+**Nach den Mustern erneut diagnostiziert (12.10.).**
+[`docs/punktverlust-muster.md`](docs/punktverlust-muster.md) untersuchte 240
+Partien auf Commit `2816458`, ebenfalls mit neun Vorgabesteinen und noch
+ohne Endspiel-Netz. Bis Zug 80 blieb der Vorsprung erhalten, danach gingen
+rund 85 Punkte verloren, überwiegend an Gebietsgrenzen; eigene sterbende
+Steine kosteten nur noch rund 7 Punkte. In 30 % der 1 354 untersuchten
+Stellungen lag GNU Gos bester Zug außerhalb der ersten 16 Kandidaten.
+Die Such-Gegenprobe an 340 Stellungen mit 120/480/1000 Simulationen traf
+GNU Gos besten Zug in 16,5/14,4/14,4 % der Fälle. Das misst Übereinstimmung
+mit dem Lehrer, nicht die Siegquote. Die daraus entstandenen Endspiel-Muster-
+und Netzversuche sind unten abgeschlossen dokumentiert; die Diagnose ist
+kein Nachweis desselben Verlustprofils auf dem heutigen Default.
+
+**Augen zählen.** Die Krisenkarte sieht nur Freiheiten, die Engine kann
+aber auch Augen zählen, und zwar brauchbar: Wo sie zwei findet, sieht GNU
+Go in 84 % ebenfalls zwei. Augen beschreiben GNU Gos Urteil über eine
+Gruppe besser als Freiheiten, aber vor allem im Nachhinein, denn tote
+Gruppen haben keinen Augenraum. Welche lebende Gruppe als nächste stirbt,
+sagen sie kaum voraus. Keine Regel aus Augen findet die rettbaren Gruppen:
+„Kein Auge“ erfasst drei von vier kritischen Gruppen, markiert aber je
+Stellung 2,8 Gruppen der KI, von denen nur eine von zwanzig kritisch ist.
+Lebende Gruppen sterben, wenn GNU Go sie angreift und
+teilt, nicht weil sie Augen verlieren. Deshalb gibt es keinen Schalter:
+[`docs/augen-urteil.md`](docs/augen-urteil.md).
+
+**Antwort auf Annäherung.** Setzt GNU Go einen Stein nah an eine lebende
+Gruppe der KI, antwortet die KI meist lokal, aber selten mit dem Zug, den
+GNU Go auf Stufe 10 für sie spielen würde: in 31 % der Fälle, GNU Go selbst
+in der umgekehrten Lage in 78 %. GNU Gos Antwort stärkt meist die eigene
+Kette, die KI legt lieber an. Ab Zug 81 bewertet allein der
+Endspiel-Experte, und der zählt Gebiet und Angriff, aber kein Stärken.
+Der Vorsprung des KI-Zugs kommt aus `gebietZug` und der Krisenkarte. Die
+Befunde halten mit Intervallen über ganze Partien, sind also kein Rauschen.
+Ein billiger Schalter ist nicht in Sicht:
+[`docs/annaeherung.md`](docs/annaeherung.md).
+
+**Muster aus GNU-Go-Zügen.** Die Zugbewertung setzt GNU Gos Zug in 0–2 %
+der Stellungen auf Rang 1, kaum besser als Zufall. Muster, die aus 14 021
+Stellungen gelernt sind, schaffen 15–20 %. Gelernt wird, wie viel häufiger
+GNU Go auf Stufe 10 einen Zug mit dieser 3×3-Umgebung, diesem Abstand zum
+letzten Zug und auf dieser Linie wählt. Als Zusatz zur Zugbewertung
+(`musterGewicht` 200) bringen sie gegen GNU Go **+102,8 Punkte** im
+Endstand über 240 Paare, und die KI gewinnt 156 statt 13 Partien. Im
+Selbstspiel gewinnt sie 355 von 360. Seitdem Default:
+[`docs/muster.md`](docs/muster.md).
+
+**Mehr Muster sind nicht besser.** Eine zweite Tabelle, gemeinsam gelernt,
+mit taktischen Merkmalen und doppelt so vielen Lehrdaten, sagte GNU Gos Zug
+deutlich öfter voraus. Gegen GNU Go spielte sie trotzdem schlechter (−11,0
+über 240 Paare), im Selbstspiel ebenso (44,4 %). Die Piloten hatten +24
+und +11 gezeigt, das war Rauschen. Verworfen und wieder entfernt:
+[`docs/muster-ausbau.md`](docs/muster-ausbau.md).
+
+**Gebiet mit Sicherheit: erst die Obergrenze.** `gebietZug` behandelt alle
+Steine als lebendig. Wie viel ein Urteil über Leben und Tod brächte,
+zeigt ein Orakel: GNU Go auf Stufe 10 sagt der KI vor jedem Zug, welche
+Gruppen kritisch sind. Eine kritische Gruppe zählt dann nur, wenn der Zug
+sie hält. Gegen GNU Go bringt das **+13,6 Punkte** über 240 Paare (p =
+0,007). Tote Gruppen ganz wegzulassen schadet dagegen: Die KI antwortet
+dann nicht mehr bei Steinen, die als tot gelten, und der Gegner belebt sie
+wieder. Die erste Messung ergab −48,8, aber nur wegen eines Fehlers: Jeder
+Zug außer dem rettenden sackte ab, und die KI passte vorzeitig. Ein
+eigenes Urteil aus dem taktischen Leser trifft offline aber nur 3,4 % der
+Zugänderungen, die GNU Gos Urteil bewirkt, bei mehr als zehnmal so vielen
+Fehlalarmen. Die entscheidenden Gruppen leben oder sterben über Augen, und
+die kennt der Leser nicht. Dafür bräuchte es einen eigenen Leser für Leben
+und Tod: [`docs/gebiet-sicher.md`](docs/gebiet-sicher.md).
+
+**Die App zählte am Ende falsch.** Vor dem Zählen entfernte sie tote Steine
+je Kette: Lebende Randsteine verschwanden, und ein Zwei-Punkte-Auge galt als
+zwei Augen. In einer Partie vom 12.10. zeigte sie W+70,5 statt W+102,5. Die
+neue Regel `toteSteineAmEnde` beurteilt Gruppen und ihre Augenräume. An
+480 Partien gegen GNU Go trifft sie dessen Endstand in 68,5 % genau (alt:
+2,1 %) und den Sieger in 440 statt 262 Fällen. Seit dem 13.10. erkennt sie
+auch Augen mit 4 oder 5 Punkten, die leben: Eine Partie, in der Schwarz nach
+den Pässen der KI die eigenen Augen zugefüllt hatte, zählte W+304,5 statt
+B+93,5. Jetzt trifft sie GNU Go in 70,2 %. Die KI selbst ist davon nicht
+betroffen: [`docs/zaehlung.md`](docs/zaehlung.md).
+
+**Wo die Muster-KI ihre Punkte verliert.** Ab Zug 80 verliert sie gegen GNU
+Go rund 85 Punkte, fast alles als Gebiet an den Grenzen: gut die Hälfte auf
+den Linien 1 und 2, fast immer direkt an der alten Grenze. GNU Go verliert
+im selben Zeitraum ein Achtel seines Gebiets, die KI ein Drittel.
+Sterbende Steine kosten nur noch 7 Punkte. Im Endspiel spielt die KI GNU
+Gos besten Zug nur in 19 % der Züge (GNU Go Stufe 1: 69 %), obwohl er meist
+unter ihren Kandidaten steht. Weder ein einzelner Term noch mehr Suche
+(1000 statt 120 Simulationen) ändert das. Ihr fehlt ein Maß für den Wert
+eines Grenzzugs: [`docs/punktverlust-muster.md`](docs/punktverlust-muster.md).
+
+**Code-Review vom 13.10.** Ein Review der ganzen `index.html` fand neun
+echte Fehler, alle behoben und mit Tests abgesichert. Der wichtigste: Die
+Suche kannte im Baum und in den Rollouts keinen Ko-Punkt. Dazu kamen Undo
+(Superko-Verlauf, Trainingspuffer, „+R“), das Training nach einer Aufgabe,
+der Rückfall des Workers, der Notzug und das Speichern im Dashboard:
+[`docs/code-review.md`](docs/code-review.md). Die Ko-Korrektur ändert 235
+von 240 Partien gegen GNU Go, der Endstand aber bleibt gleich: +0,9 Punkte,
+95 %: [−5,3; +7,2], p = 0,77. Sie bleibt, wie vorab festgelegt.
+
+**Endspiel-Muster (19.10.).** Die Muster-KI verliert ihre Punkte im Endspiel
+an den Grenzen. *Schritt 1:* Eine Tabelle, die nur aus Stellungen ab Zug 81 mit
+der KI am Zug gelernt ist und neben dem 3×3-Muster den Abstand zu eigenen und
+fremden Steinen und zwei Ringe um den Punkt kennt, sagt GNU Gos Zug in der
+Kandidatenliste der KI deutlich öfter voraus als die Tabelle im Spiel: an 240
+frischen Partien (16 228 Stellungen), nach vorab festgelegtem Tor, Rang 1 plus
+12,6 Prozentpunkte, auf Linie 1–2 plus 8,7
+([`docs/muster-endspiel.md`](docs/muster-endspiel.md)). *Schritt 2:* Im Spiel
+verliert sie. Der Pilot gegen GNU Go (60 ausgespielte Paare je Gewicht) liegt
+bei allen vier Gewichten unter dem Default, Endstand −19 bis −38 Punkte,
+p = 0,0001 bis 0,022; die Messung entfällt nach der vorab festgelegten Regel,
+der Schalter ist wieder entfernt. Die Diagnose: Auf den Stellungen der alten
+KI zieht die Tabelle im Einzelnen besser (nach GNU Go +2,0 Punkte je
+abweichendem Zug), und die Suche folgt ihr in 83 % der Züge; aber auf den
+Stellungen, in die sie selbst führt, trifft sie GNU Gos Zug nicht mehr
+häufiger als die alte Tabelle (24,8 gegen 24,9 %, auf denen der alten KI
+31,3 gegen 19,4 %). Verschiebung der Stellungen, nicht schlechtere Züge:
+[`docs/muster-endspiel-spiel.md`](docs/muster-endspiel-spiel.md). Dagegen hilft
+die Datenaggregation (mit der Tabelle spielen, die erreichten Stellungen von GNU
+Go beschriften lassen, neu lernen, wiederholen), und sie läuft in GitHub
+Actions ([`docs/muster-endspiel-dagger.md`](docs/muster-endspiel-dagger.md)).
+*Runde 1* (46 Minuten): Die neue Tabelle spielt im Pilot (60 Paare) +22,9
+Punkte besser als die alte (95 %: [+11,1; +34,6], p = 0,0003) und gleichauf mit
+dem Default (+1,1, p = 0,89). Der Schaden ist weg, ein Gewinn noch nicht.
+*Runde 2* (47 Minuten, neue Seeds): Die Tabelle aus Runde 1 liegt wieder
+gleichauf mit dem Default (+0,7, p = 0,93), die neue bei +4,0 (95 %:
+[−14,8; +22,8], p = 0,67), also nicht signifikant. Auf Stellungen, die keine
+der beiden gesehen hat, unterscheiden sich beide offline kaum (Rang 1: 25,0
+gegen 24,8 %). *Runde 3*, die letzte (50 Minuten): Die neue Tabelle liegt bei
+−5,7 (95 %: [−20,4; +9,0], p = 0,44), die davor bei −7,0, nicht signifikant.
+Alle drei Piloten zusammen (180 Paare): −0,2 [−9,4; +9,0]. **Die Reihe endet
+damit nach der vorab festgelegten Regel als negatives Ergebnis.** Die
+Datenaggregation beseitigt den Schaden der Verschiebung (die erste Tabelle
+−21,8, die folgenden ±0) und die Tabelle trifft GNU Gos Zug auf neuen
+Stellungen etwas öfter (Rang 1 plus 2 bis 3 Prozentpunkte, Rang ≤ 16 bis plus
+18,7), aber ein Gewinn gegenüber dem Default entsteht nicht; der Schalter
+kommt nicht nach `main`, eine Messung war nach der Regel nicht vorgesehen
+([`docs/muster-endspiel-dagger.md`](docs/muster-endspiel-dagger.md) §8). Auf
+Wunsch lief sie trotzdem, in GitHub Actions und vorab festgelegt in
+[`docs/muster-endspiel-messung.md`](docs/muster-endspiel-messung.md): 240 Paare
+gegen GNU Go mit der letzten Tabelle, 10 Minuten. Ergebnis **B − A −3,7**
+(95 %: [−10,7; +3,3], p = 0,30), also nicht signifikant und ein Gewinn um 10
+Punkte ausgeschlossen: **verworfen**. Der Median liegt bei +6, der Mittelwert
+wird von wenigen großen Verlusten bestimmt (102 schlechtere Paare im Mittel
+−52,6, 135 bessere +33,2).
+
+Danach der **Orakel-Test** (19 Minuten, GitHub Actions,
+[`docs/muster-endspiel-orakel.md`](docs/muster-endspiel-orakel.md)): Er misst,
+wie viel in besseren Zügen steckt. Ein zweites GNU Go (Stufe 10) zieht für die
+KI ab Zug 81 in 25 %, 50 % oder allen ihrer Züge, oder ab Zug 161 in allen; 120
+Paare je Arm gegen GNU Go Stufe 1 mit neun Vorgabesteinen. Arm A ohne Orakel
+endet bei +22,9 mit 79 Siegen, **D100 bei +101,7 mit 120 Siegen, Differenz
++78,7** (95 %: [+68,5; +88,9]), D50 bei +32,8, D25 bei +21,3, E100 bei +34,4,
+alle p < 0,001. Ein vom Orakel geänderter Zug ist im Mittel rund 1,6 Punkte wert
+(vorab erwartet: 0,6); ohne Tabelle trifft die KI den Orakelzug in rund 25 %
+ihrer Züge. Ein Lerner müsste die gespielten Züge um 4,0 Prozentpunkte
+treffsicherer machen, um +5 Punkte zu bringen. T4 mit seinen 2 bis 3
+Prozentpunkten wäre rechnerisch rund +3 Punkte wert gewesen, weniger, als M1
+erkennen konnte; das passt zu M1, ohne es zu bestätigen. Der Gewinn hängt nicht
+am früheren Passen des Orakels (die Stellung nach dem ersten Pass ergibt den
+Endstand auf einen Punkt genau). Das sagt, dass es etwas zu holen gibt, nicht
+dass sich ein Lerner es holt. Das Orakel spielte auf dem damaligen Stand
+vor dem Endspiel-Netz; +78,7 ist deshalb kein gemessener Restspielraum des
+heutigen Defaults. Der anschließende stärkere Lerner wurde inzwischen
+offline und im Spiel geprüft und als Endspiel-Netz übernommen (unten).
+
+**Die vier offenen Parameter (20.10.).** `raveK`, `mctsPriorSharp`,
+`phaseBlendWidth` und die Pass-Kurve `passMinMc` standen seit dem ersten Commit
+im Code (`mctsPriorSharp` seit dem Softmax-Prior) und waren nie gemessen. Jetzt
+sind sie es, in einem Lauf in GitHub Actions
+([`docs/parameter-reihe.md`](docs/parameter-reihe.md), 49 Minuten, 2 670 Partien
+gegen GNU Go: zehn Arme zu 240 Paaren und eine Negativkontrolle, Schwelle je
+Vergleich α = 0,005). **`raveK` und `phaseBlendWidth` sind kein Hebel:** Ein
+Faktor 10 bei `raveK` ändert den Endstand um −1,4 und −0,4, RAVE ganz
+abzuschalten um +3,6 [−4,6; +11,7], die harte Umschaltung der Experten um −2,7, die
+dreifache Breite um +0,3. **Die Pass-Kurve ist wirkungslos, wo sie wirken
+sollte:** Die Einträge für Zug 120 und 150 tun nichts (Negativkontrolle: 30 von 30
+Partien Zug für Zug gleich, weil 8 und 10 unter 20 liegen), und auch die Höhe
+ändert den Endstand nicht (+0,2 [−0,6; +1,0] bei −50, −1,6 [−3,8; +0,6] bei 300),
+nur, wann die KI aufhört (14 Züge länger, 28 kürzer). Der Grund: Die Schwellen
+stammen aus einer Zeit mit Zugwerten in den Zehnern; heute liegt der beste
+Kandidat nach Zug 80 im Median bei 906 und fällt nur im letzten Zug unter 20.
+**`mctsPriorSharp` ist der Treffer:** Der Prior trägt (der alte Rang-Prior −58,6,
+Schärfe 1 −42,2 gegen den Default 3), und schärfer ist besser. Mit 9 gewinnt die
+KI 189 statt 149 von 240 Partien (McNemar p = 5 · 10⁻⁶), und der Endstand steigt
+um 7,3 [+0,2; +14,5], nach der vorab festgelegten Regel nur ein Hinweis (p = 0,045
+bei Schwelle 0,005). Damals blieb der Default 3 bis zur Nachmessung. Diese und die Gegenprobe
+mit Endspiel-Netz sind inzwischen abgeschlossen: 9 ist verworfen (unten).
+
+**Die Sterbe-Treppe und lebende Ketten (20.10.).** `bensonClassify` kennt die
+pass-alive-Ketten (`_bnAlive`), `evaluateBoard` fragt aber nur die toten
+(`_bnDead`), und die Sterbe-Treppe zieht bei jeder Kette mit weniger als vier
+Freiheiten und mindestens sechs Steinen ab, auch bei einer bewiesen lebenden mit
+zwei Einzelaugen (nachgebaut: aus +56 wird −44). Der Befund stimmt und ist
+häufig: In vier ganzen Partien trifft die Treppe in 38 % der Bewertungen mit
+Benson-Analyse eine lebende Kette, 13 % des Abzugs, meist die des Gegners. Der
+Schalter `bensonAliveExempt` (Default 0, bitgleich zum alten Stand: 240 von 240
+Partien) nimmt solche Ketten aus
+([`docs/benson-lebend-treppe.md`](docs/benson-lebend-treppe.md)). Gemessen in
+GitHub Actions, 240 Paare gegen GNU Go, 22 Minuten: **B − A +1,3** (95 %: [−1,3;
++4,0], p = 0,32), Siege 152 gegen 149. Ein Gewinn über +4,0 ist ausgeschlossen,
+also **verworfen**, der Default bleibt 0, und das Selbstspiel entfällt nach der
+vorab festgelegten Regel. Wie bei `bensonDeathTransfer`: Der Defekt ist belegt,
+ein Stärkegewinn nicht.
+
+**Die Nachmessung der Prior-Schärfe (20.10.).** Mit frischem Seed und 480
+Paaren hält der Befund gegen GNU Go: Schärfe 9 statt 3 bringt **+7,3** [+2,1;
++12,5] (p = 0,0064) und 365 statt 304 Siege, genau der Wert der ersten Reihe.
+Der Selbstspiel-Wächter schlägt aber an: Gegen den Default gewinnt 9 nur 25,6 %
+der Partien, und 213 der 268 Niederlagen sind eigene Aufgaben; ausgezählt steht
+es 45 zu 55. Nach der vorab festgelegten Regel heißt das: kein neuer Default,
+untersuchen ([`docs/prior-nachmessung.md`](docs/prior-nachmessung.md) §8).
+Schärfe 15 lag bei +12,7, 30 bei +3,9; die Idee, erst ab Zug 120 schärfer zu
+werden, trägt nicht (−0,3). `bensonDeathTransfer` ist jetzt auch gegen GNU Go
+gemessen: −0,8 [−2,4; +0,7], verworfen. **Nachtrag:** Auf dem neuen Default
+mit Endspiel-Netz ist Schärfe 9 schlechter, −11,4 [−18,4; −4,5], und im
+Selbstspiel ohne Aufgabe gewinnt sie nur 26,4 %. Die Aufgabe war also nicht der
+Grund. Schärfe 9 ist verworfen
+([`docs/prior-neun.md`](docs/prior-neun.md) §8).
+
+**Das Endspiel-Netz (20.10.).** Ein kleines Faltungsnetz, gelernt an 80 474
+von GNU Go Stufe 10 beschrifteten Endspielstellungen, greift ab Zug 81 an der
+Wurzel ein: Die 4 besten Netzpunkte kommen unter die Kandidaten, und der Prior
+kommt zur Hälfte vom Netz. Offline trafen die gespielten Züge GNU Gos Zug in
+34,9 % statt 18,1 % ([`docs/endspiel-lerner.md`](docs/endspiel-lerner.md)). Im
+Spiel bringt es **+46,9 Punkte** [+40,4; +53,4] und 227 statt 149 Siege von
+240, im Selbstspiel 83,1 % ([`docs/endspiel-netz.md`](docs/endspiel-netz.md)).
+Damals wurde `endspielNetz` = 0,5 Default, seit der Dosisreihe 0,8
+(unten). Alles lief in GitHub Actions.
+
+**Neuer Prüfstand: sechs Vorgabesteine (20.10.).** Mit dem Netz gewinnt die KI
+mit neun Steinen 95 % der Partien gegen GNU Go Stufe 1. Je 60 Partien mit 9, 6,
+4 und 2 Steinen ergaben 95, 53, 43 und 3 %. Nach der vorab festgelegten Regel
+spielen neue Messungen ab jetzt mit **sechs Vorgabesteinen**. Das Netz kostet
+41 ms je Zug und keine Suchzeit: 102 % der Simulationen bei 1,8 s Budget.
+Gemessen ist das in Node auf einem Rechner von GitHub Actions, nicht im Browser
+([`docs/teststaerke.md`](docs/teststaerke.md) §9).
+
+**Mehr Netz: λ 0,8 (24.10.).** Mit sechs Vorgabesteinen gemessen: Bestimmt das
+Netz den Prior der Wurzel ab Zug 81 zu 80 % statt zur Hälfte, gewinnt die KI
+gegen GNU Go **+15,5 Punkte** [+7,9; +23,1] und 154 statt 123 von 240 Partien,
+im Selbstspiel ohne Aufgabe 56,4 %. Acht statt vier Netzpunkte unter den
+Kandidaten bringen nichts (+1,3). Seitdem ist `endspielNetz` = 0,8 Default
+([`docs/netz-dosis.md`](docs/netz-dosis.md)). Noch mehr Netz bringt nichts mehr:
+λ 0,9 −1,9 und λ 1 −4,1, beide verworfen
+([`docs/netz-hoch.md`](docs/netz-hoch.md)).
+
+**Für ältere Läufe:** Ein Arm „Default" heißt seit dem 04.10. auch
+`gebietZug` = 80, `augenSchutz` = 2 und `passUnabwendbar` = 1, seit dem
+09.10. auch `leseVerzicht` = 1 und `wurzelFrisch` = 1, seit dem 11.10. auch
+`musterGewicht` = 200, seit dem 20.10. auch `endspielNetz` = 0,5, seit dem
+24.10. `endspielNetz` = 0,8.
+
+Seit dem 13.10. (Code-Review, Merge `7b05a74`) kennt die Suche den
+Ko-Punkt. Das ändert Züge, ohne dass ein Parameter es abschaltet: Von 240
+Partien gegen GNU Go weichen 235 ab, der Endstand bleibt gleich (+0,9,
+p = 0,77; [`docs/code-review.md`](docs/code-review.md) §4). **Läufe von
+vorher lassen sich deshalb nur noch auf ihrem Commit aus der Hash-Liste
+bitgleich wiederholen**, nicht mehr auf dem neuen Stand mit den Parametern
+auf 0. Geprüft am 13.10.: Die ersten vier Partien von `ausbau-20261180` auf
+Commit `6edae5d` ergeben dieselben Fingerabdrücke wie in der Hash-Liste.
+Ihre Ergebnisse bleiben gültig, weil jeder Lauf beide Arme auf demselben
+Commit verglich. Neue Messungen vergleichen beide Arme auf dem neuen Stand,
+nicht mit gespeicherten Partien von vorher.
+
+Bis zum 12.10. ging statt des Commits auch
+`gebietZug=0,augenSchutz=0,passUnabwendbar=0,leseVerzicht=0,wurzelFrisch=0,musterGewicht=0`
+(und `endTieBreak=0` für Läufe vor dem 03.10.) in beiden Armen; für Läufe
+vom 09.10. bis 11.10. reichte `musterGewicht=0`.
+
+## Methodik
+
+Drei Regeln, die aus Fehlern in diesem Projekt entstanden sind und im
+Harness-Kopf ausführlicher stehen:
+
+**Der Rauschboden ist gemessen, nicht geschätzt.** Zwei *identische*
+Konfigurationen kamen über 20 Partien auf 7:13. Alles zwischen 30 % und 70 % ist
+bei dieser Partienzahl mit reinem Zufall vereinbar — zwei früher vielversprechende
+Kandidaten (60 % und 61 %) lagen darunter und wurden zu Recht verworfen.
+
+**Erstlauf ist Hypothese, nicht Beleg.** Ein Bestätigungslauf mit frischem Seed
+und einer *vor* dem Lauf festgelegten Schwelle entscheidet. Der Höchstwert einer
+verrauschten Serie ist systematisch überschätzt, deshalb wurde beim
+Skalen-Plateau die Mitte gewählt und nicht der Spitzenwert.
+
+**Ein Nullergebnis zählt nur mit Wirksamkeitsnachweis.** Beim `resignQ`-Test
+wurde mitgezählt, dass die Schwelle unterschiedlich oft feuerte (26 gegen 18
+Aufgaben). Ohne diese Zahl wäre „der Parameter tat nichts" nicht von
+„rechtzeitiges Aufgeben kostet nichts" zu unterscheiden gewesen.
+
+**Erstläufe mit zwei Seeds parallel, nicht als ein längerer Lauf.** Beim
+`phaseNormalize`-Test lieferte der erste Seed 32,5 % bei p = 0,039 — ein
+„signifikantes" Ergebnis, das der zweite Seed mit 52,5 % nicht trug. Bei zwei
+Tests rutscht rund jeder zehnte zufällig unter 0,05. Zwei parallele Läufe
+kosten dieselbe Wanduhrzeit wie einer und nehmen die Replikation vorweg,
+statt sie nachzuschieben.
+
+**Werkzeugfehler sehen aus wie Nullergebnisse.** Der Harness übergab
+`getAIMove` jahrelang `lastMove = null`, während das Spiel den echten Wert
+übergibt. Der davon abhängige Lokalitätsterm konnte im Harness also gar nicht
+feuern — ein A/B darüber hätte strukturell 50 % geliefert. Dasselbe beim
+Policy-Netz: die Klasse stand im Haupt-Skript, `globalThis.policyNet` war im
+Harness `undefined`, der Blend-Zweig damit tot. Und selbst nach der Extraktion
+blieb ein zweites stilles Tor — `blendWeight` liefert unter zwei gespielten
+Partien 0. Vor der Deutung eines Nullergebnisses gehört deshalb der Nachweis,
+dass der Parameter im Messaufbau überhaupt erreichbar *und* wirksam war; der
+Harness zählt dafür `PHASENWECHSEL` mit, und für das Netz **zwei** Zahlen —
+Vorwärtsläufe und davon solche mit Wirkung auf die Zugwahl. Ein Zähler
+genügte nicht: seit Beobachten und Steuern getrennt sind, läuft das Netz bei
+jedem Zug, ohne deshalb etwas zu bewirken.
+
+**Ein aufgegebenes Spiel ist kein Endstand.** Gegen GNU Go zählte bei einer
+Aufgabe die Stellung, wie sie stehen blieb, oft um Zug 80. Eine Partie, die
+GNU Go nach 80 Zügen bei +107,5 aufgab, verlor die KI ausgespielt mit
+−56,5. Der Zwischenstand verdeckte genau die Schwäche, die gemessen werden
+sollte, und verrauschte die Paare. Seit dem 10.10. darf GNU Go in Messungen
+nicht mehr aufgeben (`gnugo-duell.js --gnugo-aufgabe 0`):
+[`docs/gnugo-ausspielen.md`](docs/gnugo-ausspielen.md).
+
+**Ein Nullergebnis braucht eine Teststärke.** Die Paardifferenz gegen GNU
+Go streut um rund 65 Punkte. Mit 60 Paaren erkennt M1 deshalb sicher erst
+Effekte ab rund 24 Punkten, und ein echter Gewinn von 10 Punkten fiele in
+vier von fünf Messungen durch. Ab dem 11.10. sind 240 Paare vorgesehen,
+sicher erkennbar ab rund 12 Punkten. Jede Vorabfestlegung nennt die
+erkennbare Effektgröße, jedes Ergebnis das 95-%-Intervall. Ein
+Nullergebnis heißt „nicht belegt“, nicht „kein Effekt“:
+[`docs/teststaerke.md`](docs/teststaerke.md).
+
+**Historische Berichte können korrigiert sein.** Am 30.10. wurde die
+Zuglimit-Zählung im Komponentenbericht berichtigt: Partien ohne Sieger
+werden samt Partner aus den Intervallen ausgeschlossen. Die betroffenen
+alten Berichte bleiben archiviert, die Korrektur änderte keine Entscheidung.
+Die betroffenen Läufe und korrigierten Paarzahlen stehen in
+[`docs/zuglimit-zaehlung.md`](docs/zuglimit-zaehlung.md). Bei Widersprüchen
+zwischen einem älteren Ergebnistext und einem späteren Korrektur-Nachtrag
+gilt der Nachtrag.
+
+Abgelehnte Befunde stehen als Kommentar an der jeweiligen Codestelle. Sonst
+wird derselbe Versuch in einem Jahr erneut gefahren und die Untersuchungskosten
+fallen zweimal an.
+
+## Repository
+
+```
+index.html                      Spiel und Engine, eine Datei
+ab-harness.js                   Messrahmen; Kopfkommentar = Versuchsprotokoll
+gnugo-duell.js                  KI gegen GNU Go, Fuego oder eine andere KI über GTP; GNU Go zählt
+gtp-ki.js                       die KI einer beliebigen index.html als GTP-Programm (docs/pwa-vergleich.md)
+vergleich/pwa-index.html        ältere Fassung aus der PWA, Gegner im Vergleich (docs/pwa-vergleich.md)
+distillation/                   Überwachtes Training fürs Policy-Netz
+docs/                           Versuchsprotokolle, die zu lang für den README sind
+auswertung/                     Auswertung der Rohdumps (--roh), Rechenweg der Protokolle
+auswertung/fuego/               Fuego bauen (SVN r2038) und prüfen; Fuego liegt nicht im Repo
+auswertung/komponenten/         Komponentenmessung und Folgeversuche: Arme, Spielskript, Berichte (docs/komponenten*.md u. a.)
+tests/                          Regressionstests (node tests/run.js)
+tests/stellungen/               echte Partien als Testvorlage (SGF)
+.github/workflows/tests.yml       Regressionstests bei jedem Push und PR
+.github/workflows/ab-harness.yml  Messläufe in CI, manuell startbar
+```
+
+[`tests/`](tests/) enthält Suiten für Regeln, Suche, Bewertung,
+Messrahmen und Oberfläche; die aktuelle Auswahl steht in
+[`tests/run.js`](tests/run.js). Neuere Prüfungen decken auch Zählvorschau,
+Pass-Versuchsregel und die Komponentenberichte ab. Die Tests verwenden
+dieselben `<script>`-Blöcke wie das Spiel. GNU-Go-Prüfungen benötigen GNU Go,
+Browser-Prüfungen zusätzlich Playwright; ohne diese Voraussetzungen können
+entsprechende Prüfungen übersprungen werden.
+
+[`docs/`](docs/) nimmt auf, was den README sprengen würde: eine vorab
+registrierte Versuchsplanung samt Ergebnis, mit Abschnitten, die vor den Daten
+geschrieben wurden und nachher nur als **Nachtrag** ergänzt, nie korrigiert
+werden. Sonst ist die Vorab-Registrierung wertlos.
+
+[`tests/stellungen/`](tests/stellungen/) enthält echte Partien als
+Testvorlage. Die Stellungen werden zur Laufzeit aus der SGF abgespielt, mit
+`removeDeadGroups` und `idx` **aus `index.html`** — keine handgeschriebenen
+361er-Arrays, die stillschweigend verrotten könnten. Ein Testfall belegt das
+Replay gegen den Gefangenen-Zähler, den die App selbst anzeigt, bevor sich ein
+anderer darauf beruft.
+
+[`distillation/`](distillation/) enthält die Kette, um dem Policy-Netz starke
+Züge beizubringen, statt es aus Selbstspiel lernen zu lassen — samt der
+Prüfungen, die sicherstellen, dass ein Nullergebnis am Ende auch wirklich
+eines ist.
+
+## Lizenz
+
+[PolyForm Noncommercial License 1.0.0](LICENSE)
+(<https://polyformproject.org/licenses/noncommercial/1.0.0>).
+
+Kurz und unverbindlich: Benutzen, ändern und weitergeben ist für jeden
+nichtkommerziellen Zweck erlaubt, etwa privat, zum Lernen, für die
+Forschung, in Schulen und gemeinnützigen Einrichtungen. Wer weitergibt,
+gibt die Lizenz und die Zeile `Required Notice:` aus der Datei
+[LICENSE](LICENSE) mit. Kommerzielle Nutzung braucht eine eigene
+Erlaubnis. Verbindlich ist allein der englische Lizenztext.
+
+Jede Quelldatei trägt die Zeile `Required Notice:` und die SPDX-Kennung
+`PolyForm-Noncommercial-1.0.0` im Kopf, die `index.html` dazu die URL der
+Lizenz. So bleibt der Hinweis erhalten, auch wenn jemand nur eine einzelne
+Datei kopiert.
+
+Die `index.html` trägt dazu einen Hinweis für Menschen und KI-Assistenten,
+`<meta name="author">`, `<link rel="license">` und die Kennung
+`hzb-go-05c50f43` (im Kopfkommentar und als Konstante `PROJEKT_KENNUNG`).
+Beim Start schreibt sie Urheber, Lizenz und Quelle in die Browser-Konsole.
+Nach der Kennung lassen sich Kopien der Seite im Netz suchen.
+
+Bis Commit `6557635` stand das Projekt unter der MIT-Lizenz. Wer eine
+Fassung bis dahin bezogen hat, darf diese weiter unter MIT nutzen.
