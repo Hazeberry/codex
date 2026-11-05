@@ -419,3 +419,26 @@ Ob und wie sich das ohne Orakel nutzen lässt, ist eine neue Frage mit eigener V
 `kandidaten-orakel.md` §6 und §13 gelten weiter (Verwandtschaft mit GNU Go als Hypothese). Weitere Läufe sind
 nicht gestartet.
 
+## 15. Nachtrag: Diagnose der Laufzeit und des Absturzes (05.11.2026)
+
+Die spätere Untersuchung in `Hazeberry/codex` ist abgeschlossen und gültig:
+Lauf 42130235314, Versuch 2, mit übernommenen bestandenen Fällen aus Lauf 42124976320.
+Sie reproduziert GNU-Go-Partie 127 in allen vier Armen sowie die längste Fuego-Partie
+in P und S (beide Nr. 27) mit dem historischen Spielstand dieses Hauptlaufs.
+Details und Quellen: [Diagnosebericht](diagnose-laufzeit-absturz.md), Rohdaten unter
+`docs/daten/diagnose-laufzeit-absturz/lauf1/`.
+
+- Beide Fuego-Partien reproduzieren Zugfolge und Endstand exakt. Der dominante
+  Zeitanteil liegt bei den GNU-Go-Orakelabfragen: P 766,6 von 783,7 s, S 1160,6 von
+  1198,5 s in den Wiederholungen. Die genaue interne GNU-Go-Funktion ist nicht bestimmt.
+- Alle vier GNU-Go-Wiederholungen erreichen dieselbe Stellung nach Zug 82 (Weiß K8)
+  und stürzen bei `genmove B` ab. Der erste Auslöser liegt bereits bei `mc=81`;
+  N und S haben dort tatsächlich eingegriffen und dennoch denselben Zug gespielt.
+  Die Vermutung aus §14 „vor dem ersten Eingriff“ ist damit widerlegt.
+- Ein eigenständiges GTP-Replay unter GDB reproduziert den SIGSEGV ohne unsere KI
+  und ohne Orakel. Der Backtrace enthält keine GNU-Go-Funktionsnamen; die konkrete
+  Quellcodeursache bleibt offen.
+
+Diese technische Diagnose verändert keine Spielstärkeergebnisse aus §14.
+GNU-Go-Verwandtschaft und eine Prior-Regel ohne Orakel werden dadurch nicht getestet.
+

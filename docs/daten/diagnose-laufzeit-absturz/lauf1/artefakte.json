@@ -1,0 +1,141 @@
+{
+  "run": 42130235314,
+  "attempt": 2,
+  "selected_artifact_id": 13463817294,
+  "selected_digest": "sha256:141e6b989688d8fa339e2f9089dfb770f1cf95e8d56491ca4a8dbb8ab841e617",
+  "artifacts": [
+    {
+      "id": 13464055022,
+      "name": "diagnose-gesamt",
+      "size_in_bytes": 175954,
+      "url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13464055022",
+      "archive_download_url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13464055022/zip",
+      "expired": false,
+      "created_at": "2026-11-05T23:37:17Z",
+      "expires_at": "2027-02-03T23:33:12Z",
+      "updated_at": "2026-11-05T23:37:17Z",
+      "digest": "sha256:ff9dbb4d157036da5b71de9d51d7536d806d521b56366c3e592aef0a853b814c",
+      "workflow_run": {
+        "id": 42130235314,
+        "repository_id": 1447433478,
+        "head_repository_id": 1447433478,
+        "head_branch": "main",
+        "head_sha": "1937d4d74f0c000c09601988120adaffcc1f4987"
+      }
+    },
+    {
+      "id": 13463817294,
+      "name": "diagnose-gesamt",
+      "size_in_bytes": 242738,
+      "url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13463817294",
+      "archive_download_url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13463817294/zip",
+      "expired": false,
+      "created_at": "2026-11-05T23:52:04Z",
+      "expires_at": "2027-02-03T23:38:28Z",
+      "updated_at": "2026-11-05T23:52:04Z",
+      "digest": "sha256:141e6b989688d8fa339e2f9089dfb770f1cf95e8d56491ca4a8dbb8ab841e617",
+      "workflow_run": {
+        "id": 42130235314,
+        "repository_id": 1447433478,
+        "head_repository_id": 1447433478,
+        "head_branch": "main",
+        "head_sha": "1937d4d74f0c000c09601988120adaffcc1f4987"
+      }
+    },
+    {
+      "id": 13463782378,
+      "name": "diagnose-f-P-27",
+      "size_in_bytes": 66616,
+      "url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13463782378",
+      "archive_download_url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13463782378/zip",
+      "expired": false,
+      "created_at": "2026-11-05T23:51:53Z",
+      "expires_at": "2027-02-03T23:38:28Z",
+      "updated_at": "2026-11-05T23:51:53Z",
+      "digest": "sha256:f157079316f0150ab63cc941bcb3dcc8807a80043459f81c94cc21e39245ed3f",
+      "workflow_run": {
+        "id": 42130235314,
+        "repository_id": 1447433478,
+        "head_repository_id": 1447433478,
+        "head_branch": "main",
+        "head_sha": "1937d4d74f0c000c09601988120adaffcc1f4987"
+      }
+    },
+    {
+      "id": 13463630256,
+      "name": "diagnose-fuego",
+      "size_in_bytes": 4422047,
+      "url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13463630256",
+      "archive_download_url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13463630256/zip",
+      "expired": false,
+      "created_at": "2026-11-05T23:33:43Z",
+      "expires_at": "2027-02-03T23:33:12Z",
+      "updated_at": "2026-11-05T23:33:43Z",
+      "digest": "sha256:ea4eb18b3cd7c16cfb7dcd4d68c7614d9d26b45d01589e2f4dbc2e806dd1076f",
+      "workflow_run": {
+        "id": 42130235314,
+        "repository_id": 1447433478,
+        "head_repository_id": 1447433478,
+        "head_branch": "main",
+        "head_sha": "1937d4d74f0c000c09601988120adaffcc1f4987"
+      }
+    },
+    {
+      "id": 13463091367,
+      "name": "diagnose-plan",
+      "size_in_bytes": 143152,
+      "url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13463091367",
+      "archive_download_url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13463091367/zip",
+      "expired": false,
+      "created_at": "2026-11-05T23:33:31Z",
+      "expires_at": "2027-02-03T23:33:12Z",
+      "updated_at": "2026-11-05T23:33:31Z",
+      "digest": "sha256:1ab0742f27f1664d8f5cc9f13ebc7b81207a2353cdbbbda01303afdaeeaf9498",
+      "workflow_run": {
+        "id": 42130235314,
+        "repository_id": 1447433478,
+        "head_repository_id": 1447433478,
+        "head_branch": "main",
+        "head_sha": "1937d4d74f0c000c09601988120adaffcc1f4987"
+      }
+    },
+    {
+      "id": 13462892554,
+      "name": "diagnose-g-P-127",
+      "size_in_bytes": 15129,
+      "url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13462892554",
+      "archive_download_url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13462892554/zip",
+      "expired": false,
+      "created_at": "2026-11-05T23:34:39Z",
+      "expires_at": "2027-02-03T23:33:12Z",
+      "updated_at": "2026-11-05T23:34:39Z",
+      "digest": "sha256:b86dffb6e879c80aa8804b7e1db9e186c233b9d868e5afaf9ce3434331224cfb",
+      "workflow_run": {
+        "id": 42130235314,
+        "repository_id": 1447433478,
+        "head_repository_id": 1447433478,
+        "head_branch": "main",
+        "head_sha": "1937d4d74f0c000c09601988120adaffcc1f4987"
+      }
+    },
+    {
+      "id": 13462867692,
+      "name": "diagnose-g-A-127",
+      "size_in_bytes": 15980,
+      "url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13462867692",
+      "archive_download_url": "https://api.github.com/repos/Hazeberry/codex/actions/artifacts/13462867692/zip",
+      "expired": false,
+      "created_at": "2026-11-05T23:34:29Z",
+      "expires_at": "2027-02-03T23:33:12Z",
+      "updated_at": "2026-11-05T23:34:29Z",
+      "digest": "sha256:83c9d9d1f9581d24e63b9a4225fcbebe21627403861a2bc32dfcb05da0f0d575",
+      "workflow_run": {
+        "id": 42130235314,
+        "repository_id": 1447433478,
+        "head_repository_id": 1447433478,
+        "head_branch": "main",
+        "head_sha": "1937d4d74f0c000c09601988120adaffcc1f4987"
+      }
+    }
+  ]
+}
