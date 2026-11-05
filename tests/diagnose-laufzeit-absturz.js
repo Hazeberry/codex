@@ -47,6 +47,18 @@ with tempfile.TemporaryDirectory() as tmp:
     changed_report = src.replace(b'    all_ok = True', b'    all_ok = False')
     assert changed_report != src
     assert len(resume.resume(previous,target2,'123',lambda sha,path:changed_report)['include'])==5
+    # Vollständiger Vorlauf mit allen Fällen im Planartefakt: keine neue Partie.
+    full_previous, full_target = root/'full_previous', root/'full_target'
+    (full_previous/'diagnose-plan').mkdir(parents=True); full_target.mkdir()
+    (full_previous/'diagnose-plan/plan.json').write_text(json.dumps(plan))
+    (full_previous/'diagnose-plan/quellen-sha.txt').write_text('a'*40)
+    (full_target/'plan.json').write_text(json.dumps(plan))
+    for case in cases:
+        folder2 = full_previous/'diagnose-plan'/case['id']; folder2.mkdir()
+        (folder2/'fall.json').write_text(json.dumps(case))
+        (folder2/'ergebnis.json').write_text(json.dumps({'reproduziert':True}))
+        (folder2/'trace.jsonl').write_text('{}\n'); (folder2/'roh.jsonl').write_text('{}\n')
+    assert resume.resume(full_previous,full_target,'124',lambda sha,path:src)=={'include':[]}
     for run,getter in [('invalid',lambda sha,path:src),('123',lambda sha,path:b'anders')]:
         try: resume.resume(previous,target,run,getter)
         except ValueError: pass
