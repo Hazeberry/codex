@@ -1,5 +1,9 @@
 # Tests
 
+| Datei | Prüft |
+|---|---|
+| `diagnose-laufzeit-absturz.js` | Auswahl an synthetischen Archiven, Fehlererkennung, Diagnose-Instrumentierung, Zeit- und Absturzzuordnung; keine Partiereproduktion |
+
 Regressionstests zum NaN-Bug in `mctsPUCT` ([#49](https://github.com/Hazeberry/Go-html-Game-MoE/pull/49)).
 
 ```

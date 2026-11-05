@@ -1,0 +1,131 @@
+name: Diagnose Laufzeit und Absturz
+
+# Go in der Sitzung vom 05.11.2026: Untersuchung der langen Fuego-Partien und GNU-Go-127.
+# Nur historischer Stand und sechs fest ausgewählte Reproduktionen, keine Spieländerung.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnose-laufzeit-absturz
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: node tests/diagnose-laufzeit-absturz.js
+      - id: plan
+        run: |
+          python3 auswertung/diagnose/laufzeit-absturz.py plan ergebnisse > matrix.json
+          echo "matrix=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
+          git rev-parse HEAD > ergebnisse/quellen-sha.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: diagnose-plan
+          path: ergebnisse/
+          retention-days: 90
+
+  fuego:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential autoconf automake libtool subversion libboost-all-dev
+          bash auswertung/fuego/bauen.sh svn gnu++14 fuego-bin
+          sha256sum fuego-bin/fuego > fuego-bin/sha256.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: diagnose-fuego
+          path: fuego-bin/
+          retention-days: 90
+
+  replay:
+    needs: [plan, fuego]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v7
+        with:
+          name: diagnose-plan
+          path: ergebnisse/
+      - uses: actions/download-artifact@v7
+        with:
+          name: diagnose-fuego
+          path: fuego-bin/
+      - name: Historischen Stand und Programme vorbereiten
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo gdb libboost-all-dev
+          chmod +x fuego-bin/fuego
+          mkdir historisch
+          git archive 8740574aa6f3d572b1d234d58202008d71404fb2 | tar -x -C historisch
+          mkdir -p "ergebnisse/${{ matrix.id }}"
+          /usr/games/gnugo --version > "ergebnisse/${{ matrix.id }}/gnugo-version.txt"
+          uname -a > "ergebnisse/${{ matrix.id }}/system.txt"
+          node --version >> "ergebnisse/${{ matrix.id }}/system.txt"
+          cp fuego-bin/sha256.txt "ergebnisse/${{ matrix.id }}/fuego-sha256.txt"
+      - name: Eine Partie reproduzieren und Zeiten erfassen
+        timeout-minutes: 33
+        run: python3 auswertung/diagnose/laufzeit-absturz.py replay ergebnisse '${{ matrix.id }}'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: diagnose-${{ matrix.id }}
+          path: ergebnisse/${{ matrix.id }}/
+          retention-days: 90
+          if-no-files-found: error
+
+  bericht:
+    needs: [plan, replay]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: diagnose-*
+          path: artefakte/
+      - name: Bericht
+        run: |
+          mkdir -p ergebnisse
+          cp artefakte/diagnose-plan/* ergebnisse/
+          for dir in artefakte/diagnose-[gf]-*; do
+            [ -d "$dir" ] || continue
+            name=$(basename "$dir")
+            cp -r "$dir" "ergebnisse/${name#diagnose-}"
+          done
+          status=0
+          python3 auswertung/diagnose/laufzeit-absturz.py report ergebnisse || status=$?
+          cat ergebnisse/bericht.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: diagnose-gesamt
+          path: ergebnisse/
+          retention-days: 90
