@@ -184,7 +184,11 @@ def replay(case, out):
                                       and result['roh'].get('zuege') == archive['zuege']
                                       and result['roh'].get('endstand') == archive['endstand'])
     else:
-        result['reproduziert'] = bool(not result['timeout'] and result['code'] == 0 and result['abstuerze']
+        expected = [c for c in result['abstuerze']
+                    if c['befehl'] == 'genmove B'
+                    and '--level' in c['process']['argumente']
+                    and c['process']['argumente'][c['process']['argumente'].index('--level') + 1] == '1']
+        result['reproduziert'] = bool(not result['timeout'] and result['code'] == 0 and expected
                                       and 'SIGSEGV' in (result['roh'] or {}).get('abgebrochen', ''))
     if case['id'] == 'g-A-127' and result['abstuerze']:
         crash = result['abstuerze'][0]
