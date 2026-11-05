@@ -25,6 +25,32 @@ with tempfile.TemporaryDirectory() as tmp:
     cases, overview = d.choose(root)
     assert len(cases)==6 and len(overview)==4
     assert [c['nr'] for c in cases if c['gegner']=='f']==[2,2]
+    spec2 = importlib.util.spec_from_file_location('resume', 'auswertung/diagnose/laufzeit-fortsetzen.py')
+    resume = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(resume)
+    previous, target = root/'previous', root/'target'
+    (previous/'diagnose-plan').mkdir(parents=True); target.mkdir()
+    plan = {'quelle':d.HIST,'faelle':cases,'fuegoMaxima':overview}
+    (previous/'diagnose-plan/plan.json').write_text(json.dumps(plan))
+    (previous/'diagnose-plan/quellen-sha.txt').write_text('a'*40)
+    (target/'plan.json').write_text(json.dumps(plan))
+    folder = previous/('diagnose-'+cases[1]['id']); folder.mkdir()
+    (folder/'fall.json').write_text(json.dumps(cases[1]))
+    (folder/'ergebnis.json').write_text(json.dumps({'reproduziert':True}))
+    (folder/'trace.jsonl').write_text('{}\n'); (folder/'roh.jsonl').write_text('{}\n')
+    src = Path('auswertung/diagnose/laufzeit-absturz.py').read_bytes()
+    matrix = resume.resume(previous,target,'123',lambda sha,path:src)
+    assert len(matrix['include'])==5
+    assert cases[1]['id'] not in [c['id'] for c in matrix['include']]
+    assert (target/cases[1]['id']/'trace.jsonl').exists()
+    target2 = root/'target2'; target2.mkdir()
+    (target2/'plan.json').write_text(json.dumps(plan))
+    changed_report = src.replace(b'    all_ok = True', b'    all_ok = False')
+    assert changed_report != src
+    assert len(resume.resume(previous,target2,'123',lambda sha,path:changed_report)['include'])==5
+    for run,getter in [('invalid',lambda sha,path:src),('123',lambda sha,path:b'anders')]:
+        try: resume.resume(previous,target,run,getter)
+        except ValueError: pass
+        else: raise AssertionError('ungültiger Vorlauf akzeptiert')
     write('g-A.jsonl.gz', [{'nr':127, 'abgebrochen':'anderer Fehler'}])
     try: d.choose(root)
     except ValueError: pass
@@ -51,7 +77,7 @@ assert s['abstuerze'][0]['moves']==['play W D4','play B Q16']
 assert s['abstuerze'][0]['befehl']=='genmove B'
 assert s['zeiten']['GNU Go Stufe 1: genmove']['ms']==4
 assert s['zeiten']['KI']['ms']==10
-print('Diagnose: Auswahl, fehlerhafte Archive, Instrumentierung und Zeit-/Absturzzuordnung geprüft.')
+print('Diagnose: Auswahl, Archive, Instrumentierung, Zeit-/Absturzzuordnung und geprüfte Fortsetzung bestanden.')
 `], {cwd: path.join(__dirname, '..'), encoding:'utf8'});
 process.stdout.write(r.stdout || '');
 process.stderr.write(r.stderr || '');

@@ -4,9 +4,15 @@ name: Diagnose Laufzeit und Absturz
 # Nur historischer Stand und sechs fest ausgewählte Reproduktionen, keine Spieländerung.
 on:
   workflow_dispatch:
+    inputs:
+      fortsetzen_aus:
+        description: 'Vorlauf mit bestandenen Fällen und unverändertem Diagnosecode (leer = alle sechs neu)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: diagnose-laufzeit-absturz
@@ -20,14 +26,28 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
           package-manager-cache: false
       - run: node tests/diagnose-laufzeit-absturz.js
+      - uses: actions/download-artifact@v7
+        if: inputs.fortsetzen_aus != ''
+        with:
+          pattern: diagnose-*
+          path: vorlauf/
+          run-id: ${{ inputs.fortsetzen_aus }}
+          github-token: ${{ github.token }}
       - id: plan
+        env:
+          VORLAUF: ${{ inputs.fortsetzen_aus }}
         run: |
           python3 auswertung/diagnose/laufzeit-absturz.py plan ergebnisse > matrix.json
+          if [ -n "$VORLAUF" ]; then
+            python3 auswertung/diagnose/laufzeit-fortsetzen.py vorlauf ergebnisse "$VORLAUF" > matrix.json
+          fi
           echo "matrix=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
           git rev-parse HEAD > ergebnisse/quellen-sha.txt
       - uses: actions/upload-artifact@v7
@@ -42,7 +62,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - run: |
+      - uses: actions/download-artifact@v7
+        if: inputs.fortsetzen_aus != ''
+        with:
+          name: diagnose-fuego
+          path: fuego-bin/
+          run-id: ${{ inputs.fortsetzen_aus }}
+          github-token: ${{ github.token }}
+      - if: inputs.fortsetzen_aus == ''
+        run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential autoconf automake libtool subversion libboost-all-dev
           bash auswertung/fuego/bauen.sh svn gnu++14 fuego-bin
@@ -76,10 +104,22 @@ jobs:
         with:
           name: diagnose-fuego
           path: fuego-bin/
-      - name: Historischen Stand und Programme vorbereiten
+      - name: Nur benötigte Programme installieren (begrenzt)
+        timeout-minutes: 6
+        env:
+          GEGNER: ${{ matrix.gegner }}
+          FALL: ${{ matrix.id }}
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq gnugo gdb libboost-all-dev
+          sudo timeout 120s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update -qq
+          pakete=(gnugo)
+          if [ "$GEGNER" = f ]; then
+            pakete+=(libboost-filesystem-dev libboost-thread-dev libboost-program-options-dev libboost-system-dev)
+          fi
+          if [ "$FALL" = g-A-127 ]; then pakete+=(gdb); fi
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 180s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y -qq "${pakete[@]}"
+      - name: Historischen Stand vorbereiten und Versionen sichern
+        timeout-minutes: 2
+        run: |
           chmod +x fuego-bin/fuego
           mkdir historisch
           git archive 8740574aa6f3d572b1d234d58202008d71404fb2 | tar -x -C historisch
@@ -113,7 +153,7 @@ jobs:
       - name: Bericht
         run: |
           mkdir -p ergebnisse
-          cp artefakte/diagnose-plan/* ergebnisse/
+          cp -r artefakte/diagnose-plan/* ergebnisse/
           for dir in artefakte/diagnose-[gf]-*; do
             [ -d "$dir" ] || continue
             name=$(basename "$dir")
