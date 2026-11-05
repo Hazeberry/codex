@@ -1,0 +1,244 @@
+name: Kandidaten-Orakel Laufzeitprobe
+
+# Nur von Hand. Laufzeitprobe (Stufe 0) aus docs/kandidaten-orakel.md §7: Seed 230,
+# Arme A, S und ZS, je 8 Partien gegen GNU Go Stufe 1 und je 4 gegen Fuego (je
+# Farbe gleich viele), ohne Vorgabe, mctsFixedSims 120, Aufgabe aus, Komi 7,5.
+# Dazu die Kontrolle: Arm A reproduziert Nr. 1 bis 4 von leeres-brett-g-D (Seed 222).
+# Ausgewertet werden nur Dauer, Antwortquote, Fallanteile, Auslösergleichheit,
+# Kontrolle und Streuung, nicht die Höhe der Unterschiede zwischen den Armen.
+#
+# Ablauf:
+#   fuego-bauen   Fuego einmal bauen
+#   gnugo         3 Arme × 2 Teile zu 4 Partien
+#   fuego         3 Arme × 4 Partien
+#   kontrolle     Arm A, Seed 222, Partien 1 bis 4
+#   ergebnis      Bericht, Rohdaten, Branch ergebnisse/kandidaten-orakel-probe-lauf<N>;
+#                 Exit 1 und „KEIN URTEIL“, wenn eine technische Bedingung verletzt ist
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: kandidaten-orakel-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SEED: '230'
+  ARME: auswertung/komponenten/arme-o.sh
+  VORGABE: '0'
+
+jobs:
+  fuego-bauen:
+    name: Fuego bauen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Werkzeuge installieren
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential autoconf automake libtool subversion libboost-all-dev
+
+      - name: Bauen
+        run: bash auswertung/fuego/bauen.sh svn gnu++14 fuego-bin
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fuego-bin
+          path: fuego-bin/
+          retention-days: 7
+
+  gnugo:
+    name: GNU Go, Arm ${{ matrix.arm }}, Partien ab ${{ matrix.von }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [A, S, ZS]
+        von: [1, 5]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: GNU Go installieren
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+
+      - name: 4 Partien spielen
+        timeout-minutes: 130
+        env:
+          ARM: ${{ matrix.arm }}
+          VON: ${{ matrix.von }}
+        run: |
+          status=0
+          DUELL_ZUSATZ="--kandidaten-orakel $ARM" bash auswertung/komponenten/spielen.sh g D "$VON" 4 "$SEED" "stand/g-$ARM-$VON.jsonl" || status=$?
+          echo "Spielen beendet mit Status $status"
+          exit "$status"
+
+      - name: Partien sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stand-g-${{ matrix.arm }}-${{ matrix.von }}
+          path: stand/
+          if-no-files-found: warn
+          retention-days: 90
+
+  fuego:
+    name: Fuego, Arm ${{ matrix.arm }}
+    needs: fuego-bauen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [A, S, ZS]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: GNU Go und Bibliotheken installieren
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo libboost-all-dev
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: fuego-bin
+          path: fuego-bin
+
+      - name: 4 Partien spielen
+        timeout-minutes: 130
+        env:
+          ARM: ${{ matrix.arm }}
+        run: |
+          status=0
+          chmod +x fuego-bin/fuego
+          DUELL_ZUSATZ="--kandidaten-orakel $ARM" bash auswertung/komponenten/spielen.sh f D 1 4 "$SEED" "stand/f-$ARM-1.jsonl" || status=$?
+          echo "Spielen beendet mit Status $status"
+          exit "$status"
+
+      - name: Partien sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stand-f-${{ matrix.arm }}-1
+          path: stand/
+          if-no-files-found: warn
+          retention-days: 90
+
+  kontrolle:
+    name: Kontrolle Arm A gegen Archiv (Seed 222, Partien 1 bis 4)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: GNU Go installieren
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+
+      - name: 4 Partien nachspielen
+        timeout-minutes: 70
+        run: |
+          status=0
+          DUELL_ZUSATZ="--kandidaten-orakel A" bash auswertung/komponenten/spielen.sh g D 1 4 222 stand/kontrolle.jsonl || status=$?
+          echo "Spielen beendet mit Status $status"
+          exit "$status"
+
+      - name: Partien sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stand-kontrolle
+          path: stand/
+          if-no-files-found: warn
+          retention-days: 90
+
+  ergebnis:
+    name: Bericht und Ergebnisbranch
+    needs: [gnugo, fuego, kontrolle]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Nur dieser Job schreibt ins Repo, und nur auf einen neuen Branch.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: stand-*
+          path: stand
+          merge-multiple: true
+
+      - name: Bericht
+        run: |
+          status=0
+          mkdir -p ergebnisse roh
+          for arm in A S ZS; do
+            : > "roh/g-$arm.jsonl"; : > "roh/f-$arm.jsonl"
+            for von in 1 5; do [ -s "stand/g-$arm-$von.jsonl" ] && cat "stand/g-$arm-$von.jsonl" >> "roh/g-$arm.jsonl"; done
+            [ -s "stand/f-$arm-1.jsonl" ] && cat "stand/f-$arm-1.jsonl" >> "roh/f-$arm.jsonl"
+          done
+          [ -s stand/kontrolle.jsonl ] && cp stand/kontrolle.jsonl roh/kontrolle.jsonl
+          node auswertung/kandidaten-orakel/probe-bericht.js roh docs/daten/leeres-brett/lauf1/g-D.jsonl.gz --bericht ergebnisse/bericht.md || status=$?
+          echo "$status" > ergebnisse/status.txt
+          cp -r roh ergebnisse/roh
+          gzip -9 ergebnisse/roh/*.jsonl || true
+          cat ergebnisse/bericht.md >> "$GITHUB_STEP_SUMMARY"
+          echo "BERICHT_STATUS=$status" >> "$GITHUB_ENV"
+
+      - name: Ergebnisbranch
+        env:
+          LAUF: ${{ github.run_number }}
+          LAUF_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          zweig="ergebnisse/kandidaten-orakel-probe-lauf${LAUF}"
+          ziel="docs/daten/kandidaten-orakel/probe-lauf${LAUF}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$zweig"
+          mkdir -p "$ziel"
+          cp -r ergebnisse/. "$ziel/"
+          git add "$ziel"
+          git commit -q -m "Kandidaten-Orakel Laufzeitprobe: Ergebnisse von Lauf ${LAUF}" \
+                     -m "Workflow-Lauf ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${LAUF_ID}"
+          git push origin "$zweig"
+          echo "Ergebnisse auf Branch \`$zweig\` unter \`$ziel\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gültigkeit (rot bei KEIN URTEIL)
+        run: |
+          if [ "${BERICHT_STATUS:-1}" != "0" ]; then echo "KEIN URTEIL: technische Bedingung verletzt, siehe Bericht"; exit 1; fi

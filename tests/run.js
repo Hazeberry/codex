@@ -1,0 +1,52 @@
+// Required Notice: Copyright (c) 2026 Hazeberry (https://github.com/Hazeberry/Go-html-Game-MoE)
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+/* Alle Tests nacheinander. Jeder ist auch einzeln aufrufbar.
+
+   Aufruf:  node tests/run.js [pfad/zur/index.html]
+            node tests/run.js --ohne-browser [pfad]   (alles außer browser-nan und browser-ui)
+
+   Ohne Playwright überspringt sich der Browser-Test, der Gesamtlauf bleibt
+   dann grün — er prüft die Logik dann eben nur im Prozess.
+
+   Warum --ohne-browser existiert: der CI-Workflow trennt Node- und
+   Browser-Job, weil der Browser erst Chromium installieren muss. Vorher rief
+   der Node-Job die Dateien EINZELN auf — und beim Hinzufügen von
+   resign-criterion.js wurde die Liste dort nicht mitgepflegt. Der Job blieb
+   grün und prüfte den neuen Test nicht. Die Liste lebt jetzt nur noch hier;
+   der Workflow ruft diesen Schalter auf und kann nicht mehr davon abdriften. */
+'use strict';
+const path = require('path');
+const {spawn} = require('child_process');
+
+const argv = process.argv.slice(2);
+const OHNE_BROWSER = argv.includes('--ohne-browser');
+const pfad = argv.find(a => !a.startsWith('--'));
+const HTML = pfad ? [path.resolve(pfad)] : [];
+
+const ALLE = ['regeln.js', 'nan-guards.js', 'resign-criterion.js', 'transfer-telemetry.js',
+              'benson-transfer.js', 'benson-lebend-treppe.js', 'endspiel-netz.js', 'feste-sims.js', 'roh-dump.js',
+              'influence.js', 'endspiel-gleichstand.js', 'epochen.js', 'raumrisiko.js', 'gebiet.js', 'endspiel-augen.js', 'gegnerwert.js', 'lesen.js', 'wurzel.js', 'quick-rettung.js', 'atari-verzicht.js', 'muster.js', 'gebiet-sicher.js', 'zaehlung.js', 'extern.js', 'lizenz.js', 'ko-suche.js', 'muster-endspiel.js', 'dagger.js', 'gnugo-bruecke.js', 'fuego-gegner.js', 'komponenten.js', 'pwa.js', 'komi.js', 'endspiel-abraeumen.js', 'zaehlvorschau.js', 'zeit-zerlegung.js', 'passregel-versuch.js', 'diagnose-p1p2.js', 'diagnose-p2-rang.js', 'kandidaten-orakel.js', 'kandidaten-orakel-spiel.js', 'kandidaten-orakel-haupt.js', 'engine-vergleich.js', 'kandidaten-orakel-vierarm.js',
+              'training-stability.js', 'harness-smoke.js', 'browser-nan.js', 'browser-ui.js', 'browser-zaehlvorschau.js', 'browser-passregel.js', 'browser-zeiten.js'];
+const SUITEN = OHNE_BROWSER ? ALLE.filter(s => !s.startsWith('browser-')) : ALLE;
+
+/* training-stability nimmt Partien/Züge VOR dem Pfad — deshalb die Defaults
+   mitgeben, wenn ein Pfad durchgereicht wird. */
+const argumente = s =>
+  (HTML.length && s === 'training-stability.js') ? ['30', '400', ...HTML] : HTML;
+
+(async () => {
+  let kaputt = 0;
+  for (const s of SUITEN) {
+    const code = await new Promise(fertig => {
+      const p = spawn(process.execPath, [path.join(__dirname, s), ...argumente(s)],
+                      {stdio: 'inherit'});
+      p.on('close', fertig);
+    });
+    if (code !== 0) kaputt++;
+  }
+  console.log(`\n${'═'.repeat(52)}`);
+  console.log(kaputt === 0
+    ? `Alle ${SUITEN.length} Testdateien bestanden.`
+    : `${kaputt} von ${SUITEN.length} Testdateien fehlgeschlagen.`);
+  process.exit(kaputt === 0 ? 0 : 1);
+})();

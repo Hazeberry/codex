@@ -1,0 +1,27 @@
+# Ausgaben lokaler A/B-Harness-Läufe. In CI wandern dieselben Dateien
+# stattdessen ins Workflow-Artefakt, siehe .github/workflows/ab-harness.yml
+ergebnisse/
+*.log
+
+# Zwischendateien der Auswertung zu den Endspiel-Mustern (docs/muster-endspiel.md §8),
+# je Datensatz über 100 MB
+zw/
+
+# Node — das Repo hat keine package.json, aber für Playwright & Co. wird
+# lokal gelegentlich eins angelegt
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Editor und Betriebssystem
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Erzeugnisse der Distillation-Pipeline (distillation/README.md). Gewichte
+# sind reproduzierbar und mehrere Megabyte gross — sie gehoeren nicht ins Repo.
+distillation/*.npz
+distillation/*.json
+__pycache__/
+*.pyc

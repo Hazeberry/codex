@@ -1,0 +1,317 @@
+# Endspiel-Gleichstand `endTieBreak`: vorab festgelegte Messung
+
+**Status: festgelegt am 03.10.2026, vor dem Lauf.** Was danach hinzukommt,
+steht als Nachtrag darunter; die Abschnitte 1–6 werden nicht mehr geändert.
+
+---
+
+## 1. Anlass
+
+[`wurzel-gleichstand.md`](wurzel-gleichstand.md): Im Endspiel gibt
+`evalEndgame` jedem ruhigen Zug in offenem Gelände denselben Wert,
+`endAreaGain` × ein Feld = 30. Den Grund liefert `estimateArea`, das nur
+umschlossene Regionen zählt. Welche dieser Züge auf die 16 Wurzelplätze
+kommen, entscheidet das Rauschen per Los: im Mittel 13 der 16 Plätze.
+
+[`endspielgrenze.md`](endspielgrenze.md) hat versucht, den Endspiel-Experten
+später einzusetzen, und dabei klar verloren (31,4 %). Das Los wird damit
+nicht kleiner, es verschiebt sich nur. Dieser Versuch geht den anderen Weg:
+Der Experte bleibt, wo er ist, aber die gleich bewerteten Züge werden
+geordnet statt gelost.
+
+**Eine echte Partie** (Bug-Report vom 03.10., Mensch gegen Hard-KI als Weiß,
+243 Züge) zeigt dasselbe. Der Spieler schrieb: „Ich habe das Gefühl, die KI
+ignoriert mich. Reagiert nur, wenn ich sie angreife." Nachgespielt und
+rauschfrei bewertet: Von Zug 88 bis 122 stammen alle 18 weißen Züge aus der
+Gleichstandsgruppe, die zwischen 143 und 169 gleich bewertete Züge umfasst.
+Kein einziger Zug lag darüber. Über alle weißen Züge ab Zug 61 stammen 36
+von 91 aus der Gruppe. Die 15 Züge, die höchstens 3 Felder neben dem
+letzten schwarzen Zug lagen, waren bis auf einen höher bewertet als die
+Gruppe — Antworten auf eine Drohung, nicht auf einen Plan.
+
+## 2. Was der Parameter tut
+
+`endTieBreak` (Default 0) addiert in `evalEndgame` vor dem Rauschen
+
+    endTieBreak × clamp(Δ / 20, −1, 1)
+
+Δ ist die Änderung der Bouzy-Bilanz durch den Zug, aus Sicht des Ziehenden,
+gemessen gegen die Wurzelstellung. Die Bilanz zählt die Felder der eigenen
+Einflusszone minus die der gegnerischen; es ist dieselbe Karte wie bei
+`influenceInvade`, nur in eigenen Puffern. Die Wurzelbilanz wird einmal pro
+Zug in `getAIMove` berechnet (`primeEndTieBreak`), die Bilanz nach dem Zug
+einmal pro Kandidat. Beides geschieht nur an der Wurzel und im Pass-Check,
+nie in der Simulation.
+
+Bei 1 bleibt der Term im Band ±1. Das Rauschen des Experten ist 0 … 0,5 und
+bleibt erhalten; es mischt also weiter innerhalb von rund 10 Einheiten Δ.
+
+**Vorab gemessen** (`replik-ab`, 40 Partien, jede 10. Stellung, rauschfrei,
+`auswertung/wurzel-gleichstand.js` mit `endTieBreak` 0 und 1):
+
+| | ohne | mit Brecher |
+|---|---|---|
+| Paare verschieden bewerteter Züge, deren Reihenfolge kippt | — | 0 von 1 014 325 |
+| Gleichstandsgruppe an Platz 16, Median (Endspiel-Experte ≥ 0,5) | 59 | 22 |
+| gelöste Wurzelplätze, Mittel (ebenso, 1 051 Stellungen) | 13,2 | 7,3 |
+
+Der Brecher ordnet also nur innerhalb von Gleichständen. Die Gruppe wird
+nicht ganz aufgelöst, weil Δ ganzzahlig ist. Die meisten Züge haben Δ = 1
+(nur der Stein selbst), und unter ihnen bleibt das Los. Das ist gewollt: Für
+diese Züge hat die Karte keine Information.
+
+In der Partie aus dem Bug-Report steigt der Anteil der Wurzelkandidaten von
+Weiß (Zug 88–122), die höchstens 2 Felder neben einem schwarzen Stein
+liegen, von 57 % auf 83 %. Die Liste wandert in die schwarzen Rahmen.
+
+**Kosten:** eine Bouzy-Karte pro Kandidat, gemessen 40 ms je
+Wurzelbewertung bei 276 Kandidaten (ohne: 3 ms). Im Lauf unten zählt das
+nicht, weil `mctsFixedSims` die Suche fest hält. Im Spiel mit Zeitbudget
+fehlt die Zeit der Suche. Vor einer Default-Änderung müsste das deshalb
+billiger werden oder gesondert gemessen werden.
+
+## 3. Arme und Lauf
+
+| Arm | Parameter |
+|---|---|
+| A | Default (`endTieBreak = 0`) |
+| B | `endTieBreak = 1` |
+
+360 Partien als vier unabhängige Läufe zu je 90, parallel (vier Kerne):
+
+```bash
+for s in 20261006 20261007 20261008 20261009; do
+  node ab-harness.js --games 90 --seed $s \
+    --A mctsFixedSims=120 \
+    --B mctsFixedSims=120,endTieBreak=1 \
+    --roh gleichstand-$s.jsonl --json gleichstand-$s.json &
+done
+```
+
+Commit: der Merge dieser Festlegung. Kein Pilot: Der Parameter wirkt
+nachweislich (§2), und die Dosis ist durch die Bedingung „nur Gleichstände
+brechen" festgelegt, nicht gesucht.
+
+## 4. Endpunkte
+
+**Primär:** Siegrate von B über alle 360 Partien, zweiseitig gegen 50 %,
+α = 0,05, Normalapproximation. Kleinster nachweisbarer Effekt bei 80 % Power:
+±7,4 Prozentpunkte.
+
+| Ergebnis | Lesart |
+|---|---|
+| B > 50 %, p < 0,05 | B spielt stärker — als Erstlauf eine Hypothese; vor einer Default-Änderung zu wiederholen |
+| p ≥ 0,05 | kein Stärkeeffekt in dieser Größe nachweisbar |
+| B < 50 %, p < 0,05 | B spielt schwächer |
+
+**Wirksamkeitsnachweis (ohne Test):** der Anteil der gespielten Züge, die
+aus der gelosten Gleichstandsgruppe an Platz 16 stammen, je Arm. Gemessen
+wird an jeder 5. Stellung aller 360 Partien, jede Stellung mit den
+Parametern des Arms, der am Zug war:
+
+```bash
+cat gleichstand-2026100?.jsonl > gleichstand.jsonl
+node auswertung/wurzel-gleichstand.js gleichstand.jsonl --partien 360 --abstand 5 \
+  --A endTieBreak=0 --B endTieBreak=1
+```
+
+Erwartet: bei B niedriger als bei A. Liegt er gleich, hat der Brecher das
+Los nicht verringert, und ein Nullergebnis der Siegrate sagt über die Frage
+nichts.
+
+**Sekundär, ohne Anspruch:**
+
+- Siegrate ohne falsche Aufgaben ([`aufgaben.md`](aufgaben.md)): jede
+  Aufgabe weitergespielt, je Teillauf
+  `node auswertung/weiterspielen.js gleichstand-<seed>.jsonl --A mctsFixedSims=120 --B mctsFixedSims=120,endTieBreak=1`.
+  Weicht sie um mehr als 3 Prozentpunkte von der gemessenen ab, wird sie
+  neben der primären berichtet. Die primäre Lesart ändert das nicht.
+- Aufgaben je Arm, Partielänge.
+
+## 5. Was nicht gemessen wird
+
+- Spielstärke gegen Menschen. Der Anlass ist ein Eindruck aus einer
+  einzelnen Partie; ob die KI dadurch „aufmerksamer" wirkt, misst kein
+  Selbstspiel.
+- Die Kosten im Zeitbudget (§2).
+- Andere Dosen. Über 1 hinaus würde der Term verschiedene Werte umordnen;
+  das wäre eine andere Frage.
+
+## 6. Reproduktion
+
+Die Läufe schreiben Rohdumps mit `params_hash`, `final_board_hash` und
+`zufall`. Abgebrochene Teilläufe werden mit `--fortsetzen` weitergeführt
+(README, „Lauf fortsetzen"). Die Hash-Listen kommen wie bei den früheren
+Läufen nach [`daten/`](daten/).
+
+---
+
+## 7. Nachtrag: Ergebnis (03.10.2026)
+
+Gelaufen auf dem Merge-Commit `2f54871`, alle vier Teilläufe ohne
+Unterbrechung. Hash-Listen: `daten/gleichstand-20261006.json` bis
+`…09.json`.
+
+**Primär: B gewinnt 206 von 360 Partien, 57,2 %** (z = 2,74, p = 0,006,
+95-%-KI 52,1–62,3 %). Nach §4 heißt das: B spielt stärker — als Erstlauf eine
+Hypothese, vor einer Default-Änderung zu wiederholen.
+
+| Teillauf | Siegrate B |
+|---|---:|
+| 20261006 | 61,1 % |
+| 20261007 | 57,8 % |
+| 20261008 | 56,7 % |
+| 20261009 | 53,3 % |
+
+Alle vier Teilläufe zeigen in dieselbe Richtung. Als Schwarz und als Weiß
+gewinnt B gleich oft, je 103 von 180.
+
+**Wirksamkeitsnachweis:** 23 962 Stellungen, jede mit den Parametern des
+Arms bewertet, der am Zug war.
+
+| | A | B |
+|---|---:|---:|
+| gespielt aus der gelosten Gruppe, alle Stellungen | 29,9 % | 13,5 % |
+| ebenso, nur Stellungen mit Endspiel-Experte | 38,6 % | 17,5 % |
+| geloste Wurzelplätze, Mittel | 11,5 | 7,3 |
+
+Der Brecher halbiert das Los wie vorab gemessen. Das Ergebnis ist damit
+auf den Mechanismus zurückzuführen, nicht nur ein Nebeneffekt.
+
+**Sekundär:**
+
+- Aufgaben: A gab 143-mal auf, B 106-mal. Weitergespielt gewinnt der
+  Aufgebende 7-mal (4,9 %) bzw. 8-mal (7,5 %). Ohne falsche Aufgaben liegt
+  B bei 57,5 %. Das sind 0,3 Punkte Abstand, unter der Schwelle aus §4.
+- Partielänge Ø 336 Züge.
+
+**Was daraus folgt.** Es ist der erste Eingriff dieser Reihe, der die Engine
+messbar stärker macht. Zwei Dinge fehlen vor einer Default-Änderung, beide
+in §2 und §4 vorab benannt:
+
+1. **Eine Wiederholung** mit neuen Seeds.
+2. **Die Kosten im Zeitbudget.** Gemessen wurde mit fester Simulationszahl.
+   Im Spiel kostet der Brecher rund 40 ms je Wurzelbewertung, die der Suche
+   fehlen. Entweder wird er billiger, oder ein Lauf mit Zeitbudget zeigt,
+   dass der Vorteil das trägt.
+
+Bis dahin bleibt der Default 0.
+
+---
+
+## 8. Nachtrag: Korrektur zu den Kosten, Wiederholung festgelegt (03.10.2026, vor dem Lauf)
+
+**Korrektur zu §2 und §7.** Dort steht, die rund 40 ms des Brechers fehlten
+im Spiel der Suche. Das stimmt nicht. Die Uhr der Suche startet in
+`mctsPUCT` (`_simStart`), also erst nach der Wurzelbewertung in
+`getAIMove`. Das Zeitbudget gehört deshalb ganz der Suche, mit und ohne
+Brecher. Gemessen an der Stellung vor Zug 88 der Bug-Report-Partie, mit
+`aiTimeBudget` = 250:
+
+| | Zug dauert (drei Wiederholungen) |
+|---|---|
+| `endTieBreak` = 0 | 290 / 255 / 254 ms |
+| `endTieBreak` = 1 | 338 / 295 / 293 ms |
+
+Der Brecher verlängert also die Antwortzeit um rund 40 ms. Er nimmt der
+Suche nichts weg. Ein eigener Lauf im Zeitbudget, wie in §7 angekündigt,
+würde dieselbe Suche messen wie die feste Simulationszahl, nur nicht
+reproduzierbar. Er entfällt. Billiger machen lohnt trotzdem, aber nur für
+die Wartezeit, und nur so, dass jede Partie Zug für Zug gleich bleibt
+(Prüfung: Hash-Gleichheit gegen diese Wiederholung). Dann gilt die
+Wiederholung auch für den beschleunigten Code.
+
+**Wiederholung**, gleiche Arme und gleicher Aufbau wie §3, neue Seeds:
+
+```bash
+for s in 20261010 20261011 20261012 20261013; do
+  node ab-harness.js --games 90 --seed $s \
+    --A mctsFixedSims=120 \
+    --B mctsFixedSims=120,endTieBreak=1 \
+    --roh wiederholung-$s.jsonl --json wiederholung-$s.json &
+done
+```
+
+Commit: der Merge dieses Nachtrags.
+
+**Primär:** Siegrate von B über die 360 Partien der Wiederholung, allein,
+ohne den Erstlauf. Zweiseitig gegen 50 %, α = 0,05.
+
+**Entscheidung, vorab festgelegt:**
+
+| Wiederholung | Folge |
+|---|---|
+| B > 50 %, p < 0,05 | Default `endTieBreak` = 1 |
+| sonst | Default bleibt 0; die 720 Partien beider Läufe werden zusammen berichtet, als explorativ |
+
+Wirksamkeitsnachweis und Aufgaben werden wie in §4 erhoben und berichtet.
+
+
+---
+
+## 9. Nachtrag: Beschleunigung (03.10.2026)
+
+`tbBilanzNach` rechnet die Karte nach einem Kandidaten nicht mehr ganz neu.
+`primeEndTieBreak` hebt alle 27 Zwischenstände der Wurzelkarte auf. Je
+Ebene wird dann nur neu gerechnet, was sich geändert hat, plus die
+Nachbarn. Das sind im Mittel rund 20 Felder je Ebene statt 361.
+
+- **Bitgenau:** Die Testsuite vergleicht über 10 000 Kandidaten auf 40
+  Zufallsstellungen jeder Dichte, mit Schlägen, gegen die volle Rechnung.
+  Ein absichtlich eingebauter Fehler fällt dort auf: Bei einer Variante,
+  die die Nachbarn vergisst, scheitern 4 von 6 Tests.
+- **Hash-gleich:** Die ersten vier Partien von Seed 20261010 sind mit dem
+  neuen Code Zug für Zug dieselben wie im laufenden Wiederholungslauf. Die
+  Wiederholung gilt damit auch für diesen Code.
+- **Schneller:** an der Stellung vor Zug 88 der Bug-Report-Partie, 276
+  Kandidaten, gemessen bei voll ausgelasteter Maschine: volle Rechnung
+  40–56 ms, inkrementell 9–21 ms je Wurzel.
+
+---
+
+## 10. Nachtrag: Ergebnis der Wiederholung, Default 1 (03.10.2026)
+
+Gelaufen auf `43085fb`, alle vier Teilläufe ohne Unterbrechung. Hash-Listen:
+`daten/gleichstand-20261010.json` bis `…13.json`.
+
+**Primär: B gewinnt 214 von 360 Partien, 59,4 %** (z = 3,58, p = 0,0003,
+95-%-KI 54,4–64,5 %).
+
+| Teillauf | Siegrate B |
+|---|---:|
+| 20261010 | 54,4 % |
+| 20261011 | 63,3 % |
+| 20261012 | 60,0 % |
+| 20261013 | 60,0 % |
+
+Als Schwarz und als Weiß gewinnt B gleich oft, je 107 von 180.
+
+**Entscheidung nach §8: Default `endTieBreak` = 1.**
+
+**Wirksamkeitsnachweis** (24 020 Stellungen): Im Endspiel stammen bei A
+38,6 % der gespielten Züge aus der gelosten Gruppe, bei B 18,1 %. Im Mittel
+werden bei A 11,5 Wurzelplätze gelost, bei B 7,3. Das sind fast genau die
+Zahlen des Erstlaufs.
+
+**Sekundär:** A gab 143-mal auf, B 102-mal. Weitergespielt gewinnt der
+Aufgebende 5-mal (3,5 %) bzw. 5-mal (4,9 %). Ohne falsche Aufgaben liegt B
+damit unverändert bei 59,4 %. Partielänge Ø 337 Züge.
+
+**Kosten, auf unbelasteter Maschine nachgemessen:** Je Wurzel braucht die
+inkrementelle Fassung 8–9 ms statt 37 ms für die volle Rechnung. Ein ganzer
+Zug mit 250 ms Budget dauert 263–274 statt 253–262 ms (Stellung vor Zug 88
+der Bug-Report-Partie).
+
+**Beide Läufe zusammen**, nur beschreibend: 420 von 720, 58,3 %
+(95-%-KI 54,7–61,9 %).
+
+**Was bleibt offen.**
+
+- Gemessen ist Selbstspiel mit 120 Simulationen. Gegen Menschen und mit
+  längerem Zeitbudget ist der Vorteil nicht gemessen.
+- Der Brecher wirkt auch in den Stufen Leicht und Mittel. Sie ziehen
+  zufällig aus der Spitze der Bewertung, und die ist jetzt im Endspiel
+  geordnet. Gemessen ist das nicht.
+- Für ältere Läufe heißt „Default" jetzt etwas anderes. Wiederholt werden
+  sie auf ihrem Commit aus der Hash-Liste oder mit `endTieBreak=0` in
+  beiden Armen.

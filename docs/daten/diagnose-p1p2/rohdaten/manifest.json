@@ -1,0 +1,112 @@
+{
+  "lauf": "41480291668",
+  "archive": {
+    "leeres-brett-g-D": {
+      "artefakt": {
+        "id": 13166942040,
+        "digest": "sha256:b8bae826cbf1a6f7698d9e5c348f4b81cc04619c80cb13221a2427e69ab7dbed",
+        "erstellt": "2026-11-02T18:07:42Z",
+        "laeuft_ab": "2027-01-31T16:19:19Z"
+      },
+      "p1": {
+        "zeilen": 480,
+        "geeignet": 480,
+        "gebucht": 480,
+        "nicht_gebucht": [],
+        "wiederholung_gleich": 5,
+        "wiederholung_anders": 0,
+        "sha256_quelle": "527bef73aa5602c85695c22e738bfd750a96d8cc718340f423ae249e4f9e2031",
+        "sha256_gz": "78ddc222cb52f53570793065c3309307221ac1e077d658ec4f1f8e36185bae19"
+      },
+      "p2": {
+        "zeilen": 40,
+        "reproduziert": 40,
+        "mit_fehler": 0,
+        "stellungen": 1200,
+        "sha256_quelle": "34e86de631f3cd5c5fd5e0d588b49a1e1df2b48e3ad59c65c71359c1cdb8904a",
+        "sha256_gz": "5aba22a9be06ea27d20def0fa606299e06db37c0e0af29a71c92c9d1e087839c"
+      }
+    },
+    "muster-ohne-vorgabe-g-D": {
+      "artefakt": {
+        "id": 13165469922,
+        "digest": "sha256:62f7fb889229710db0b029a4ceac4a8e22c504604a04ea262053ae1395d9703a",
+        "erstellt": "2026-11-02T18:05:28Z",
+        "laeuft_ab": "2027-01-31T16:19:19Z"
+      },
+      "p1": {
+        "zeilen": 480,
+        "geeignet": 480,
+        "gebucht": 480,
+        "nicht_gebucht": [],
+        "wiederholung_gleich": 5,
+        "wiederholung_anders": 0,
+        "sha256_quelle": "dc2819f83fee5dc1a461c623c580f1d7a61994d2006317087d59b4a2e1b85bc5",
+        "sha256_gz": "15e972a42c7dfcbf018b07445f6b530aed56b001d06d8f2a7e4032562b75bb29"
+      },
+      "p2": {
+        "zeilen": 40,
+        "reproduziert": 40,
+        "mit_fehler": 0,
+        "stellungen": 1200,
+        "sha256_quelle": "5c9814c1e3b60c1a399cce5c474c7292eac813dc729d78d2d2f7c655ae23f453",
+        "sha256_gz": "72822142ebb18027acdaf89521c5425bc2ba628f2fa47e1c1c1bd5b570a5fb50"
+      }
+    },
+    "muster-ohne-vorgabe-f-D": {
+      "artefakt": {
+        "id": 13169677570,
+        "digest": "sha256:0afadf963807aa959d4e770aa7b5dd1879f197c5ff6173d5676c6f08f4b81153",
+        "erstellt": "2026-11-02T18:50:58Z",
+        "laeuft_ab": "2027-01-31T16:19:19Z"
+      },
+      "p1": {
+        "zeilen": 480,
+        "geeignet": 480,
+        "gebucht": 480,
+        "nicht_gebucht": [],
+        "wiederholung_gleich": 5,
+        "wiederholung_anders": 0,
+        "sha256_quelle": "d776fb20319305e4e00f07e6feb0261d7f17ccb7799b52e45ae494c33ce18033",
+        "sha256_gz": "4b0fe23c761f059714679583927a07c4ed0e1f0aa51a3c1cc235562d48845ba6"
+      },
+      "p2": {
+        "zeilen": 40,
+        "reproduziert": 40,
+        "mit_fehler": 0,
+        "stellungen": 1200,
+        "sha256_quelle": "bde9aa170f4d20552f34123320d2abe474dfdf62b0fe5a18b835cb73283a28a8",
+        "sha256_gz": "db83c227e8d2ae079eb8a011754152a8e6fca41e8173c199774013776101abcd"
+      }
+    },
+    "fuego-siege-D": {
+      "artefakt": {
+        "id": 13177399358,
+        "digest": "sha256:842d09e4d33c39dbffbe772125851c4d04e9271c4c8f99e72800d765aa509d96",
+        "erstellt": "2026-11-02T20:48:25Z",
+        "laeuft_ab": "2027-01-31T16:19:19Z"
+      },
+      "p1": {
+        "zeilen": 960,
+        "geeignet": 960,
+        "gebucht": 958,
+        "nicht_gebucht": [
+          450,
+          585
+        ],
+        "wiederholung_gleich": 5,
+        "wiederholung_anders": 0,
+        "sha256_quelle": "a89d74cec24ea430aed61a93956fa2619d5016bcf98ebccd248f4a86d19f8352",
+        "sha256_gz": "42c6c29d415e130eadfe6400889be260a9391c518ef6f237bd4c2729a5c83e7a"
+      },
+      "p2": {
+        "zeilen": 40,
+        "reproduziert": 40,
+        "mit_fehler": 0,
+        "stellungen": 1200,
+        "sha256_quelle": "0c3be4455e37bce1ae40368423276ed965427b0c676c65aaf3ab286ce8e276a7",
+        "sha256_gz": "2ff6b5d220d7de0d372c60e6cd02cf75fcf2e2fb56fb8e3143e761bd71480ab7"
+      }
+    }
+  }
+}

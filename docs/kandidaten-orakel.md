@@ -1,0 +1,704 @@
+<!--
+Required Notice: Copyright (c) 2026 Hazeberry (https://github.com/Hazeberry/Go-html-Game-MoE)
+SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+-->
+# Kandidaten-Orakel: Bringt GNU Gos Zug als zusätzliches Wurzelkind etwas? (Vorabfestlegung, Entwurf)
+
+**Stand: Hauptversuch Stufe 1 gelaufen und gültig (§13).** Der folgende Absatz
+beschreibt den ursprünglichen Entwurf; den aktuellen Stand nennen §10 und §11.
+
+Ursprünglicher Stand: Entwurf, nichts umgesetzt, nichts gelaufen. Die Umsetzung (ein Messschalter in der
+Engine, eine Option im Harness, Workflows, Tests) und **jeder Lauf, auch die Laufzeitprobe**, beginnen
+erst nach ausdrücklichem „Go“ von Hazeberry. Dieses Dokument legt vorab fest, was gemessen wird, wie
+gelesen wird und was ein Nullergebnis nicht aussagt. Es gibt **keine automatische Folgeentscheidung**.
+
+## 1. Anlass
+
+Die Rang-Auswertung (`docs/diagnose-p2-rang.md` §8) zeigt für Stellungen mit der KI als Schwarz: GNU Gos
+Zug (Stufe 10) steht vor dem Netz im Median auf Rang 29 der Kandidatenliste, nur in 34,2 % unter den
+16 Wurzelkindern, nach dem Netz in 38,9 %. Ob dieses Fehlen Punkte kostet, sagt keine bisherige Messung:
+
+- Der Orakel-Test (`muster-endspiel-orakel.md`) **erzwang** GNU Gos Zug und fand viel Spielraum
+  (+78,7 Punkte bei allen Zügen), unter anderen Bedingungen (neun Vorgabesteine, GNU Go Stufe 1). Er lässt
+  offen, ob die Suche den Zug auch **wählen** würde, stünde er zur Wahl.
+- Mehr Suche trifft GNU Gos Zug nicht öfter (`punktverlust-muster.md` §6). Das spricht gegen „nur zu wenig
+  Rechenzeit“, ist aber keine Antwort auf die Kandidatenfrage.
+- Mehr Netzpunkte unter den Kandidaten (`endspielNetzTop` 8) brachte +1,3 [−6,0; +8,6]
+  (`netz-dosis.md` §8). Das ändert die Zusammensetzung der 16, nicht ihre Zahl.
+
+Die alten +1,6 Punkte je geändertem Zug aus dem Orakel-Test sind **keine Prognose** für diesen Versuch:
+Dort wurde ein Zug erzwungen, hier entscheidet die Suche, unter anderen Bedingungen. Der Aufwand und die
+erkennbare Größe werden deshalb aus Messung und Streuung bestimmt (§5, §7), nicht aus dieser Zahl.
+
+**Frage (Stufe 1):** Verbessert es das Spiel, wenn GNU Gos Zug (Orakel) im Endspiel **zusätzlich unter
+den Wurzelkindern steht und den Spitzenprior bekommt** (der kombinierte Eingriff S gegen den Default A)?
+
+**Frage (nur Vollentwurf):** Wie viel davon ist die **Aufnahme** des Zuges und wie viel sein
+**Prior-Gewicht**? **Stufe 1 beantwortet das ausdrücklich nicht.** Sie prüft nur den kombinierten Eingriff.
+
+## 2. Aufnahme und Gewicht, und die Prior-Rechnung
+
+Ein zusätzlicher Zug mit Spitzenprior verändert **zwei Dinge zugleich**: Er kann überhaupt gesucht werden
+(**Aufnahme**), und die Suche bevorzugt ihn (**Gewicht**). Der Vollentwurf trennt beides (Arme N und P),
+Stufe 1 tut es nicht (§5).
+
+Vorbild für die Anwendung ist `krisenKandidaten` (der Zug bekommt die Chance, die Suche entscheidet), nicht
+der erzwungene Zug des Orakel-Tests. Die Eingriffe wirken an der Wurzel in jedem KI-Zug ab Zug 81
+(`mc` ≥ 80, wie das Endspiel-Netz) bis zum Partieende, **nach** dem Endspiel-Netz und den
+Krisenkandidaten, auf die frisch gebildeten Wurzelkinder; Statistik aus einem übernommenen Teilbaum
+(`wurzelFrisch`) wird wie im Default übernommen.
+
+### Prior-Rechnung, eindeutig
+
+**Bezeichnungen.** *L* ist die Kandidatenliste, wie sie `mctsPUCT` bekommt. *s(m)* ist der Score des Zuges
+*m*. *K* = 16 (`mctsRootChildren`). *B* sind die ersten *K* Einträge von *L* (die Basiskinder).
+σ = `mctsPriorSharp` (Default 3), λ = `endspielNetz` (Default 0,8), *q(m)* die Netz-Wahrscheinlichkeit von
+*m* (0, wenn nicht vorhanden).
+
+**Basisprior (Default, unverändert).** Mit hi = max und lo = min der **endlichen** Scores *s(m)*, *m* ∈ *B*,
+ṽ(m) = s(m) für endliches *s(m)*, sonst lo, und *T* = max(10⁻⁶, (hi − lo) / σ):
+
+  w(m) = exp((ṽ(m) − hi) / T),  Z_B = Σ_{m∈B} w(m),  P_B(m) = w(m) / Z_B.
+
+Ist λ > 0 und Σ_{m∈B} q(m) > 0 (Endspiel-Netz an), dann
+
+  P(m) = (1 − λ) · P_B(m) + λ · q(m) / Σ_{m∈B} q(m).
+
+**Aufnahme** eines Zuges *a* ∉ *B* (Fall (d)); die Kinder sind *B′* = *B* ∪ {*a*} (17 Kinder). hi, lo und
+*T* bleiben die aus *B* (**nicht** neu gerechnet). Mit ṽ(a) wie oben:
+
+  w(a) = exp((ṽ(a) − hi) / T),  Z′ = Z_B + w(a),  P′_S(m) = w(m) / Z′  für alle m ∈ B′,
+
+und, falls λ > 0 und Σ_{m∈B′} q(m) > 0,
+
+  P′(m) = (1 − λ) · P′_S(m) + λ · q(m) / Σ_{m∈B′} q(m).
+
+Ohne Netz-Anteil ist P′ = P′_S. Es gilt Σ P′ = 1. Die Priors der 16 Basiskinder ändern sich nur durch die
+Normierung über 17 statt 16 Kinder (und den Netz-Nenner), nicht durch eine andere Temperatur. Das ist der
+**natürliche Prior** des aufgenommenen Zuges.
+
+**Spitzenprior** für ein Kind *c* ∈ *B′* (bei Aufnahme auf P′, sonst auf dem Default-Vektor P über *B*; im
+Folgenden *R* für den jeweils geltenden Vektor): *M* = max_{m ≠ c} R(m). Ist R(c) ≥ *M*, gibt es **keinen
+Eingriff** (Fall (c1)). Sonst
+
+  R″(c) = M,  R″(m) = R(m) sonst,  R‴(m) = R″(m) / Σ_i R″(i).
+
+Nach der Normierung hat *c* den größten Prior **gleichauf** mit dem bisher größten anderen Kind (nicht
+darüber). Alle übrigen PUCT-Größen (Exploration, Simulationszahl, Q-Werte) bleiben unverändert.
+
+**Rechenbeispiel** (zur Anschauung *K* = 3 statt 16, σ = 3, ohne Netz-Anteil; Scores 10, 8, 4 für die
+Basiskinder und 2 für den aufgenommenen Zug): hi = 10, lo = 4, *T* = 2. Basisprior: w = (1; 0,3679; 0,0498),
+Z_B = 1,4177, P_B = (0,7054; 0,2595; 0,0351). Aufnahme: w(a) = exp(−4) = 0,0183, Z′ = 1,4360,
+P′ = (0,6964; 0,2562; 0,0347; 0,0128). Spitzenprior für den aufgenommenen Zug: M = 0,6964,
+R″ = (0,6964; 0,2562; 0,0347; 0,6964), Summe 1,6836, R‴ = (0,4136; 0,1522; 0,0206; 0,4136). Der Test in §8
+rechnet dieses Beispiel nach.
+
+**Randfälle, ausdrücklich festgelegt.**
+
+- **Gleiche Scores in *B*.** Ist hi = lo, dann *T* = 10⁻⁶ und w(m) = 1 für alle Basiskinder: Der Default-Prior
+  ist gleichverteilt (1/16 ohne Netz-Anteil). Beim aufgenommenen Zug gilt dieselbe Formel ohne Sonderfall:
+  w(a) = exp((ṽ(a) − hi) / 10⁻⁶) ist 0 (Unterlauf), wenn ṽ(a) < hi, und 1, wenn ṽ(a) = hi. Der natürliche
+  Prior eines schlechteren Zusatzzuges ist dann 0 (plus sein Netz-Anteil); der Prior der 16 Basiskinder bleibt
+  dann exakt der Default-Prior. Das Protokoll hält w(a) = 0 fest.
+- **Gleicher Rang bei gleichem Score.** Der Rang ist die **Position in *L***, so wie `mctsPUCT` die Liste
+  bekommt; Gleichstände sind dort vom Motor schon entschieden (einschließlich seines Gleichstandsbrechers).
+  Der Eingriff sortiert nicht neu. Der Nachbar ist die Position r ± 1, auch bei gleichem Score.
+- **Gleicher Prior beim Vergleich.** Die Bedingung R(c) ≥ M gilt auch bei Gleichheit: Ein Kind, das mit dem
+  größten anderen Prior gleichauf liegt, wird **nicht** angehoben. Verglichen wird exakt in
+  Gleitkommazahlen, ohne Toleranz.
+- **Zusatzkind schon mit dem höchsten Prior (d1).** Das ist möglich, wenn der Netz-Anteil λ · q(a) / Σ q den
+  natürlichen Prior über den größten der 16 hebt. Dann bleibt die Aufnahme, die Anhebung entfällt. Damit die
+  Priorbehandlung in S und ZS gleich bleibt, entfällt sie in **beiden** Armen, wenn sie für *g* **oder** für
+  *n* entfiele (die Entscheidung nutzt beide Vektoren, P′ mit *g* und P′ mit *n*); das Protokoll nennt Fall (d1)
+  und beide natürlichen Priors.
+
+**Entartete Fälle.** Fällt die Default-Rechnung auf den Rang-Prior zurück (σ = 0, nur ein Kind, Z_B nicht
+endlich oder ≤ 0), gibt es in diesem Zug **keinen Eingriff** in keinem Arm; die Stellung wird gezählt.
+
+### Fälle je KI-Zug
+
+*L* ist die Kandidatenliste nach dem Netz und den Krisenkandidaten, sortiert; die ersten 16 sind die
+Kinder. *g* ist der Zug des Orakels (GNU Go Stufe 10, `reg_genmove`, vor der Suche der KI für dieselbe
+Stellung abgefragt), *r* sein Rang in *L*.
+
+| Fall | Bedingung | Bedeutung |
+|---|---|---|
+| (a) | *g* ist Pass | kein Eingriff in **keinem** Arm |
+| (b) | *g* steht nicht in *L* (r = 0; auch z. B. für die KI verbotener Ko-Zug) | kein Eingriff in **keinem** Arm |
+| (c) | 1 ≤ r ≤ 16, *g* ist schon Kind | Aufnahme gibt es nichts zu tun; Gewicht kann angehoben werden |
+| (c1) | *g* hat schon den größten Prior (oder, für die Kontrollen, der Nachbar *n*): R(c) ≥ M | in keinem Arm ein Eingriff in diesem Fall |
+| (d) | r > 16, *g* steht in *L* | Aufnahme als 17. Kind; Anhebung auf den Spitzenprior nur, wenn (d1) nicht vorliegt |
+| (d1) | im Fall (d) hat der aufgenommene Zug **schon mit seinem natürlichen Prior** den größten Prior (R(c) ≥ M), für *g* **oder** für den Nachbarn *n* | Aufnahme **ohne** Anhebung, in S **und** ZS |
+
+Nach P2 (nur Schwarz, andere Bedingungen, **keine Prognose**) wäre zu erwarten: (c) rund 39 %, (d) rund
+60 %, (b) unter 1 %, (a) rund 1 %. Die Probe misst die tatsächlichen Anteile, beide Farben getrennt.
+
+## 3. Arme und Kontrollen
+
+Gleicher Auslöser, gleiche Kinderzahl, gleiche Priorbehandlung. Die **Kontrolle** unterscheidet sich vom
+Eingriffsarm **nur** im gewählten Zug: statt *g* wird der **Rang-Nachbar** *n* genommen.
+
+**Rang-Nachbar:** In (d): *n* = *L*[r+1] (der nächst schlechtere Zug), ist *g* der letzte Eintrag, dann
+*L*[r−1]; liegt *n* dabei unter den ersten 16, gibt es keinen zulässigen Nachbarn. In (c): *n* = *L*[r+1],
+bei r = 16 *L*[15]. *n* ist immer ein anderer Zug als *g*. Über eine **Ähnlichkeit** des Nachbarn mit dem
+Orakelzug (im Prior, im Score oder in der Lage) wird **nichts vorausgesetzt**; das Protokoll hält beide
+natürlichen Priors fest, damit die Abweichung nachträglich beschrieben werden kann. Gibt es keinen zulässigen
+Nachbarn, oder hat im Fall (c) *g* oder *n* schon den größten Prior, macht **auch der Eingriffsarm nichts**
+(so bleibt der Auslöser gleich) und die Stellung wird gezählt. Im Fall (d1) wird in beiden Armen aufgenommen
+und in keinem angehoben.
+
+| Arm | Fall (d), r > 16 (ohne (d1)) | Fall (c), 1 ≤ r ≤ 16, weder *g* noch *n* hat den größten Prior | (a), (b), (c1); bei (d1) nur Aufnahme |
+|---|---|---|---|
+| **A** (Default) | nichts | nichts | nichts |
+| **N** (Aufnahme) | *g* als 17. Kind, natürlicher Prior | nichts | nichts |
+| **ZN** | *n* als 17. Kind, natürlicher Prior | nichts | nichts |
+| **P** (Gewicht) | nichts | Spitzenprior für *g* | nichts |
+| **ZP** | nichts | Spitzenprior für *n* | nichts |
+| **S** (Aufnahme + Gewicht) | *g* als 17. Kind, Spitzenprior | Spitzenprior für *g* | nichts |
+| **ZS** | *n* als 17. Kind, Spitzenprior | Spitzenprior für *n* | nichts |
+
+Damit gilt: In allen Armen mit Eingriff wächst die Kinderzahl in denselben Stellungen um genau eins
+(Fall (d)), ein Spitzenprior wird in denselben Stellungen vergeben (Fall (c) und (d) bei S und ZS, ausgenommen
+(c1) und (d1), wo er in beiden Armen entfällt), und was sich zwischen Arm und Kontrolle unterscheidet, ist
+allein die Identität des Zuges.
+
+**Was die Vergleiche aussagen:**
+
+- **S − A (Hauptvergleich, Stufe 1):** Gesamtwirkung des kombinierten Eingriffs im Spiel: Der Orakelzug wird
+  als Kind aufgenommen und bekommt den Spitzenprior (bei schon vorhandenem Orakelzug nur den Spitzenprior).
+  Darin stecken **alle** Folgen des Eingriffs, auch Verdünnung der 120 Simulationen auf mehr Kinder und
+  Rauschen eines Spitzenzuges. Sie werden **nicht** herausgerechnet.
+- **S − ZS (ergänzende Kontrolle, Stufe 1):** Unterschied zwischen dem **Orakelzug** und seinem
+  **Rang-Nachbarn** bei gleicher Eingriffsart. ZS ist **kein neutraler Platzhalter**: Der Nachbar kann ein
+  guter oder schlechter Zug sein, seine Wirkung und seine Kosten sind nicht die „des Eingriffs ohne
+  Information“. S − ZS sagt deshalb nur, ob der Orakelzug sich vom Nachbarn unterscheidet; er sagt nicht,
+  wie viel der Eingriffskosten abgezogen wurden. ZS − A beschreibt, was derselbe Eingriff mit dem Nachbarn
+  bewirkt, und ist beschreibend.
+- **N − ZN** und **P − ZP** (nur Vollentwurf): Aufnahme allein beziehungsweise Gewicht allein, jeweils gegen
+  den Nachbarn. Es sind getrennte Messungen von Teilen des Eingriffs, **keine Summanden** von S − ZS.
+
+**Stufe 1 prüft ausdrücklich nur den kombinierten Eingriff** (Arme A, S, ZS). Aussagen über Aufnahme allein
+oder Gewicht allein macht sie nicht; N, ZN, P, ZP gehören nicht zu Stufe 1.
+
+## 4. Bedingungen und Protokoll
+
+Standardbedingungen (`CLAUDE.md`): `mctsFixedSims` 120, Aufgabe aus, Komi 7,5, **ohne Vorgabe**, GNU Go
+Stufe 1 als Schiedsrichter (Fläche). Gegner: GNU Go (Stufe 1, „g“) und Fuego (100 Spiele, „f“). Die Arme
+spielen **dieselben Partienummern** mit demselben Seed (gepaart); die Farbe wechselt mit der Nummer (gerade
+= KI Schwarz, ungerade = KI Weiß). **Beide Farben werden gespielt und getrennt protokolliert.** Die
+Auswahlregel von P2 (nur gerade Nummern) wird nicht wiederholt: Es werden **alle** Nummern 1 bis *n*
+gespielt.
+
+Seeds (bisher in keinem Dokument genannt): **230** (Probe), **231** (Hauptversuch gegen GNU Go), **232**
+(Hauptversuch gegen Fuego). Das Orakel ist ein zweites GNU Go auf Stufe 10 mit eigenem Zufallsstrom
+(Seed + 60000 wie im Orakel-Test), das jeden Zug mitspielt; es wird **vor** der Suche der KI abgefragt
+und ändert deren Zufallsstrom nicht.
+
+**Protokoll je KI-Zug ab Zug 81** (kompakt, keine ganzen Listen): `mc`, Farbe der KI, *g*, Fall, *r* (Rang
+in *L*), ob *g* schon Kind war, gewählter Nachbar *n* und sein Rang, die natürlichen Priors von *g* und *n*
+(bei Aufnahme P′, sonst P), ob angehoben wurde, aufgenommen ja/nein, gespielter Zug,
+Rang des gespielten Zugs in *L*, ob der gespielte Zug *g* ist, Visiten von *g* beziehungsweise *n* (und des
+besten Kindes), Antwort des Orakels ja/nein. Je Partie dazu: Endstand, Zugzahl, Neustarts von GNU Go.
+
+## 5. Endpunkte, Umfang, Genauigkeit und Teststärke
+
+- **Primärer Endpunkt (Stufe 1):** Differenz des Endstands nach GNU Gos Zählung (Fläche), gepaart nach
+  Partienummer, **S − A**, getrennt je Gegner. Zwei Gegner, also zwei primäre Tests: α = 0,05 / 2 = 0,025
+  je Gegner, Intervalle zu 97,5 %.
+- **Ergänzend, ohne Signifikanzurteil:** S − ZS und ZS − A als 95-%-Intervalle; Siege (exakter McNemar-Test,
+  Clopper-Pearson) und alles **nach Farbe** getrennt, jeweils beschreibend.
+- **Mehrfachvergleiche:** Nur die zwei primären Tests tragen ein Fehlerniveau. Alles andere ist
+  beschreibend und wird nicht als bestanden oder nicht bestanden gelesen.
+- **Fassungen:** **Stufe 1** = Arme A, S, ZS, **beide Gegner** (Präferenz von Hazeberry), nur der
+  kombinierte Eingriff. **Vollentwurf** = sieben Arme (zusätzlich N, ZN, P, ZP); er folgt nur auf ein
+  weiteres Go.
+
+### Streuungsquelle
+
+Gebraucht wird die SD der **gepaarten Differenz** des Endstands (A gegen S, gleiche Partienummer). Sie ist
+für diesen Eingriff unbekannt. Planungswerte stammen aus anderen Messungen, mit ihren Bedingungen:
+
+| Gegner | Quelle | Bedingungen | SD der Paardifferenz | Planungswert |
+|---|---|---|---:|---:|
+| GNU Go | `leeres-brett.md` §9, `muster-ohne-vorgabe.md` §5 | **ohne Vorgabe** | 56 bis 59 | 59 |
+| Fuego | `komponenten.md` §9 | **mit sechs Vorgabesteinen** | 74 bis 83 (85 in `muster-ohne-vorgabe.md` §5) | 85 |
+
+Für Fuego ohne Vorgabe ist **kein Wert belegt**; der Planungswert 85 ist eine Annahme. (Eine frühere
+Fassung dieses Dokuments nannte 74 bis 83 fälschlich als Wert „ohne Vorgabe“.) Die Probe schätzt die SD
+aus wenigen Paaren (bei 8 Paaren mit rund ±27 % relativer Unsicherheit) und prüft nur, ob die
+Planungswerte um mehr als den Faktor 1,5 danebenliegen; sie ersetzt sie nicht.
+
+### Intervallbreite und Teststärke sind verschieden
+
+Mit z = 2,2414 (α = 0,025, zweiseitig), z₈₀ = 0,8416 (Teststärke 80 %), SD σ und *n* Paaren:
+
+- **Halbe Breite des Intervalls** h = z · σ / √n. Das ist die **Genauigkeit**: Sie bestimmt, welchen Gewinn
+  ein **Nullergebnis ausschließt** (Obergrenze = Punktschätzer + h).
+- **Kleinster mit 80 % Wahrscheinlichkeit signifikant werdender wahrer Effekt**
+  MDE₈₀ = (z + z₈₀) · σ / √n. Das ist die **Teststärke**. Sie ist größer als h.
+
+| Paare *n* je Gegner | GNU Go (σ = 59): h / MDE₈₀ | Fuego (σ = 85): h / MDE₈₀ |
+|---:|---:|---:|
+| 240 | 8,5 / 11,7 | 12,3 / 16,9 |
+| 480 | 6,0 / 8,3 | 8,7 / 12,0 |
+| 960 | 4,3 / 5,9 | 6,1 / 8,5 |
+
+Für einen wahren Effekt von 10 Punkten bei 80 % Teststärke brauchen GNU Go rund 331, Fuego rund 687 Paare
+(σ wie oben). Die Größen sind aus Streuungen gerechnet, **nicht** aus einer erwarteten Wirkung; die alten
++1,6 Punkte je geändertem Zug gehen nicht ein. Die Zahl der Paare je Gegner (sie darf verschieden sein) wird
+nach der Probe in einem Nachtrag vor dem Start festgelegt.
+
+## 6. Lesart und Grenzen
+
+**Ein Nullergebnis** (S − A nicht signifikant) bedeutet: *Dieser Eingriff bringt keinen nachgewiesenen
+Gewinn.* Berichtet wird die **Obergrenze** des Intervalls („kein nachgewiesener Gewinn über +U Punkte“),
+nicht „kein Effekt“. Es bedeutet **nicht**, dass Kandidatenabdeckung unwichtig ist. Es lässt offen:
+
+- andere Simulationszahlen (im Spiel 750 bis 1300, hier 120);
+- mehrere Zusatzkinder, andere Priors (milder als der Spitzenprior), eine andere Auswahl der Zusatzzüge;
+- ob GNU Gos Zug ein guter Zug ist (er ist eine Referenz, kein Beweis);
+- ob die Bewertung in den Blättern den Zug unterschätzt. Ein Nullergebnis wäre **verträglich** mit „die
+  Bewertung ist der Engpass“, belegt es aber nicht.
+
+**Ein positives Ergebnis** (S − A) besagt, dass der kombinierte Eingriff dem Spiel nutzt. Ob das am
+Orakelzug liegt oder an einem beliebigen Zusatzkind mit Spitzenprior, zeigt erst die ergänzende Kontrolle
+S − ZS, und auch sie nur mit den Grenzen aus §3. Es besagt nicht, dass Aufnahme oder Gewicht allein helfen
+(Stufe 1 trennt das nicht). Es besagt nicht, dass
+eine größere Wurzelkinderzahl hilft (das wäre ein anderer Eingriff ohne Orakel), und es zeigt keinen Weg,
+den Zug ohne Orakel zu finden. Frühere Versuche, einen solchen Lerner zu bauen, sind verworfen
+(`muster-endspiel-*.md`).
+
+**Weitere Grenzen:** Das Orakel ist GNU Go, zugleich Lehrer von Netz und Mustern; ein Gewinn kann mit
+dieser Verwandtschaft zusammenhängen (Hypothese). Alle Aussagen gelten für die gemessenen Gegner und
+Bedingungen. Die Auswahl der Stellungen ist nicht zufällig, sondern wird durch das Spiel bestimmt; der
+Eingriff ändert den Partieverlauf.
+
+## 7. Laufzeitprobe (Stufe 0), vor dem Hauptversuch
+
+Der Aufwand ist nicht bekannt: Das Orakel wird in jedem KI-Zug ab Zug 81 befragt (rund 140 Abfragen je
+Partie, Zeit je Abfrage nicht gemessen), und die Partien enden wegen der Eingriffe nicht gleich lang. Die
+Probe misst ihn, bevor der Umfang festgelegt wird.
+
+**Umfang der Probe:** Seed 230, Arme A, S, ZS (die Arme von Stufe 1), je 8 Partien gegen GNU Go (je vier mit der KI als Schwarz
+und als Weiß) und je 4 gegen Fuego (je zwei). Dazu die Kontrolle: Arm A mit ausgeschaltetem Schalter
+reproduziert vier archivierte Partien (`leeres-brett-g-D`, Seed 222, Nr. 1 bis 4, zwei je Farbe) Zug für Zug. Die Probe
+läuft in Actions mit Paketen, Schritt-Zeitlimit kürzer als Job-Zeitlimit, Upload mit `always()` und
+Fortsetzen (Erfahrung aus der Diagnose: ein Job mit mehr als vier Stunden ist keine Option).
+
+**Was die Probe auswertet:** Dauer je Partie (Median, Maximum) je Arm und Gegner; Zeit je Orakelabfrage;
+Antwortquote und Neustarts des Orakels; Anteile der Fälle (a) bis (d) und Zahl der Eingriffe je Partie,
+getrennt nach Farbe; ob Auslöser von S und ZS in jeder Partie bis zur ersten Abweichung übereinstimmen;
+Streuung der Paardifferenz des Endstands (nur als Streuung, für die Planung, siehe §5).
+
+**Was die Probe nicht auswertet:** die **Höhe** der Endstand-Unterschiede zwischen den Armen. Die Probe
+sagt nichts über den Effekt; ihre Partien zählen nicht zum Hauptversuch. Ein Blick auf die Mittelwerte
+wird nicht in eine Entscheidung eingehen.
+
+**Technische Bedingungen für den Hauptversuch** (alle müssen erfüllt sein, sonst „kein Urteil“ für den
+Start und eine Meldung mit Grund):
+
+1. Arm A reproduziert die vier archivierten Partien bitgleich.
+2. Die Orakelantwort kommt in mindestens 98 % der Abfragen (Abstürze von GNU Go 3.8 sind bekannt,
+   `diagnose-p1p2.md` §9); das Orakel wird wie bisher neu gestartet.
+3. Fall (d) tritt in **beiden Farben** auf; Anteile liegen im Bericht.
+4. In jedem Paar S/ZS (und N/ZN, P/ZP) ist der erste Auslöser (Zugnummer und Fall) identisch.
+5. Hochrechnung der Laufzeit des Hauptversuchs aus dem Maximum der Probe (nicht aus dem Mittel), plus
+   50 % Reserve, bleibt unter dem Budget, das Hazeberry nach der Probe nennt.
+
+## 8. Umsetzung (Stufe 1 umgesetzt, nicht gelaufen)
+
+- **Engine:** ein Messschalter, **Standard aus**, nur über `extra` erreichbar (wie die Passregel), nie in
+  der Oberfläche und nie im Browser gesetzt. Die Zahl entscheidet über den Arm; der Orakelzug kommt als
+  Index im selben `extra`. Mit Schalter aus muss das Verhalten **bitgleich** bleiben (Test gegen vorhandene
+  Partien und den Schalter-aus-Zweig).
+- **Harness (`gnugo-duell.js`):** Option `--kandidaten-orakel ARM`, fragt das Orakel vor `getAIMove`, reicht
+  den Zug durch, schreibt das Protokoll aus §4. Die bisherige Option `--orakel-zug` bleibt unverändert.
+- **Workflow:** nur von Hand, Pakete mit Fortsetzen, Zeitlimit im Schritt kürzer als im Job, Upload mit
+  `always()`, Ergebnis auf einen neuen Ergebnisbranch mit anschließendem PR (Schreibrecht freigegeben),
+  getrennte Workflows für Probe und Hauptversuch.
+- **Tests:** Schalter aus bitgleich; Rang-Nachbar und alle Fälle der Tabelle in §3 mit gebauten Listen;
+  Prior-Rechnung gegen das Rechenbeispiel aus §2 und gegen die Default-Berechnung (ohne Eingriff identisch);
+Eingriffe verändern nur die vorgesehenen Priors (Summe 1, Temperatur der ersten 16); **die Randfälle aus §2
+(gleiche Scores, gleicher Rang, gleicher Prior, Zusatzkind schon mit höchstem Prior (d1)) werden bei der
+Umsetzung ausdrücklich gegen das Default-Verhalten geprüft**: ohne Eingriff, im Fall (a), (b), (c1) und
+bei entarteter Rechnung ist jede Priorität und jedes Kind **bitgleich** wie im Default; bei Aufnahme sind die
+Priors der 16 Basiskinder genau die Default-Priors, umgerechnet mit der Normierung über 17; Kontrolle und
+  Eingriff lösen in denselben Stellungen aus; Pässe, nicht gelistete Züge und fehlende Nachbarn ändern
+  nichts; Protokollfelder vollständig; Workflows nur von Hand.
+
+## 9. Gültigkeit
+
+Zwei Zustände. **Ungültig** („kein Urteil“, Lauf rot) bei: Verletzung einer technischen Bedingung aus §7
+im Hauptversuch; Orakelantwort unter 98 %; ungleich besetzte Arme (weniger als 98 % der Partien eines Arms
+ausgewertet, oder ungleiche Zahl je Farbe); Auslöser von Eingriff und Kontrolle weichen in mehr als 0 Paaren
+bis zur ersten Abweichung ab (gilt für S gegen ZS, im Vollentwurf auch N/ZN und P/ZP); die Prior-Summe eines
+Eingriffs ist nicht 1 (Abweichung > 10⁻⁹); Wiederholungskontrolle (die ersten drei Partien eines Arms zweimal gespielt)
+nicht identisch; Zählersummen der Fälle gehen nicht auf. Die Gültigkeit hängt **nicht** vom Ausgang ab
+(Siegrate, Vorzeichen des Effekts).
+
+## 10. Entscheidungen und Stand
+
+Festgehalten (Präferenz von Hazeberry): **Stufe 1 mit beiden Gegnern** (GNU Go und Fuego), Arme A, S, ZS,
+nur der kombinierte Eingriff, Hauptvergleich S − A.
+
+**Stand: Stufe 1 umgesetzt (Go von Hazeberry), nichts gelaufen.** Umgesetzt und getestet:
+- `index.html`: Messschalter `extra.kandidatenOrakel = {arm, g}` (nur Stufe „hard“, nur über `extra`,
+  Standard aus). Ohne `extra` ist `getAIMove` unverändert; Arm A ändert nur das Protokoll.
+  Zusätzliche Protokollfälle gegenüber §3: `x` (keine Antwort des Orakels), `c0`/`d0` (kein Rang-Nachbar),
+  `e` (entartete Prior-Rechnung) – alle ohne Eingriff, also bitgleich zum Default.
+  Protokollfelder je KI-Zug: `arm, g, fall, r, rn, nIdx, pG, pN, aufgenommen, angehoben, kinder, besuche`;
+  seit §12 dazu `priorSumme` und `priorFehler` (Laufzeitprüfung der Prior-Summe, nur lesend).
+- `gnugo-duell.js`: `--kandidaten-orakel A|S|ZS`, `--kandidaten-ab` (Standard 80); das Orakel wird vor
+  `getAIMove` gefragt (`reg_genmove`, zieht, legt nicht); Ergebnisfeld `kandidatenOrakel` mit Protokoll,
+  Abfragen, fehlenden Antworten, Neustarts, Abfragezeit und Partiedauer. Unser Zug wird nie ersetzt.
+- `spielen.sh`: `DUELL_ZUSATZ` für weitere Optionen (leer = unverändert).
+- Tests: `tests/kandidaten-orakel.js` (Rechenbeispiel, Bit-Identität zum Default, alle Fälle und Randfälle,
+  darunter gleiche Scores und Zusatzkind bereits mit höchstem Prior), `tests/kandidaten-orakel-spiel.js`
+  (Replay in echten Stellungen für Schwarz und Weiß, Harness mit Attrappe, Bericht, Workflow).
+- Workflow `kandidaten-orakel-probe.yml` und Bericht `auswertung/kandidaten-orakel/probe-bericht.js` für
+  die Laufzeitprobe (§7). **Nicht gestartet.** Der Hauptversuch-Workflow wird erst nach der Probe geschrieben
+  (Paarezahl und Budget hängen von ihr ab).
+
+Noch offen:
+1. ~~Zahl der Paare je Gegner und Budget~~: festgelegt in §11 (480 Paare je Gegner; Budget zuerst 158, dann
+   rund 160 Runnerstunden, siehe §12).
+2. ~~Go für die Laufzeitprobe~~: gelaufen, gültig (§11). **Go für den Hauptversuch** steht aus; zuerst wird
+   der Workflow als PR zur Prüfung vorgelegt.
+
+## 11. Nachtrag: Laufzeitprobe (Lauf 41550610778) und Festlegung des Umfangs
+
+**Quelle:** Workflow `kandidaten-orakel-probe.yml`, Lauf 41550610778 (Stand `1c71b02`, 03.11.2026),
+Seed 230. Bericht und Rohdaten unter `docs/daten/kandidaten-orakel/probe-lauf1/`: `bericht.md` ist die
+unveränderte Ausgabe des Laufs, `bericht-nachgerechnet.md` dieselbe Auswertung derselben Rohdaten mit der
+korrigierten Beschriftung (siehe unten). Ergebnis: **gültig**, technische Bedingungen 1 bis 4 aus §7
+erfüllt; Bedingung 5 siehe unten.
+
+Die Probe sagt **nichts** über die Wirkung des Eingriffs (§7). Mittelwerte der Endstände werden weder
+berechnet noch berichtet; ihre Partien zählen nicht zum Hauptversuch.
+
+### Technische Bedingungen
+
+| Bedingung (§7) | Ergebnis |
+|---|---|
+| 1. Arm A reproduziert Seed 222, Nr. 1 bis 4 | bitgleich (Züge und Endstand) |
+| 2. Orakelantwort ≥ 98 % | 4678 von 4678 Abfragen (100 %), keine Neustarts nötig |
+| 3. Fall (d) in beiden Farben | KI Schwarz 681, KI Weiß 733 (alle Arme zusammen) |
+| 4. erster Auslöser S = ZS | 12 von 12 Paaren gleich (Zugnummer, Fall, Rang von *g* und *n*) |
+| 5. Hochrechnung unter dem Budget | erfüllt, mit knappem Abstand (unten) |
+
+### Dauer, Auslöser und Eingriffe
+
+| Gegner | Arm | Partien | Median (s) | Maximum (s) | ms je Abfrage | Auslöser je Partie (c, d, d1) | Eingriffe je Partie |
+|---|---|---:|---:|---:|---:|---:|---:|
+| GNU Go | A | 8 | 54,1 | 66,4 | 242,5 | 60,1 | 0 |
+| GNU Go | S | 8 | 55,6 | 75,4 | 230,9 | 48,3 | 48,3 |
+| GNU Go | ZS | 8 | 65,7 | 90,7 | 314,7 | 64,5 | 64,5 |
+| Fuego | A | 4 | 104,6 | 109,9 | 373,7 | 86,0 | 0 |
+| Fuego | S | 4 | 118,2 | 171,7 | 569,3 | 86,3 | 86,3 |
+| Fuego | ZS | 4 | 74,0 | 82,7 | 300,8 | 94,8 | 94,8 |
+
+**Korrektur der Beschriftung.** Der Bericht des Laufs nennt die vorletzte Spalte „Eingriffe je Partie“.
+Gezählt wurden dort aber **Auslöser**, also KI-Züge mit Fall c, d oder d1. Diese Zählung ist in allen
+Armen gleich definiert, auch in Arm A, wo bei einem Auslöser **nichts** geschieht. Die Zahlen 60,1 und 86
+für Arm A sind also keine Eingriffe. Tatsächliche Eingriffe (Zug aufgenommen oder angehoben) gibt es nur in
+S und ZS; dort fällt jeder Auslöser mit einem Eingriff zusammen, weil (c1) nicht als Auslöser zählt und
+(d1) eine Aufnahme ist. `probe-bericht.js` beschriftet die Spalte jetzt als „Auslöser je Partie (c, d,
+d1)“ und gibt die Eingriffe in einer eigenen Spalte aus. Dass die Auslöser je Partie zwischen den Armen
+verschieden sind, ist erwartet: Die Partien verlaufen nach dem ersten Eingriff verschieden.
+
+### Die 42 Abfragen ohne Protokoll
+
+In 42 von 4678 Abfragen (0,9 %) steht im Protokoll der Fall `kein-protokoll` (Arme A, S, ZS je Gegner:
+GNU Go 8, 8, 8; Fuego 4, 5, 9; dazu 4 in der Kontrolle, die nicht in den 4678 mitzählen). Die Ursache ist
+im Code und in den Rohdaten belegt:
+
+- Das Orakel wird **vor** `getAIMove` gefragt, die Abfrage wird also gezählt. Der Eingriff sitzt aber in
+  der Bildung der Wurzelkinder (`_mctsWurzelKinder`). Endet `getAIMove` **vor** der Suche, wird keine
+  Wurzel gebildet und `kandidatenProtokoll()` bleibt `null`. Das Harness schreibt dann `kein-protokoll`.
+- Vor der Suche endet `getAIMove` nur mit einem **Pass** (keine legalen Züge; alle Züge laut Benson
+  todgeboren; nur eigene Augen frei; Pass-Prüfung ohne lohnenden Zug oder mit unabwendbarem Gegnerzug)
+  oder mit Aufgabe (hier abgeschaltet).
+- **Alle 42** Fälle sind tatsächlich Pässe der KI (`i` = −1), und in **allen 42** hat auch das Orakel
+  gepasst (`g` = −1). 36 davon sind der letzte Zug der KI in der Partie, 6 liegen kurz davor im Endspiel
+  (Fuego, Arm S Partie 3 einmal, Arm ZS Partien 1 und 2 zusammen fünfmal). Welcher der Pass-Pfade griff,
+  hält das Protokoll nicht fest.
+
+**Folge:** In diesen 42 Abfragen war kein Eingriff möglich. Er wäre aber auch mit Wurzel nicht erfolgt:
+Ein Pass des Orakels ist Fall (a), und Fall (a) heißt in **keinem** Arm ein Eingriff. Die Fälle verzerren
+den Vergleich der Arme deshalb nicht. Die Übergabe nannte als Ursache „Wurzel nicht neu gebildet“. Das
+stimmt im Ergebnis, ist aber ungenau: Die Wurzel wird bei `wurzelFrisch` 1 in jedem gesuchten Zug neu
+gebildet. Es fehlte die Suche selbst, weil die KI vorher passte. Der Bericht nennt die Zahl jetzt mit
+Aufschlüsselung (Pass der KI, Pass des Orakels). Im Hauptversuch werden die Fälle ebenso gezählt und
+berichtet; ein Fall `kein-protokoll` mit einem Zug des Orakels (`g` ≥ 0) wäre dort ein Eingriff, der wegen
+des Passes der KI entfällt, in allen Armen nach derselben Regel.
+
+### Streuung (nur Planung)
+
+SD der Paardifferenz S − A: GNU Go 44,9 Punkte (8 Paare), Fuego 13,2 Punkte (4 Paare). Bei so wenigen
+Paaren ist das nur eine Größenordnung; nach §5 prüft die Probe nur, ob die Planungswerte um mehr als den
+Faktor 1,5 danebenliegen. GNU Go: 59 / 44,9 = 1,3, innerhalb. Fuego: 85 / 13,2 = 6,4, außerhalb, aber aus
+4 Paaren nicht belastbar (bei 4 Paaren ist die SD sehr unsicher). Die Planungswerte 59 und 85 bleiben;
+eine kleinere wahre SD macht die Intervalle nur schmaler.
+
+### Festlegung des Umfangs (Hazeberry, 03.11.2026)
+
+- **480 Paare je Gegner**, in allen drei Armen A, S und ZS dieselben Partienummern 1 bis 480 (240 je Farbe).
+  Das sind 3 × 480 = 1440 Partien je Gegner und **2880 Partien** insgesamt, ohne Kontrollen.
+- Seeds wie in §4 festgelegt: **231** gegen GNU Go, **232** gegen Fuego.
+- Erwartete Genauigkeit (§5, mit den Planungswerten): halbe Breite des 97,5-%-Intervalls 6,0 Punkte
+  (GNU Go) und 8,7 Punkte (Fuego); MDE₈₀ 8,3 und 12,0 Punkte.
+- **Budget: 158 Runnerstunden** als Planungsbudget, **nicht** als garantierte Obergrenze. (Später am selben Tag
+  auf **rund 160 Runnerstunden** aktualisiert, siehe §12.)
+
+### Bedingung 5: Hochrechnung gegen das Budget
+
+Nach §7 aus dem **Maximum** der Probe plus 50 % Reserve: GNU Go 90,7 s × 1,5 = 136,1 s, Fuego 171,7 s ×
+1,5 = 257,6 s je Partie.
+
+| Teil | Partien | Hochrechnung |
+|---|---:|---:|
+| GNU Go, 3 Arme × 480 | 1440 | 54,4 h |
+| Fuego, 3 Arme × 480 | 1440 | 103,0 h |
+| **Summe der Partien** | **2880** | **157,5 h** |
+| Wiederholungskontrolle (§9: je Arm und Gegner die Partien 1 bis 3 noch einmal) | 18 | 1,0 h |
+| Kontrolle gegen das Archiv (Seed 222, Nr. 1 bis 4) | 4 | 0,2 h |
+| Einrichten der Jobs (Probe: rund 15 s je GNU-Go-Job, 30 s je Fuego-Job), Fuego bauen | – | unter 1 h |
+
+**Bewertung.** Die Hochrechnung der Partien (157,5 h) liegt unter dem Budget (158 h); Bedingung 5 ist in
+ihrem Wortlaut erfüllt. Der Abstand ist mit 0,5 h aber **knapp**, weil das Budget gleich der Hochrechnung
+gewählt wurde. Mit Kontrollen und Einrichtung kommt die vorsichtige Rechnung auf **rund 159 bis 160 h**, gut
+1 % über dem Planungsbudget. Aus den **Medianen** der Probe ergäben sich rund 63 h für die Partien (GNU Go
+23,4 h, Fuego 39,6 h). Das ist eine Erwartung, keine Zusage: Wie lang die Partien im Hauptversuch dauern,
+ist nicht gemessen, und das Maximum aus 8 bzw. 4 Partien kann im Hauptversuch überschritten werden.
+Dagegen soll der Workflow des Hauptversuchs nach jeder Partie sichern und sich fortsetzen lassen (eigener PR,
+nur Vorbereitung; der Lauf braucht ein eigenes Go).
+
+
+## 12. Hauptversuch: Workflow, Fortsetzen und Auswertung (Festlegung vor dem Start)
+
+**Stand: gelaufen (Lauf 41563696817, Go von Hazeberry am 03.11.2026), Ergebnis in §13.** Ursprünglich: vorbereitet, Lauf erst nach eigenem Go. Dieser
+Abschnitt legt vorab fest, wie gespielt, gesichert, fortgesetzt und ausgewertet wird. Er konkretisiert §9 an
+einigen Stellen; diese Stellen sind unten als **Konkretisierung** markiert und gehören zur Prüfung vor dem Go.
+
+### Ablauf (`.github/workflows/kandidaten-orakel-haupt.yml`, nur von Hand)
+
+| Job | Inhalt |
+|---|---|
+| `pruefen` | `tests/kandidaten-orakel.js`, `tests/kandidaten-orakel-spiel.js`, `tests/kandidaten-orakel-haupt.js`; ohne grünen Test läuft keine Partie |
+| `fuego-bauen` | Fuego r2038, einmal je Lauf |
+| `gnugo` | Arme A, S, ZS × 16 Pakete zu 30 Partien (Nr. 1 bis 480), Seed 231 |
+| `fuego` | Arme A, S, ZS × 24 Pakete zu 20 Partien (Nr. 1 bis 480), Seed 232 |
+| `wiederholung` | je Gegner und Arm die Partien 1 bis 3 noch einmal, in eigenen Jobs (§9) |
+| `kontrolle` | Arm A, Seed 222, Nr. 1 bis 4 gegen das Archiv (Bedingung 1, im Hauptversuch erneut) |
+| `ergebnis` | Zusammenführen, Bericht, Ergebnisbranch `ergebnisse/kandidaten-orakel-haupt-lauf<N>` |
+
+Bedingungen wie in §4 und in der Probe: ohne Vorgabe, `mctsFixedSims` 120, Aufgabe aus, Komi 7,5, GNU Go
+Stufe 1 zählt (Fläche), Fuego mit 100 Spielen je Zug, Arm D aus `arme-o.sh` (Default) plus
+`--kandidaten-orakel A|S|ZS`. Jedes Paket beginnt mit einer ungeraden Nummer und enthält gleich viele
+Partien je Farbe. Alle drei Arme spielen dieselben Nummern.
+
+### Sicherung und Fortsetzen
+
+- **Eine Partie je Prozess.** `auswertung/kandidaten-orakel/paket.js` ruft `spielen.sh` für jede Partie
+  einzeln auf und hängt den Datensatz sofort an die Paketdatei (mit `fsync`). Die Probe spielte vier
+  Partien in einem Prozess. Dass das an den Partien nichts ändert, ist nötig, damit fortgesetzte Partien
+  dieselben sind. Belegt wird es dreifach: im Code (`neuePartie` setzt die Zustände zurück, die zwischen Partien weiterleben könnten:
+  gespeicherter Baum, Aufgabe-Serien, Zeitmessung; der Zufallsstrom wird je Partie aus dem Seed neu gesetzt), im Test (Partie 2 im eigenen Prozess gleich wie
+  nach Partie 1 im selben Prozess, mit der GTP-Attrappe), und im Lauf selbst: Die Kontrolle spielt die vier
+  Archivpartien, die damals in **einem** Prozess entstanden, jetzt einzeln nach.
+- **Zeitlimits.** Spielschritt 240 Minuten, Job 270 Minuten (Pakete: GNU Go rund 30, Fuego rund 33 Minuten
+  nach den Medianen der Probe; 68 bzw. 86 Minuten nach Maximum plus 50 %). Läuft ein Schritt ab, sichert der
+  Upload mit `always()` alle fertigen Partien.
+- **Fortsetzen.** Eingabe `fortsetzen_aus` = Nummer (run id) eines früheren Laufs. Jedes Paket holt sein
+  Artefakt `haupt-<Paket>` aus jenem Lauf und spielt **nur die fehlenden Nummern**. Fertige Pakete
+  installieren nichts und spielen nichts, sie laden ihr Artefakt nur wieder hoch. Eine beim Abbruch
+  abgeschnittene letzte Zeile wird verworfen und die Partie neu gespielt. Fortsetzen lässt sich verketten
+  (Lauf 3 aus Lauf 2), weil jeder Lauf alle Pakete vollständig wieder sichert.
+- **Kein Mischen von Ständen.** Jedes Paket führt eine Begleitdatei mit Gegner, Arm, Seed, Bereich,
+  Umgebung (`VORGABE`, `SIMS`, `SCHAETZUNG`, `FUEGO_SPIELE`), Datei der Arme und SHA-256 von `index.html`,
+  `gnugo-duell.js`, `spielen.sh`, `lebensurteil.js` und `arme-o.sh`. Weicht beim Fortsetzen etwas ab,
+  bricht das Paket ab (Exit 3). Der Ergebnis-Job prüft noch einmal, dass alle Pakete denselben Stand nennen.
+  Nicht erfasst sind die Versionen von GNU Go (Ubuntu-Paket auf `ubuntu-24.04`) und Fuego (fester Stand
+  r2038, je Lauf neu gebaut). Ändert sich dort etwas zwischen zwei Läufen, fällt das nur über die Kontrolle
+  und die Wiederholung auf, nicht über die Begleitdatei.
+- **Unvollständig ist kein Ergebnis.** Fehlen Nummern, ist der Lauf rot („KEIN URTEIL: unvollständig“), der
+  Bericht nennt die fehlenden Partien und den Lauf zum Fortsetzen, und es entsteht **kein** Ergebnisbranch,
+  nur das Artefakt. Der Ergebnisbranch entsteht erst bei vollständigen Daten, auch wenn der Lauf ungültig
+  ist (dann mit Bericht „KEIN URTEIL“ und Grund).
+
+### Gültigkeit (§9, konkretisiert)
+
+Ungültig („KEIN URTEIL“, Lauf rot, **kein** Effekt im Bericht), wenn eine der folgenden Prüfungen fehlschlägt:
+
+1. Je Arm und Gegner liegt jede Nummer 1 bis 480 genau einmal vor, mit der Farbe nach der Nummer.
+   **Konkretisierung:** „gleiche Zahl je Farbe“ bezieht sich auf die **gespielten** Partien (240 je Farbe);
+   abgebrochene Partien zählen gegen die 98 %, nicht gegen die Farbgleichheit. Ausfälle werden je Arm,
+   Gegner und Farbe ausgewiesen (Festlegung Hazeberry, 03.11.2026).
+2. Je Arm und Gegner sind mindestens 471 von 480 Partien ausgewertet (98 %). Ausgewertet werden nur
+   vollständige Paare (unten, Auswertung).
+3. Kontrolle: Arm A reproduziert Seed 222, Nr. 1 bis 4 bitgleich (Züge und Endstand).
+4. Antwortquote des Orakels ≥ 98 %, **Konkretisierung:** je Arm und Gegner, nicht nur insgesamt
+   (bestätigt von Hazeberry, 03.11.2026).
+5. Fall (d) tritt je Gegner in beiden Farben auf.
+6. Erster Auslöser von S und ZS gleich (Zugnummer, Fall, Rang von *g* und *n*) in allen Paaren.
+7. Wiederholungskontrolle: Partien 1 bis 3 je Arm und Gegner beim zweiten Spielen identisch (Züge und
+   Endstand). Eine abgebrochene Partie unter diesen sechs macht die Kontrolle nicht prüfbar und den Lauf
+   ungültig.
+8. Zählersummen: je ausgewerteter Partie ein Protokolleintrag je Abfrage, eine Abfrage je KI-Zug ab Zug 81
+   (genau die Zugnummern), Zahl der Fälle `x` gleich der Zahl fehlender Antworten, nur bekannte Fälle. (An den
+   40 Partien der Probe nachgeprüft: stimmt in allen.)
+9. Gleicher Stand der Quellen in allen Paketen (Begleitdateien).
+10. **Prior-Summe zur Laufzeit:** Jeder Eingriff (aufgenommen oder angehoben) trägt die Summe der Priors
+    seiner Wurzelkinder im Protokoll, und sie weicht um höchstens 10⁻⁹ von 1 ab. Ein Eingriff ohne Summe oder
+    mit größerer Abweichung macht den Lauf ungültig.
+
+**Laufzeitprüfung der Prior-Summe (Go von Hazeberry, 03.11.2026).** Umgesetzt im Messpfad von `index.html`:
+`_mctsKidsOrakel` ruft die bisherige Rechnung (jetzt `_mctsKidsOrakelKern`) auf und **liest** danach die
+Priors der fertigen Kinder. Es schreibt `priorSumme` (Summe in der Reihenfolge der Kinder) ins Protokoll und,
+bei einer Abweichung über 10⁻⁹, `priorFehler` mit allen Kindern als `[Feld, Prior]`. Die Kinder selbst
+ändert es nicht. Ohne `extra` läuft dieser Pfad nie; Arm A bleibt bitgleich zum Default (Tests). Das
+Harness übernimmt die Summe als `ps` und die Fehlerliste als `pf` in jeden Protokolleintrag.
+**Fehlerprotokoll:** Der Bericht listet jede Abweichung über 10⁻⁹, auch ohne Eingriff, und jeden Eingriff
+ohne Summe mit Gegner, Arm, Partie, Farbe, Zug, Fall und Summe; die vollständige Liste mit allen Priors steht
+in `auswertung.json`. Ungültig machen nur Fehler bei einem Eingriff (§9); eine Abweichung ohne Eingriff wird
+protokolliert und im Bericht genannt. Dazu die größte gemessene Abweichung über alle Einträge.
+**Grenze der Tests:** Eine Abweichung lässt sich mit gültigen Eingaben nicht erzeugen, weil die Rechnung
+mathematisch auf 1 normiert. Der Fehlerpfad ist deshalb am Bericht mit gebauten Daten geprüft, an der Engine
+nur der Normalfall (alle Fälle und Arme: Summe protokolliert, gleich der Summe der Kinder, kein Fehlereintrag).
+
+### Auswertung (`auswertung/kandidaten-orakel/haupt-bericht.js`, nur bei Gültigkeit)
+
+- **Vollständige Paare (Festlegung Hazeberry, 03.11.2026):** Alle Vergleiche nutzen nur Partienummern, die in
+  **allen drei Armen** eines Gegners ausgewertet sind. Damit beruhen S − A, S − ZS und ZS − A auf denselben
+  Nummern. Ausfälle stehen in einer eigenen Tabelle je Gegner, Arm und Farbe: gespielt, nicht ausgewertet
+  (davon abgebrochen), nur wegen eines Ausfalls in einem anderen Arm nicht im Paar, die Nummern und die
+  **Ausfallgründe** (fehlt, abgebrochen mit der Meldung des Harness, kein Endstand, ohne Protokoll des
+  Orakels). Der Bericht nennt je Gegner die **tatsächlich verwendete Paarzahl**; alle Intervalle und Tests
+  sind aus genau diesen Paaren berechnet, die Tabellen nennen sie als „verwendete Paare“.
+  **Keine eigene Schwelle für vollständige Paare** (Festlegung Hazeberry, 03.11.2026): Für die
+  **Vollständigkeit** gilt allein die 98-%-Regel je Arm (Punkt 2 oben). Alle übrigen Gültigkeitsbedingungen
+  (Punkte 1 und 3 bis 10) gelten unverändert. Der Anteil vollständiger Paare kann deshalb unter 98 % liegen,
+  wenn Partien verschiedener Arme an verschiedenen Nummern ausfallen; er steht dann im Bericht.
+- **Primär, je Gegner:** Endstand S − A, gepaart nach Partienummer, zweiseitiger gepaarter t-Test,
+  α = 0,025, Intervall zu 97,5 % mit dem t-Quantil (bei 480 Paaren 2,2485 statt z = 2,2414 aus §5; der
+  Unterschied ist ohne praktische Folge). Urteil: „S besser als A“ oder „S schlechter als A“ bei p < 0,025,
+  sonst „kein nachgewiesener Unterschied“ mit der Obergrenze des Intervalls (§6).
+- **Ergänzend, ohne Signifikanzurteil (95 %):** S − ZS, ZS − A, exakter Vorzeichentest, Siege mit
+  Clopper-Pearson und exaktem McNemar-Test (S gegen A, S gegen ZS, ZS gegen A), alles auch nach Farbe der KI.
+- **Beschreibend je Arm:** ausgewertete und abgebrochene Partien, Züge, Auslöser je Partie (c, d, d1),
+  Eingriffe je Partie, Anteil „gespielter Zug = Orakelzug“ bei Auslösern, `kein-protokoll` (davon mit
+  einem Zug des Orakels), Dauer (Median, Maximum) und Summe der Partiezeit gegen das Budget.
+
+Die Gültigkeit hängt nicht vom Ausgang ab. Ein Funktionstest des Berichts lief einmal auf den Rohdaten der
+Probe. Seine Zahlen gehen in keine Entscheidung ein und werden nicht berichtet (§7). Die Tests nutzen
+gebaute Daten.
+
+### Aufwand
+
+**Planungsbudget: rund 160 Runnerstunden** (aktualisiert von Hazeberry, 03.11.2026; Planungsbudget, keine
+garantierte Obergrenze). Die vorsichtige Rechnung aus §11 (Maximum der Probe plus 50 %, mit Kontrollen und
+Einrichtung) ergibt rund 159 bis 160 h und liegt damit im Budget, ohne Reserve darüber. Nach den Medianen der
+Probe wären es rund 65 h. Die Laufzeitprüfung der Prior-Summe kostet je Zug eine Summe über 16 oder 17
+Zahlen und fällt nicht ins Gewicht. Die Wanduhrzeit
+hängt davon ab, wie viele Jobs GitHub gleichzeitig laufen lässt. Bei 20 gleichzeitigen Jobs wären es nach
+den Medianen grob 3 bis 4 Stunden, vorsichtig rund 8. Das ist eine Hypothese, nicht gemessen.
+
+## 13. Nachtrag: Ergebnis des Hauptversuchs (Lauf 41563696817)
+
+**Quelle:** Workflow `kandidaten-orakel-haupt.yml`, Lauf 41563696817 (Nr. 1), Stand `370df8e`, gestartet
+03.11.2026 02:03 UTC nach Go von Hazeberry, ohne Fortsetzen, ein Durchgang. Bericht, Auswertung, Begleitdateien
+und Rohdaten unter `docs/daten/kandidaten-orakel/haupt-lauf1/`. Der Bericht wurde lokal aus den Rohdaten
+mit demselben `haupt-bericht.js` nachgerechnet und ist **zeichengleich**.
+
+### Gültigkeit
+
+**Gültig.** Alle Bedingungen aus §9 und §12 erfüllt:
+
+| Bedingung | Ergebnis |
+|---|---|
+| Vollständigkeit | je Arm und Gegner alle 480 Nummern gespielt, 240 je Farbe |
+| ≥ 98 % ausgewertet je Arm | GNU Go A 480, S 479, ZS 479; Fuego je 480 |
+| Kontrolle Seed 222, Nr. 1 bis 4 | bitgleich (Partien je einzeln im eigenen Prozess gespielt) |
+| Antwortquote des Orakels je Arm und Gegner | 100 % in allen sechs (zusammen 381 584 Abfragen) |
+| Fall (d) in beiden Farben | GNU Go 24 307 / 27 162, Fuego 39 404 / 39 930 |
+| erster Auslöser S = ZS | GNU Go 478 Paare, Fuego 480 Paare, 0 abweichend |
+| Wiederholungskontrolle (Nr. 1 bis 3) | in allen sechs Arm-Gegner-Kombinationen identisch |
+| Zählersummen | stimmen |
+| Prior-Summe zur Laufzeit | 377 496 Einträge geprüft, größte Abweichung 8,9 · 10⁻¹⁶, Fehlerprotokoll leer |
+| Stand der Quellen | in allen Paketen gleich |
+
+**Ausfälle:** zwei Partien, beide gegen GNU Go, beide wegen eines Absturzes des Gegners (GNU Go,
+SIGSEGV bei `genmove`): Arm S Nr. 401 (KI Weiß) und Arm ZS Nr. 422 (KI Schwarz). Damit **478
+vollständige Paare** gegen GNU Go, **480** gegen Fuego. Alle Vergleiche beruhen auf diesen Paaren.
+
+### Primärer Endpunkt: Endstand S − A (α = 0,025 je Gegner, 97,5 %)
+
+| Gegner | verwendete Paare | S − A [97,5 %] | SD | p (zweiseitig) | Median der Differenz | Urteil |
+|---|---:|---|---:|---:|---:|---|
+| GNU Go | 478 | **+24,7** [+19,9; +29,5] | 46,6 | 1,7 · 10⁻²⁷ | +24 | S besser als A |
+| Fuego | 480 | **+36,0** [+30,1; +42,0] | 58,0 | 6,8 · 10⁻³⁶ | +28 | S besser als A |
+
+Beide primären Tests sind signifikant. **Der kombinierte Eingriff (GNU Gos Zug als zusätzliches
+Wurzelkind mit Spitzenprior) verbessert den Endstand gegen beide Gegner**, unter den gemessenen
+Bedingungen (§4). Die SD der Paardifferenz lag mit 46,6 und 58,0 unter den Planungswerten 59 und 85; die
+Intervalle sind entsprechend schmaler als geplant (halbe Breite rund 4,8 und 6,0 statt 6,0 und 8,7).
+
+### Ergänzend, ohne Signifikanzurteil (95 %)
+
+| Gegner | Vergleich | Differenz [95 %] | Vorzeichen besser/schlechter | Siege nur erster / nur zweiter |
+|---|---|---|---|---|
+| GNU Go | S − ZS | +42,4 [+38,0; +46,8] | 394 / 75 | 35 / 3 |
+| GNU Go | ZS − A | −17,7 [−22,2; −13,3] | 167 / 306 | 4 / 7 |
+| Fuego | S − ZS | +51,7 [+46,1; +57,3] | 392 / 87 | 165 / 19 |
+| Fuego | ZS − A | −15,7 [−20,5; −10,8] | 179 / 290 | 31 / 48 |
+
+Siegquoten in den vollständigen Paaren (95 %, Clopper-Pearson; Gegner GNU Go Stufe 1 und **Fuego mit 100
+Spielen je Zug**):
+
+| Gegner | A | S | ZS |
+|---|---|---|---|
+| GNU Go | 1,5 % [0,6; 3,0] | 7,5 % [5,3; 10,3] | 0,8 % [0,2; 2,1] |
+| Fuego | 12,3 % [9,5; 15,6] | 39,2 % [34,8; 43,7] | 8,8 % [6,4; 11,6] |
+
+Die frühere Messung von 48,0 % Siegen des Defaults gegen Fuego (`muster-fuego-siege.md`, Lauf 1, Seed 228)
+lief gegen **Fuego mit 50 Spielen je Zug** und ist mit den Quoten hier (Fuego mit 100 Spielen je Zug) **nicht
+direkt vergleichbar**.
+
+Nach Farbe der KI ist S − A in allen vier Gruppen positiv (GNU Go Schwarz +20,6, Weiß +28,8; Fuego Schwarz
++34,2, Weiß +37,9; Intervalle im Bericht).
+
+### Beschreibend
+
+- **Gespielter Zug = Orakelzug** bei einem Auslöser: Arm A 2,2 % (GNU Go) und 1,4 % (Fuego), Arm S 34,3 % und
+  30,9 %, Arm ZS 2,0 % und 1,3 %. Im Default wählt die Suche GNU Gos Zug an diesen Stellen also fast nie; mit
+  dem Eingriff in rund einem Drittel der Fälle.
+- **Auslöser je Partie** (c, d, d1): GNU Go A 63,5, S 57,6, ZS 69,0; Fuego A 88,1, S 80,5, ZS 95,4. Eingriffe
+  in S und ZS gleich den Auslösern, in A 0.
+- **`kein-protokoll`** (KI passt vor der Suche): je Arm 480 bis 934. Davon mit einem **Zug** des Orakels, also
+  ein Eingriff, der wegen des Passes der KI entfiel: GNU Go A 5, S 2, ZS 4; Fuego A 91, S 31, ZS 93. Die Regel ist
+  in allen Armen dieselbe (§11).
+- **Fall `e`** (entartete Prior-Rechnung, kein Eingriff): 31-mal gegen Fuego, gegen GNU Go nicht.
+- **Laufzeit:** Partiezeit zusammen 65,0 h, Wanduhrzeit des Laufs 3 h 39 min (02:03 bis 05:42 UTC). Das liegt
+  weit unter dem Planungsbudget von rund 160 h und nahe an der Erwartung aus den Medianen der Probe (rund 65 h).
+  Längste Partie 351 s (Fuego, ZS), also über dem Maximum der Probe (172 s); ein Paket ist trotzdem nie an
+  sein Zeitlimit gekommen.
+
+### Lesart (§6)
+
+- **Gemessen:** Der kombinierte Eingriff S hebt den Endstand gegen GNU Go um rund 25 und gegen Fuego um rund
+  36 Punkte, bei 120 Simulationen, ohne Vorgabe, gezählt von GNU Go Stufe 1 (Fläche).
+- **Gemessen, beschreibend:** Der kombinierte Eingriff verbessert mit dem Orakelzug den Endstand (S − A +25
+  und +36) und verschlechtert ihn mit dem gewählten Rang-Nachbarn (ZS − A rund −18 und −16; S − ZS +42 und
+  +52). Die Verluste von ZS sind **keine isoliert gemessenen Eingriffskosten**: ZS setzt einen bestimmten
+  anderen Zug ein, kein neutrales Zusatzkind. Wie §3 sagt, ist ZS kein neutraler Platzhalter; S − ZS ist
+  keine Zerlegung von S − A.
+- **Nicht gezeigt (§6):** ob Aufnahme oder Gewicht allein hilft (Stufe 1 trennt das nicht); wie die Suche
+  einen solchen Zug **ohne Orakel** finden könnte; ob das Ergebnis bei 750 bis 1300 Simulationen (Spiel im
+  Browser) gleich ausfällt; ob es an einem guten Zug liegt oder an der Verwandtschaft von Orakel, Netz,
+  Mustern und Schiedsrichter (alle GNU Go). Letzteres bleibt **Hypothese**; gegen Fuego als Gegner tritt der
+  Gewinn ebenso auf, gezählt wird aber auch dort von GNU Go.
+- **Folge für das Spiel:** Keine. Das Orakel ist ein Messmittel und steht im Spiel nicht zur Verfügung. Das
+  Ergebnis besagt, dass an der Wurzel im Endspiel Punkte liegen, die die Kandidatenliste und der Prior heute
+  nicht erreichen. Ob und wie sich das ohne Orakel nutzen lässt, ist eine neue Frage und keine automatische
+  Folgeentscheidung.
+

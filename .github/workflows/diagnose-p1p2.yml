@@ -1,0 +1,232 @@
+name: Diagnose P1/P2
+
+# Manueller Lauf aus docs/diagnose-p1p2.md: Diagnose an vorhandenen Archivpartien
+# des Defaults ohne Vorgabe. Keine neuen Partien, kein Arm mit Zeitbudget, keine
+# Änderung am Spiel, keine automatische Folgeentscheidung.
+#
+#   P1  Buchung der Punkte zwischen Zug 100 und Zug 200 (GNU Go beurteilt beide
+#       Stellungen), in Punkten über alle geeigneten Partien. In Paketen zu je
+#       120 Partien, jedes Paket ein eigener Job und ein eigenes Artefakt.
+#   P2  Kandidatenabdeckung: Steht GNU Gos Zug (Stufe 10) unter den 16
+#       Wurzelkindern? Ein Job je Archiv.
+#
+# Eingaben (docs/diagnose-p1p2.md §8):
+#   neu      Archive, die gerechnet werden: "alle" oder Namen, durch Komma getrennt
+#   vorlauf  Nummer eines früheren Laufs, aus dem die Ergebnisse der nicht neu gerechneten
+#            Archive (Artefakt diagnose-<name>) übernommen werden.
+#   fortsetzen_aus  Nummer eines Laufs, aus dem fertige oder angefangene Pakete gleichen
+#            Namens (p1-<name>-NN, p2-<name>) zum Fortsetzen geholt werden; leer = vorlauf.
+#
+# Sicherung bei Zeitlimit: Der Rechenschritt hat ein eigenes Zeitlimit, kürzer als das
+# des Jobs. Läuft er ab, ist nur dieser Schritt rot; der Upload mit always() läuft danach
+# und sichert, was schon geschrieben ist (jede Partie wird sofort angehängt). Ob das auf
+# GitHub so geschieht, prüft diagnose-timeout-probe.yml.
+#
+# Der Berichtsjob prüft gegen die vier erwarteten Archive (auswertung/diagnose/erwartet.js):
+# fehlt eines ganz oder zum Teil, ist der Lauf ungültig („kein Urteil“) und rot.
+on:
+  workflow_dispatch:
+    inputs:
+      neu:
+        description: 'Archive neu rechnen: alle oder Namen mit Komma (leeres-brett-g-D, muster-ohne-vorgabe-g-D, muster-ohne-vorgabe-f-D, fuego-siege-D)'
+        required: false
+        default: 'alle'
+      vorlauf:
+        description: 'Nummer des früheren Laufs, dessen Ergebnisse für die nicht neu gerechneten Archive übernommen werden (Artefakte diagnose-NAME)'
+        required: false
+        default: ''
+      fortsetzen_aus:
+        description: 'Nummer eines Laufs, dessen fertige oder angefangene Pakete (p1-..., p2-...) fortgesetzt werden (leer = vorlauf)'
+        required: false
+        default: ''
+
+concurrency:
+  group: diagnose-p1p2
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      p1: ${{ steps.plan.outputs.p1 }}
+      p2: ${{ steps.plan.outputs.p2 }}
+      alt: ${{ steps.plan.outputs.alt }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Plan
+        id: plan
+        env:
+          NEU: ${{ inputs.neu }}
+        run: |
+          set -euo pipefail
+          node auswertung/diagnose/plan.js --neu "$NEU" > plan.json
+          cat plan.json
+          echo "p1=$(node -p "JSON.stringify(require('./plan.json').p1)")" >> "$GITHUB_OUTPUT"
+          echo "p2=$(node -p "JSON.stringify(require('./plan.json').p2)")" >> "$GITHUB_OUTPUT"
+          echo "alt=$(node -p "require('./plan.json').alt.join(' ')")" >> "$GITHUB_OUTPUT"
+
+  p1:
+    name: P1 ${{ matrix.name }} ${{ matrix.paket }}/${{ matrix.pakete }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 200
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.p1) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: GNU Go installieren
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+          /usr/games/gnugo --version | head -1
+
+      - name: Früheres Paket holen (Fortsetzen)
+        if: ${{ inputs.fortsetzen_aus != '' || inputs.vorlauf != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VORLAUF: ${{ inputs.fortsetzen_aus != '' && inputs.fortsetzen_aus || inputs.vorlauf }}
+        run: |
+          mkdir -p ergebnisse
+          gh run download "$VORLAUF" -n "${{ matrix.dateiname }}" -D ergebnisse || echo "kein früheres Paket gleichen Namens, es wird von vorn gerechnet"
+          ls -l ergebnisse
+
+      - name: P1 Paket ${{ matrix.paket }} von ${{ matrix.pakete }}
+        timeout-minutes: 150
+        run: |
+          set -euo pipefail
+          mkdir -p ergebnisse
+          node auswertung/diagnose/p1-buchung.js --archiv "${{ matrix.name }}=${{ matrix.datei }}" --paket ${{ matrix.paket }} --fortsetzen --aus "ergebnisse/${{ matrix.dateiname }}.jsonl"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ${{ matrix.dateiname }}
+          path: ergebnisse/
+          retention-days: 90
+          if-no-files-found: error
+
+  p2:
+    name: P2 ${{ matrix.name }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 200
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.p2) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: GNU Go installieren
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+          /usr/games/gnugo --version | head -1
+
+      - name: Früheres Ergebnis holen (Fortsetzen)
+        if: ${{ inputs.fortsetzen_aus != '' || inputs.vorlauf != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VORLAUF: ${{ inputs.fortsetzen_aus != '' && inputs.fortsetzen_aus || inputs.vorlauf }}
+        run: |
+          mkdir -p ergebnisse
+          gh run download "$VORLAUF" -n "p2-${{ matrix.name }}" -D ergebnisse || echo "kein früheres Ergebnis gleichen Namens, es wird von vorn gerechnet"
+          ls -l ergebnisse
+
+      - name: P2 Kandidatenabdeckung
+        timeout-minutes: 150
+        run: |
+          set -euo pipefail
+          mkdir -p ergebnisse
+          node auswertung/diagnose/p2-kandidaten.js --archiv "${{ matrix.name }}=${{ matrix.datei }}" --aus "ergebnisse/p2-${{ matrix.name }}.jsonl" --partien 40 --wiederhole 3 --fortsetzen
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: p2-${{ matrix.name }}
+          path: ergebnisse/
+          retention-days: 90
+          if-no-files-found: error
+
+  ergebnis:
+    name: Berichte
+    needs: [plan, p1, p2]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Ergebnisse sammeln
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VORLAUF: ${{ inputs.vorlauf }}
+          ALT: ${{ needs.plan.outputs.alt }}
+        run: |
+          set -uo pipefail
+          mkdir -p roh
+          gh run download "$GITHUB_RUN_ID" -p 'p1-*' -p 'p2-*' -D roh || echo "keine Artefakte dieses Laufs"
+          for n in $ALT; do
+            if [ -z "$VORLAUF" ]; then echo "Archiv $n soll übernommen werden, aber es ist kein vorlauf angegeben"; continue; fi
+            gh run download "$VORLAUF" -n "diagnose-$n" -D "roh/alt-$n" || echo "Artefakt diagnose-$n aus Lauf $VORLAUF fehlt"
+          done
+          find roh -type f | sort
+
+      - name: Berichte
+        run: |
+          set -uo pipefail
+          mkdir -p bericht
+          : > roh/leer.jsonl
+          status=0
+          node auswertung/diagnose/p1-buchung.js --bericht roh/leer.jsonl $(find roh -name 'p1-*.jsonl' | sort) > bericht/p1.md || status=$?
+          p1=$status; status=0
+          node auswertung/diagnose/p2-kandidaten.js --bericht roh/leer.jsonl $(find roh -name 'p2-*.jsonl' | sort) > bericht/p2.md || status=$?
+          p2=$status
+          cat bericht/p1.md bericht/p2.md | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "p1=$p1 p2=$p2" > bericht/status.txt
+          cat bericht/status.txt
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: diagnose-bericht
+          path: |
+            bericht/
+            roh/
+          retention-days: 90
+
+      - name: Gültigkeit
+        run: |
+          set -uo pipefail
+          cat bericht/status.txt
+          grep -q "p1=0 p2=0" bericht/status.txt || { echo "Ein Teil ist ungültig: kein Urteil. Gründe stehen im Bericht."; exit 1; }

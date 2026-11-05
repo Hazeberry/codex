@@ -1,0 +1,461 @@
+name: Kandidaten-Orakel Hauptversuch
+
+# Nur von Hand, nur nach ausdrücklichem „Go“ von Hazeberry. Hauptversuch Stufe 1 aus
+# docs/kandidaten-orakel.md (§5, §9, §11, §12): Arme A, S und ZS, je 480 Paare gegen GNU Go Stufe 1
+# (Seed 231) und gegen Fuego mit 100 Spielen je Zug (Seed 232), ohne Vorgabe, mctsFixedSims 120,
+# Aufgabe aus, Komi 7,5, GNU Go Stufe 1 zählt (Fläche). Zusammen 2880 Partien.
+#
+# Ablauf:
+#   pruefen       Tests des Kandidaten-Orakels (Prior-Summe 1, Bit-Identität, Bericht, Workflow);
+#                 ohne grünen Test läuft keine Partie
+#   fuego-bauen   Fuego (r2038) einmal bauen
+#   gnugo         3 Arme × 16 Pakete zu 30 Partien
+#   fuego         3 Arme × 24 Pakete zu 20 Partien
+#   wiederholung  je Gegner und Arm die Partien 1 bis 3 noch einmal (§9)
+#   kontrolle     Arm A, Seed 222, Partien 1 bis 4 gegen das Archiv (Bedingung 1)
+#   ergebnis      Bericht; bei vollständigen Daten Branch ergebnisse/kandidaten-orakel-haupt-lauf<N>;
+#                 rot und „KEIN URTEIL“, wenn der Lauf ungültig oder unvollständig ist
+#
+# Sicherung und Fortsetzen: Jede Partie läuft als eigener Prozess und wird sofort an die
+# Paketdatei angehängt (auswertung/kandidaten-orakel/paket.js). Der Spielschritt hat ein kürzeres
+# Zeitlimit als der Job; der Upload mit always() sichert danach, was fertig ist. Mit der Eingabe
+# fortsetzen_aus (Nummer eines früheren Laufs) holt jedes Paket seine Datei aus jenem Lauf und spielt
+# nur die fehlenden Partien. Fertige Pakete installieren nichts und spielen nichts. Stimmt der Stand
+# der Quellen nicht mit dem des früheren Laufs überein, bricht das Paket ab (Exit 3), statt zu mischen.
+on:
+  workflow_dispatch:
+    inputs:
+      fortsetzen_aus:
+        description: 'Nummer (run id) eines früheren Laufs dieses Workflows, dessen Pakete fortgesetzt werden (leer = von vorn)'
+        required: false
+        default: ''
+
+concurrency:
+  group: kandidaten-orakel-haupt
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SEED_G: '231'
+  SEED_F: '232'
+  ARME: auswertung/komponenten/arme-o.sh
+  VORGABE: '0'
+  PAARE: '480'
+
+jobs:
+  pruefen:
+    name: Prüfen (Tests Kandidaten-Orakel)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Tests
+        timeout-minutes: 15
+        run: |
+          status=0
+          for t in kandidaten-orakel.js kandidaten-orakel-spiel.js kandidaten-orakel-haupt.js; do
+            node "tests/$t" || status=$?
+          done
+          exit "$status"
+
+  fuego-bauen:
+    name: Fuego bauen
+    needs: pruefen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Werkzeuge installieren
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential autoconf automake libtool subversion libboost-all-dev
+
+      - name: Bauen
+        run: bash auswertung/fuego/bauen.sh svn gnu++14 fuego-bin
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fuego-bin
+          path: fuego-bin/
+          retention-days: 7
+
+  gnugo:
+    name: GNU Go, Arm ${{ matrix.arm }}, Partien ab ${{ matrix.von }}
+    needs: pruefen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 270
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [A, S, ZS]
+        von: [1, 31, 61, 91, 121, 151, 181, 211, 241, 271, 301, 331, 361, 391, 421, 451]
+    env:
+      PAKET: g-${{ matrix.arm }}-${{ matrix.von }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Früheres Paket holen (Fortsetzen)
+        if: ${{ inputs.fortsetzen_aus != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VORLAUF: ${{ inputs.fortsetzen_aus }}
+        run: |
+          mkdir -p stand
+          gh run download "$VORLAUF" -n "haupt-$PAKET" -D stand || echo "kein früheres Paket haupt-$PAKET, es wird von vorn gespielt"
+          ls -l stand
+
+      - name: Stand prüfen
+        id: stand
+        env:
+          ARM: ${{ matrix.arm }}
+          VON: ${{ matrix.von }}
+        run: |
+          status=0
+          node auswertung/kandidaten-orakel/paket.js --gegner g --arm "$ARM" --von "$VON" --anzahl 30 --seed "$SEED_G" --aus "stand/$PAKET.jsonl" --nur-pruefen > pruefung.txt || status=$?
+          cat pruefung.txt
+          [ "$status" = 0 ] && grep "^fehlen=" pruefung.txt >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: GNU Go installieren
+        if: steps.stand.outputs.fehlen != '0'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+
+      - name: Fehlende Partien spielen
+        if: steps.stand.outputs.fehlen != '0'
+        timeout-minutes: 240
+        env:
+          ARM: ${{ matrix.arm }}
+          VON: ${{ matrix.von }}
+        run: |
+          status=0
+          node auswertung/kandidaten-orakel/paket.js --gegner g --arm "$ARM" --von "$VON" --anzahl 30 --seed "$SEED_G" --aus "stand/$PAKET.jsonl" || status=$?
+          echo "Paket beendet mit Status $status"
+          exit "$status"
+
+      - name: Partien sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: haupt-${{ env.PAKET }}
+          path: stand/
+          if-no-files-found: warn
+          overwrite: true
+          retention-days: 90
+
+  fuego:
+    name: Fuego, Arm ${{ matrix.arm }}, Partien ab ${{ matrix.von }}
+    needs: [pruefen, fuego-bauen]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 270
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [A, S, ZS]
+        von: [1, 21, 41, 61, 81, 101, 121, 141, 161, 181, 201, 221, 241, 261, 281, 301, 321, 341, 361, 381, 401, 421, 441, 461]
+    env:
+      PAKET: f-${{ matrix.arm }}-${{ matrix.von }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Früheres Paket holen (Fortsetzen)
+        if: ${{ inputs.fortsetzen_aus != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VORLAUF: ${{ inputs.fortsetzen_aus }}
+        run: |
+          mkdir -p stand
+          gh run download "$VORLAUF" -n "haupt-$PAKET" -D stand || echo "kein früheres Paket haupt-$PAKET, es wird von vorn gespielt"
+          ls -l stand
+
+      - name: Stand prüfen
+        id: stand
+        env:
+          ARM: ${{ matrix.arm }}
+          VON: ${{ matrix.von }}
+        run: |
+          status=0
+          node auswertung/kandidaten-orakel/paket.js --gegner f --arm "$ARM" --von "$VON" --anzahl 20 --seed "$SEED_F" --aus "stand/$PAKET.jsonl" --nur-pruefen > pruefung.txt || status=$?
+          cat pruefung.txt
+          [ "$status" = 0 ] && grep "^fehlen=" pruefung.txt >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: GNU Go und Bibliotheken installieren
+        if: steps.stand.outputs.fehlen != '0'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo libboost-all-dev
+
+      - uses: actions/download-artifact@v7
+        if: steps.stand.outputs.fehlen != '0'
+        with:
+          name: fuego-bin
+          path: fuego-bin
+
+      - name: Fehlende Partien spielen
+        if: steps.stand.outputs.fehlen != '0'
+        timeout-minutes: 240
+        env:
+          ARM: ${{ matrix.arm }}
+          VON: ${{ matrix.von }}
+        run: |
+          status=0
+          chmod +x fuego-bin/fuego
+          node auswertung/kandidaten-orakel/paket.js --gegner f --arm "$ARM" --von "$VON" --anzahl 20 --seed "$SEED_F" --aus "stand/$PAKET.jsonl" || status=$?
+          echo "Paket beendet mit Status $status"
+          exit "$status"
+
+      - name: Partien sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: haupt-${{ env.PAKET }}
+          path: stand/
+          if-no-files-found: warn
+          overwrite: true
+          retention-days: 90
+
+  wiederholung:
+    name: Wiederholung ${{ matrix.gegner }}, Arm ${{ matrix.arm }}, Partien 1 bis 3
+    needs: [pruefen, fuego-bauen]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        gegner: [g, f]
+        arm: [A, S, ZS]
+    env:
+      PAKET: wiederholung-${{ matrix.gegner }}-${{ matrix.arm }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Früheres Paket holen (Fortsetzen)
+        if: ${{ inputs.fortsetzen_aus != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VORLAUF: ${{ inputs.fortsetzen_aus }}
+        run: |
+          mkdir -p stand
+          gh run download "$VORLAUF" -n "haupt-$PAKET" -D stand || echo "kein früheres Paket haupt-$PAKET, es wird von vorn gespielt"
+          ls -l stand
+
+      - name: Stand prüfen
+        id: stand
+        env:
+          GEGNER: ${{ matrix.gegner }}
+          ARM: ${{ matrix.arm }}
+        run: |
+          status=0
+          seed=$SEED_G; [ "$GEGNER" = f ] && seed=$SEED_F
+          node auswertung/kandidaten-orakel/paket.js --gegner "$GEGNER" --arm "$ARM" --von 1 --anzahl 3 --seed "$seed" --aus "stand/$PAKET.jsonl" --nur-pruefen > pruefung.txt || status=$?
+          cat pruefung.txt
+          [ "$status" = 0 ] && grep "^fehlen=" pruefung.txt >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: GNU Go und Bibliotheken installieren
+        if: steps.stand.outputs.fehlen != '0'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo libboost-all-dev
+
+      - uses: actions/download-artifact@v7
+        if: steps.stand.outputs.fehlen != '0' && matrix.gegner == 'f'
+        with:
+          name: fuego-bin
+          path: fuego-bin
+
+      - name: Partien 1 bis 3 noch einmal spielen
+        if: steps.stand.outputs.fehlen != '0'
+        timeout-minutes: 45
+        env:
+          GEGNER: ${{ matrix.gegner }}
+          ARM: ${{ matrix.arm }}
+        run: |
+          status=0
+          seed=$SEED_G; [ "$GEGNER" = f ] && seed=$SEED_F
+          [ -f fuego-bin/fuego ] && chmod +x fuego-bin/fuego
+          node auswertung/kandidaten-orakel/paket.js --gegner "$GEGNER" --arm "$ARM" --von 1 --anzahl 3 --seed "$seed" --aus "stand/$PAKET.jsonl" || status=$?
+          echo "Paket beendet mit Status $status"
+          exit "$status"
+
+      - name: Partien sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: haupt-${{ env.PAKET }}
+          path: stand/
+          if-no-files-found: warn
+          overwrite: true
+          retention-days: 90
+
+  kontrolle:
+    name: Kontrolle Arm A gegen Archiv (Seed 222, Partien 1 bis 4)
+    needs: pruefen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      PAKET: kontrolle
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Früheres Paket holen (Fortsetzen)
+        if: ${{ inputs.fortsetzen_aus != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VORLAUF: ${{ inputs.fortsetzen_aus }}
+        run: |
+          mkdir -p stand
+          gh run download "$VORLAUF" -n "haupt-$PAKET" -D stand || echo "kein früheres Paket haupt-$PAKET, es wird von vorn gespielt"
+          ls -l stand
+
+      - name: Stand prüfen
+        id: stand
+        run: |
+          status=0
+          node auswertung/kandidaten-orakel/paket.js --gegner g --arm A --von 1 --anzahl 4 --seed 222 --aus stand/kontrolle.jsonl --nur-pruefen > pruefung.txt || status=$?
+          cat pruefung.txt
+          [ "$status" = 0 ] && grep "^fehlen=" pruefung.txt >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: GNU Go installieren
+        if: steps.stand.outputs.fehlen != '0'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+
+      - name: 4 Partien nachspielen
+        if: steps.stand.outputs.fehlen != '0'
+        timeout-minutes: 45
+        run: |
+          status=0
+          node auswertung/kandidaten-orakel/paket.js --gegner g --arm A --von 1 --anzahl 4 --seed 222 --aus stand/kontrolle.jsonl || status=$?
+          echo "Paket beendet mit Status $status"
+          exit "$status"
+
+      - name: Partien sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: haupt-${{ env.PAKET }}
+          path: stand/
+          if-no-files-found: warn
+          overwrite: true
+          retention-days: 90
+
+  ergebnis:
+    name: Bericht und Ergebnisbranch
+    needs: [pruefen, gnugo, fuego, wiederholung, kontrolle]
+    if: always() && needs.pruefen.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Nur dieser Job schreibt ins Repo, und nur auf einen neuen Branch.
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: haupt-*
+          path: stand
+          merge-multiple: true
+
+      - name: Bericht
+        run: |
+          status=0
+          mkdir -p ergebnisse/roh ergebnisse/meta
+          node auswertung/kandidaten-orakel/zusammenfuehren.js stand ergebnisse/roh ergebnisse/meta || status=$?
+          if [ "$status" = 0 ]; then
+            node auswertung/kandidaten-orakel/haupt-bericht.js ergebnisse/roh docs/daten/leeres-brett/lauf1/g-D.jsonl.gz --n "$PAARE" \
+              --bericht ergebnisse/bericht.md --json ergebnisse/auswertung.json || status=$?
+          else
+            printf '# Hauptversuch Kandidaten-Orakel\n\n**KEIN URTEIL**: Pakete ließen sich nicht zusammenführen (Stand der Quellen uneinheitlich oder Datei beschädigt), siehe Log.\n' > ergebnisse/bericht.md
+            echo '{"gueltig":false,"vollstaendig":false}' > ergebnisse/auswertung.json
+          fi
+          echo "$status" > ergebnisse/status.txt
+          vollstaendig=$(node -p "require('./ergebnisse/auswertung.json').vollstaendig ? 1 : 0")
+          cat ergebnisse/bericht.md >> "$GITHUB_STEP_SUMMARY"
+          echo "BERICHT_STATUS=$status" >> "$GITHUB_ENV"
+          echo "VOLLSTAENDIG=$vollstaendig" >> "$GITHUB_ENV"
+
+      - name: Ergebnisse sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ergebnisse-haupt
+          path: ergebnisse/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Ergebnisbranch (nur bei vollständigen Daten)
+        if: env.VOLLSTAENDIG == '1'
+        env:
+          LAUF: ${{ github.run_number }}
+          LAUF_ID: ${{ github.run_id }}
+          VORLAUF: ${{ inputs.fortsetzen_aus }}
+        run: |
+          set -euo pipefail
+          zweig="ergebnisse/kandidaten-orakel-haupt-lauf${LAUF}"
+          ziel="docs/daten/kandidaten-orakel/haupt-lauf${LAUF}"
+          gzip -9 ergebnisse/roh/*.jsonl
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$zweig"
+          mkdir -p "$ziel"
+          cp -r ergebnisse/. "$ziel/"
+          git add "$ziel"
+          git commit -q -m "Kandidaten-Orakel Hauptversuch: Ergebnisse von Lauf ${LAUF} (Status ${BERICHT_STATUS})" \
+                     -m "Workflow-Lauf ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${LAUF_ID}${VORLAUF:+, fortgesetzt aus Lauf $VORLAUF}"
+          git push origin "HEAD:refs/heads/$zweig"
+          echo "Ergebnisse auf Branch \`$zweig\` unter \`$ziel\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gültigkeit (rot bei KEIN URTEIL)
+        run: |
+          if [ "${VOLLSTAENDIG:-0}" != "1" ]; then echo "KEIN URTEIL: unvollständig. Fortsetzen mit fortsetzen_aus=${{ github.run_id }}"; exit 1; fi
+          if [ "${BERICHT_STATUS:-1}" != "0" ]; then echo "KEIN URTEIL: ungültig, Gründe im Bericht"; exit 1; fi
+          echo "gültig"

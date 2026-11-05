@@ -1,0 +1,542 @@
+# Distillation — dem Policy-Netz starke Züge beibringen
+
+Das Policy-Netz in `index.html` lernt aus Selbstspiel nachweislich nichts
+Brauchbares: gemessen verbessert sich der mittlere Rang des Suchzugs zwar,
+aber die Trefferquote im Kopf der Verteilung bleibt auf Zufallsniveau, und
+für PUCT zählt nur der Kopf (Zahlen im Kopfkommentar von `../ab-harness.js`).
+
+Der Ausweg ist überwachtes Lernen aus starkem Spiel. Dieses Verzeichnis
+enthält die Kette dafür — jedes Glied einzeln geprüft, nicht nur „läuft
+durch".
+
+## Reihenfolge
+
+```bash
+sh netzcheck.sh                       # 0. Sind die Datenhosts erreichbar?
+node dump_boards.js && python3 features_check.py
+                                      # 1. numpy-Merkmale == JS-boardToInput?
+python3 decode.py selbsttest          # 2a. Hat die Pruefung ueberhaupt Zaehne?
+python3 decode.py pruefen             # 2b. Stimmt KataGos Kanalbelegung?
+python3 decode.py bauen               # 3. Shards -> daten.npz
+python3 train.py daten.npz gewichte.json --epochen 40 --lr 0.5
+                                      # 4. Trainieren, Export im Browser-Format
+node export_check.js && python3 export_check.py
+                                      # 5. Rechnet JS dieselben Priors?
+node ../ab-harness.js --paired 30 --net gewichte.json \
+     --A netMaxBlend=0.30 --B netMaxBlend=0
+                                      # 6. Bringt es Spielstärke?
+```
+
+Schritt 6 ist der einzige, der über Einbauen entscheidet. Alles davor stellt
+nur sicher, dass ein Nullergebnis dort auch wirklich etwas bedeutet.
+
+### Und wer prüft die Prüfung?
+
+Ein „0 Abweichungen" sieht genau so aus wie eine Prüfung, die grundsätzlich
+nichts findet. `decode.py selbsttest` baut deshalb zwei Shards im V7-Format
+selbst: einen sauberen, bei dem die Prüfung schweigen muss, und einen mit
+vertauschten x/y-Koordinaten in Kanal 3, bei dem sie anschlagen muss.
+
+Die Freiheiten des Testshards entstehen über **Union-Find**, `pruefen` rechnet
+mit Flutfüllung — hätten beide denselben Fehler, zeigte die Gegenrechnung nur
+auf sich selbst. Der Selbsttest braucht kein Netz und keine echten Daten.
+
+Zuletzt gelaufen: sauberer Shard ohne Befund, verdorbener mit **45 von 45
+möglichen** Abweichungen erkannt. (Die übrigen Zeilen haben keinen Stein in
+Atari; sie sind unter Vertauschung mit sich selbst identisch und können
+nichts zeigen.)
+
+Was der Selbsttest **nicht** beantwortet: ob KataGos Kanäle wirklich so belegt
+sind wie oben notiert. Das kann nur ein echter Shard. Er beantwortet die Frage
+davor — schlägt die Gegenrechnung überhaupt an, wenn die Belegung falsch ist.
+
+## Was die Kette gemessen hat
+
+Ein vollständiger Durchlauf, jeder Schritt einzeln geprüft:
+
+| Schritt | Ergebnis |
+|---|---|
+| 0. Netz | Daten liegen auf `us.aws.cdn.hf.co`, nicht auf `huggingface.co`. `netzcheck.sh` prüft seit dem Zusammenführen **alle sieben bekannten Hosts auf einmal** statt sie nacheinander zu entdecken — eine laufende Session behält ihre Policy, jeder einzeln nachgetragene Host kostet eine weitere. |
+| 1. Merkmale | 8 Bretter, **0 Abweichungen** numpy gegen JS |
+| 2. Kanäle | 400 Stellungen Freiheiten nachgerechnet, **0 Abweichungen**; Kanal 9 zu 100 % gegnerisch |
+| 3. Daten | 61 363 Zeilen aus vier val-Shards, 3 wegen besetztem Ziel verworfen |
+| 4. Training | Verlust 5,88 → 4,08; Top-1 1,2 %, Top-10 7,8 % (Zufall 0,28 % / 2,77 %) — Endwerte dieses Referenzlaufs auf val-Shards, nicht zu verwechseln mit der Datenmengen-Kurve weiter unten |
+| 5. Export | max. Abweichung 2,4e-07, argmax 8/8 gleich |
+| 6. Spielstärke | kein Gewinn bei vier Läufen über 250-fache Skalenspanne: 35,0 % (5000), 41,7 % (800), 46,7 % (20→1000) |
+
+**Das Ergebnis ist negativ.** Das Netz ist nachweislich besser als Zufall —
+Faktor 4 auf Top-1, Faktor 2,8 auf Top-10 — und macht die Engine mit
+`netMaxBlend=0,30` trotzdem schwächer, am Ende 7 bis 16 Punkte Gebiet hinten.
+
+### Skala: die Spanne ist jetzt gemessen, nicht geerbt
+
+Der Netzbeitrag ist `blendWeight · p · netScoreScale` (`index.html:1687`).
+Wie stark er wirkt, hängt an der Entscheidungsspanne von `evaluateMove` — und
+die war hier zunächst **falsch angenommen**. Der Kommentar in `index.html:693`
+nennt ≈ 15,8 für die Eröffnung und ≈ 160 für das Mittelspiel; daraus wurde eine
+Konfundierung abgeleitet („die Skala 5000 ersetzt die Heuristik statt sie zu
+mischen") und ein Gegentest mit Skala 800 gefahren. **Beides war falsch
+begründet.** Die Phasengrenze liegt bei mc ≈ 15–20 (`ab-harness.js:421`), nicht
+bei 150 — die Zuordnung der Spannen zu den Testbrettern stimmte also nicht.
+
+Direkt gemessen (`evaluateMove` über alle legalen Züge der acht Testbretter,
+mit dem echten `mc`):
+
+| mc | Spanne (max−median) | Gap (max−2.) | Netzterm bei Skala 5000 | Verhältnis | kalibrierte Skala |
+|---|---|---|---|---|---|
+| 0 | 45,9 | 0,0 | 101 | 2,2× | 2281 |
+| 5 | 45,3 | 0,5 | 126 | 2,8× | 1793 |
+| 30 | 148,8 | 0,4 | 103 | 0,7× | 7201 |
+| 60 | 235,8 | 8,3 | 196 | 0,8× | 6004 |
+| 120 | 158,1 | 0,2 | 172 | 1,1× | 4602 |
+| 200 | 158,2 | 0,0 | 888 | 5,6× | 891 |
+| 280 | 471,9 | 155,8 | 766 | 1,6× | 3080 |
+| 330 | 1206,0 | 424,2 | 463 | 0,4× | 13021 |
+
+Damit fällt die Konfundierungs-These. Bei Skala 5000 liegt der Netzterm
+zwischen **0,4× und 5,6×** der Spanne, also kommensurabel — nicht beim 6- bis
+56-fachen. Die spannenkalibrierten Werte streuen von 891 bis 13021 mit Median
+**3841**; der Default 5000 liegt nahe dieser Mitte. Die Skala 800 war folglich
+keine Korrektur, sondern **5× zu klein**: dort sinkt das Verhältnis auf
+0,06×–0,35×, das Netz war weitgehend abgeschaltet.
+
+### Drei Läufe, und wie sie nach der Messung zu lesen sind
+
+| Konfiguration | Spiele A:B | Siegrate A | Paar-Bilanz | p | Netz wirksam? |
+|---|---|---|---|---|---|
+| `netScoreScale` 5000 (2 Läufe) | 42:78 | 35,0 % | 8:26 | 0,003 | ja, kommensurabel |
+| `netScoreScale` 800 | 25:35 | 41,7 % | 6:11 | 0,332 | überwiegend nein |
+
+Der 800er-Lauf ist damit **kein** Beleg für Neutralität. Ein Lauf, der gegen
+50 % driftet, weil A ≈ B wird, misst nur, dass der Parameter nichts mehr tut.
+Der belastbare Befund bleibt der erste: bei kommensurabler Skala verliert das
+Netz mit 35 % (p = 0,003). `netMaxBlend` bleibt 0.
+
+### Der eigentliche Fund: die Heuristik ist an der Spitze indifferent
+
+Die Gap-Spalte ist das Interessante. Der Abstand zwischen bestem und
+zweitbestem Heuristikzug ist in Eröffnung und Mittelspiel praktisch **null**
+(0,0 / 0,5 / 0,4 / 0,2 / 0,0), während die Spanne zum Median bei 45 bis 236
+liegt. Die Heuristik hat also eine breite Rangfolge, ist aber an ihrer Spitze
+unentschieden.
+
+Folge: der Prior entscheidet die Zugwahl dort bei **jeder** Skala — er muss nur
+einen Bruchteil eines Punktes beitragen, um die Reihenfolge der Top-Züge zu
+kippen. Deshalb zählte der Harness auch im 800er-Lauf noch 9394 von 19384
+Vorwärtsläufen als „mit Wirkung auf die Zugwahl". Ein Netz mit Top-1 1,2 %
+entscheidet damit genau dort, wo die Heuristik keine Meinung hat — und was es
+dort einbringt, ist fast Zufall.
+
+Die untere Kante ist rechnerisch klar: um nur Gleichstände zu brechen, ohne
+echte Heuristikunterschiede zu überschreiben, genügt eine Skala von **≈ 20**
+(Gap-Spalte), ab dem Endspiel steigend auf ≈ 1000–4600.
+
+### Die Dosis-Wirkungs-Kurve — damit ist Kalibrierung erschöpft
+
+Genau diese Gap-kalibrierte Stufe wurde gefahren: `netScoreScale=20`,
+ab Zug 250 auf 1000. Der Phasenwechsel griff 55-mal, die Stufe war also
+wirksam.
+
+| Skala | Spiele A:B | Siegrate A | Paar-Bilanz | p | Gebiet am Ende (A) |
+|---|---|---|---|---|---|
+| 5000 (2 Läufe) | 42:78 | 35,0 % | 8:26 | 0,003 | −7 bis −16 |
+| 800 | 25:35 | 41,7 % | 6:11 | 0,332 | −9,4 |
+| 20 → 1000 ab Zug 250 | 28:32 | 46,7 % | 8:10 | 0,815 | −0,7 |
+
+**Die Kurve ist monoton und läuft von unten gegen 50 %.** Je kleiner der
+Netzeinfluss, desto näher am Break-even — und der Grenzwert bei Dosis 0 ist
+definitionsgemäß 50 %, weil A dann zu B wird.
+
+Das ist der Schluss des Kapitels: **wäre die Skala nur falsch eingestellt,
+müsste irgendeine Zwischendosis über 50 % schießen.** Über eine
+250-fache Spannweite (20 bis 5000) tut es keine. Das beste Ergebnis ist
+dasjenige, bei dem das Netz fast nichts tut. Ein Prior mit nutzbarem Signal
+verhält sich nicht so; ein Prior ohne nutzbares Signal genau so — Schaden
+proportional zur Dosis, kein Optimum dazwischen.
+
+Kalibrierung ist damit als Erklärung **erschöpft**, nicht offen. Der Engpass
+ist die Kopfgüte: Top-1 1,2 % entscheidet dort, wo die Heuristik indifferent
+ist (Gap ≈ 0), und bringt dort fast Zufall ein.
+
+**Warum die 277 Partien entfallen — und zwar nicht aus Kostengründen.**
+Rein statistisch wären sie nötig: 41,7 % gegen 50 % mit 80 % Power braucht
+≈ 277 Partien = 138 Paare ≈ 6,1 h, für 45 % wären es 776 Partien ≈ 17 h.
+
+Entscheidend ist aber, **welche Frage** sie beantworten sollten. Aus
+Siegquoten lässt sich die **Kurvenform** rekonstruieren — steigt sie noch,
+oder liegt der Peak schon dahinter? Genau dafür wurde bei `mctsValueScale`
+über sieben Skalenpunkte gemessen (Plateau 150–250, `ab-harness.js:233`), und
+genau dafür braucht man viele Partien, weil Form aus verrauschten Quoten
+zusammengesetzt werden muss.
+
+Diese Frage ist hier nicht mehr offen, weil der tragende Befund **keine
+Siegquote** ist. Der Gap von 0,0–0,5 kommt aus einer direkten Messung der
+`evaluateMove`-Scores an der Entscheidungsgrenze (`spanne_check.js`) — er ist
+strukturell, nicht statistisch, und wird durch mehr Partien nicht sicherer.
+Dieselbe Art von Beleg wie bei `scoreWeight`, das die Summe der Blend-Gewichte
+„unbemerkt von 1 abweichen" ließ (`index.html:3631`): auch das wurde durch
+Hinsehen im Code entschieden, nicht durch Partien.
+
+Die Begründung ist damit von „Kurvenform, die mehr Daten braucht" auf
+„Mechanismus, der bereits feststeht" gewechselt. Der Lauf entfällt nicht,
+weil er sich nicht lohnt, sondern weil seine Frage beantwortet ist. Wer die
+Sache weiterbringen will, hebt die Kopfgüte — das ändert den Mechanismus,
+nicht nur die Fehlerbalken um ihn herum.
+
+Nach der Hausregel „Erstlauf ist Hypothese" stehen zwei unabhängige Läufe
+dahinter, und sie sind **nicht gleich stark**:
+
+| Lauf | Spiele A:B | Siegrate A | Paar-Bilanz | p | Sims/Zug |
+|---|---|---|---|---|---|
+| 1 (`Math.random`) | 18:42 | 30,0 % | 3:15 | 0,008 | 337 |
+| 2 (Seed 4711) | 24:36 | 40,0 % | 5:11 | 0,21 | 430 |
+| gepoolt | 42:78 | 35,0 % | 8:26 | 0,003 | — |
+
+Lauf 2 allein trägt nichts (p = 0,21). Getragen wird der Befund davon, dass
+beide Läufe auf **derselben** Seite von 50 % liegen und 35,0 % gepoolt unter
+der Untergrenze des 95-%-Zufallsbands liegt (41,1 % bei n=120). Das ist der
+Gegenfall zu `phaseNormalize` im Harness-Kopf, wo der zweite Seed auf 52,5 %
+kippte und das Poolen das Ergebnis auflöste.
+
+Nicht belegte, aber passende Lesart: Lauf 2 hatte 430 statt 337 Sims/Zug, und
+der Schaden war dort geringer (40 % gegen 30 %). Mehr Suche würde einen
+schlechten Prior überstimmen. Zwei Läufe belegen diesen Zusammenhang nicht.
+
+**`--seed` macht diese Läufe nicht reproduzierbar.** Zwei Läufe mit Seed 4711
+ergaben verschiedene Partien — der Seed fixiert die Eröffnungen, aber bei
+festem Zeitbudget (250 ms/Zug) hängt die Simulationszahl an der Maschinenlast
+und damit der Suchverlauf. Läufe mit gleichem Seed sind deshalb **keine**
+unabhängigen Stichproben (gleiche Eröffnungen) und dürfen nicht gepoolt
+werden; die beiden Läufe oben sind es, weil Lauf 1 ohne `--seed` auf
+`Math.random` läuft.
+
+Die Kette selbst ist damit **nicht** widerlegt: Schritte 1, 2 und 5 schließen
+Merkmals-, Kanal- und Exportfehler aus, und ein Auswendiglern-Test (2000
+Zeilen, `lr 0.5`) treibt den Verlust auf 0,10 und Top-1 auf 0,9935 — Modell,
+Ziele und Gradient funktionieren. Was fehlt, ist **Datenmenge** — nicht
+Kapazität (siehe unten, das war hier zunächst falsch benannt).
+
+### Der Engpass ist die Datenmenge, und das ist gemessen
+
+Die Kapazitätsrechnung: `3971→128→361` hat 508 288 + 46 208 + 489 =
+**554 985 Parameter**, trainiert wurde auf 56 363 Beispielen. Das sind
+**9,8× mehr Parameter als Beispiele** — Kapazität ist im Überschuss, nicht
+knapp. Eine frühere Fassung dieser Datei nannte „Kapazität und Datenmenge";
+der erste Teil war falsch.
+
+`datenkurve.py` misst die Abhängigkeit direkt. Testsatz sind dieselben 5000
+Zeilen wie im Referenzlauf, Hyperparameter identisch (`lr 0.5`, 40 Epochen),
+Trainingsdaten aus `train/`-Shards:
+
+Gemessen wird **jede Epoche**, ausgewiesen ist der Mittelwert über die letzten
+zehn samt Standardabweichung. Ein Endwert allein ist eine Einzelziehung aus
+einer schwankenden Größe:
+
+| Trainingszeilen | Top-1 Ø ± SD | Top-10 Ø ± SD | Ø Rang | Verlust | Top-1 letzte Epoche |
+|---|---|---|---|---|---|
+| 15 000 | 0,37 % ± 0,07 | 3,77 % ± 0,16 | 161,2 ± 1,4 | 2,43 | 0,40 % |
+| 30 000 | 0,46 % ± 0,11 | 4,10 % ± 0,44 | 157,7 ± 2,6 | 3,82 | 0,52 % |
+| 60 000 | 0,65 % ± 0,11 | 5,77 % ± 0,26 | 140,6 ± 2,3 | 3,42 | 0,68 % |
+| 120 000 | **0,99 % ± 0,16** | 8,24 % ± 0,36 | 125,9 ± 2,1 | 4,21 | 1,20 % |
+
+Monoton in allen drei Kennzahlen, **ohne Plateau** — aber die Auflösung ist
+ungleich verteilt, und das ist der Grund, hier Fehlerbalken zu nennen statt
+Einzelwerte:
+
+- **Die Gesamtaussage trägt deutlich.** Endpunkte 0,37 ± 0,07 gegen
+  0,99 ± 0,16 liegen rund 4 SD auseinander; der mittlere Rang fällt von
+  161,2 auf 125,9 bei SD ≈ 2, also über 15 SD.
+- **Die Einzelschritte tragen überwiegend nicht.** Bei ±1 SD überlappen
+  15 k→30 k und 30 k→60 k; nur 60 k→120 k ist getrennt. Eine frühere Fassung
+  hob hervor, der letzte Verdopplungsschritt bringe den größten Sprung
+  (+0,52 gegen +0,16 Prozentpunkte) — **das liegt im Rauschen** und ist
+  gestrichen.
+- **Top-10 und Rang trennen sauberer als Top-1.** Wer die Kurve mit einer
+  Kennzahl belegen will, nimmt den Rang, nicht Top-1.
+
+Die frühere Fassung dieser Tabelle nannte Endwerte der letzten Epoche, darunter
+1,20 % bei 120 000 Zeilen. Über zehn Epochen gemittelt sind es 0,99 % — der
+Endwert war eine hohe Ziehung, innerhalb des damals deklarierten Vorbehalts von
+±0,25 Prozentpunkten, aber der Mittelwert ist die belastbarere Zahl.
+
+Die Verlustspalte ist der zweite, unabhängige Beleg und liest sich zunächst
+falsch: der Trainingsverlust **steigt** von 2,43 auf 4,21, während die
+Testwerte besser werden. Bei 15 000 Zeilen liegt er weit unter
+`ln(361) = 5,89`, das Netz memoriert also bereits — und die Testleistung liegt
+mit 0,37 % knapp über der Zufallserwartung von 0,28 %. Auswendiglernen bei
+Zufallsniveau im Test ist der Lehrbuchbefund für ein überparametrisiertes
+Netz. Ab 120 000 Zeilen kann es nicht mehr memorieren und lernt Übertragbares.
+
+**Verfügbar sind 8160 `train/`-Shards gegen 20 in `val/`, und sie sind
+ungleich groß** — das ist der Grund, warum ein einzelner train-Shard die
+Obergrenze von 120 000 Zeilen allein füllte:
+
+| Shard | Zeilen gesamt | davon 19×19 nutzbar |
+|---|---|---|
+| `val/data0_0` | 21 830 | 15 388 |
+| `train/data0_0_0` | 498 535 | 348 571 |
+
+Ein train-Shard trägt also 22,7× so viel wie ein val-Shard. Hochgerechnet auf
+8160 Shards (nur Shard 0 gemessen) sind das rund **2,8 Milliarden** nutzbare
+Stellungen; die 61 363 Zeilen des Referenzlaufs entsprechen etwa **0,002 %**
+davon. `decode.py` hatte die Konstante `TRAIN` von Anfang an definiert,
+`bauen()` hat sie nie benutzt.
+
+Die Hochrechnung von einem Shard auf 8160 stützt sich darauf, dass der
+**nutzbare Anteil in beiden Klassen fast gleich ist**: 15 388/21 830 = 70,5 %
+gegen 348 571/498 535 = 69,9 %. Die 22,7× sind ein reiner Größenunterschied
+der Shards, kein Unterschied in der Zusammensetzung — die
+Brettgrößenverteilung ist dieselbe. Als Größenordnungsaussage trägt die Zahl
+damit; als exakte Bestandsangabe nicht, dafür ist nur ein train-Shard gezählt.
+
+### Was der Bestand an Speicher kostet — und warum daraus Streaming folgt
+
+Der Merkmalsvektor hat 3971 Einträge, im Median **788 Nichtnullen** (632 bis
+1155), und nimmt nur **10 verschiedene Werte** an (Vielfache von 1/19). Die
+Quantisierung auf uint8 ist damit **verlustfrei**, nicht approximativ:
+
+| Format | B/Zeile | Faktor | 2,8 Mrd Zeilen |
+|---|---|---|---|
+| dicht `float32` | 15 884 | 1× | **45 TB** |
+| sparse `uint16`-Index + `float32` | 4 728 | 3,4× | 13 TB |
+| sparse `uint16`-Index + `uint8` | 2 364 | 6,7× | 7 TB |
+
+Daraus folgt die Aufteilung, und sie ist kein Entweder-oder: **Streaming ist
+der einzige Weg für den vollen Bestand** — auch sparse bleibt im TB-Bereich,
+also weit jenseits jedes RAM. **Sparse ist das Format für den
+Arbeitsausschnitt**: bei 6 B je Nichtnull sind 1 Mio Zeilen 4,7 GB und 2 Mio
+Zeilen 9,5 GB, 10 Mio wären es nicht mehr.
+
+`train.py` hält heute alles im RAM und ist bei 120 000 Zeilen am Ende — das
+sind **0,004 %** des Bestands, rund vier Größenordnungen darunter. Jede
+Änderung Richtung Streaming verschiebt diese Wand; ein A/B braucht sie nicht
+zur Rechtfertigung, weil sie nur den Durchsatz betrifft und nicht die
+Spielweise. Gemessen werden muss erst das Netz, das dabei herauskommt.
+
+Zwei Vorbehalte, vorab notiert:
+
+- Es sind Einzelmessungen der letzten Epoche. Top-1 schwankte im Referenzlauf
+  zwischen Epoche 33 und 40 von 0,94 % bis 1,52 %; die einzelnen Punkte tragen
+  also ±0,25 Prozentpunkte. Die Monotonie über 8× Spannweite trägt trotzdem.
+- Die Absolutwerte sind **nicht** direkt mit dem Referenzlauf vergleichbar.
+  Der trainierte auf val-Shards, diese Kurve auf train-Shards, bei identischem
+  Testsatz. Dass 60 000 train-Zeilen nur 0,68 % erreichen, wo 56 363
+  val-Zeilen 1,2 % ergaben, kann Verteilungsunterschied zwischen den
+  Verzeichnissen sein oder Epochenrauschen — ungeklärt.
+
+**Keine Spielstärkemessung.** Die Kurve sind Trainingskennzahlen; ob ein Netz
+mit 120 000 Zeilen der Engine hilft, ist nicht gemessen. Nach der
+Dosis-Wirkungs-Kurve wäre das erst sinnvoll, wenn Top-1 um Größenordnungen
+steigt, nicht um Prozente.
+
+**Die höchste Hebelwirkung liegt damit in der Datenpipeline**, nicht in
+Merkmalsform oder Kapazität. Der bindende Engpass ist jetzt Speicher:
+3971 float32 je Zeile sind 1,9 GB für 120 000 Zeilen, und `train.py` hält
+alles im RAM. Bei 650–1100 Nichtnullen von 3971 wäre eine dünn besetzte
+Darstellung rund 4× sparsamer; alternativ Minibatches von Platte streamen.
+Beides ist überschaubar, aber ungebaut.
+
+### Zwei Fallen, die dabei aufgefallen sind
+
+**Die Lernrate war zu niedrig, und das sah aus wie Lernen.** Mit dem früher
+hier dokumentierten `--epochen 8` (lr 0,05) endete der Verlust bei 5,685 —
+`ln(361) = 5,889`, das Netz war praktisch noch gleichverteilt, Top-1 mit
+0,0024 sogar unter Zufall. Die Kurve fiel monoton und wirkte gesund. Erst der
+Auswendiglern-Test trennte „zu langsam" von „kaputt". `lr 2.0` ist die andere
+Kante: die ReLUs sterben, der Rang friert bei 134 ein.
+
+**Ein Zug auf einen besetzten Punkt.** `pruefen` meldete „auf besetztem Punkt
+0,0005" — ein Mittelwert, der wie Rundung aussah und eine echte Zeile war:
+genau 1 von 15 261 in `val/data0_0`, ein gegnerischer Stein in Atari, nicht
+der letzte Zug. Ein Shard-Artefakt, kein Mapping-Fehler. `bauen` filtert diese
+Zeilen jetzt und zählt sie; `pruefen` meldet absolute Zahlen, weil ein Anteil
+verschweigt, ob eine Zeile oder tausende betroffen sind.
+
+## Die Dateien
+
+| Datei | Aufgabe |
+|---|---|
+| `netzcheck.sh` | Sagt, **welche** Hosts in der Allowlist fehlen — alle auf einmal, nicht nacheinander — und ob es überhaupt die Allowlist ist. Weil eine laufende Session ihre Policy behält, kostet jeder einzeln nachgetragene Host eine weitere Session. Ein gesperrter **Alt-Host** haelt die Kette aber nicht an: welcher Auslieferungsweg benutzt wird, entscheidet der Hub zur Laufzeit, und ob der Download wirklich geht, zeigen erst die Schritte 2 und 3. Die Shards liegen auf einem CDN, nicht auf `huggingface.co`: wer nur den Metadaten-Host freigibt, scheitert erst beim Download. Proxy-Ablehnung, fehlendes CA-Bundle und toter DNS scheitern alle gleich lautlos, brauchen aber drei verschiedene Reparaturen; darum wird curls Begründung mit ausgegeben. |
+| `features.py` | `boardToInput` in numpy. Die riskanteste Stelle der Kette. |
+| `dump_boards.js` + `features_check.py` | Vergleicht `features.py` elementweise mit der JS-Fassung. Zuletzt: 8 Bretter vom leeren Brett bis Zug 330, mit und ohne Ko, **0 Abweichungen**. |
+| `decode.py` | KataGo-Shards lesen. `pruefen` verifiziert die Kanalbelegung, **`selbsttest` verifiziert `pruefen` selbst** (ohne Netz), `bauen` schreibt `daten.npz`. |
+| `train.py` | Kreuzentropie auf den gespielten Zug, Export als `go_pnet`-JSON. |
+| `export_check.js` + `export_check.py` | Vergleicht die Priors aus numpy und JS nach dem Export. Zuletzt: max. **1.9e-9**, argmax 8/8 gleich. |
+| `collect.js` + `json2npz.py` | Ersatzdaten aus unserem eigenen Selbstspiel — um die Kette ohne KataGo zu testen. |
+| `spanne_check.js` | Misst die Entscheidungsspanne von `evaluateMove` über alle legalen Züge. Gemessen: Spanne zum Median 45–1206, Abstand zum Zweitbesten aber 0,0–0,5. |
+| `datenkurve.py` | Datenmengen-Kurve mit Fehlerbalken, misst jede Epoche. Beantwortet, ob die Kopfgüte an der Datenmenge hängt oder an der Merkmalsform. |
+| `lokalitaet_check.js` | Gate-Sweep für `localityBonus`: ab welcher Dosis kippt die Zugwahl? Sekunden statt Partien — liefert den Wert, den ein A/B testen sollte. |
+| `formcheck.js` | Formmessung über einen Ordner SGF-Partien, getrennt nach Spielerrolle. Gruppenzahl, schwache Steine, Zugabstände. |
+
+### Anschluss ist nicht Zusammenhalt
+
+`formcheck.js` entstand aus der Frage, ob die Engine „Streuspiel" betreibt —
+isolierte Steine setzt, statt Basen zu bauen. An einer Partie (Mensch Schwarz
+gegen KI hard, die KI gab auf) gemessen:
+
+| | naechster eigener Stein d=1 | voriger eigener Zug | Endstellung | ≤2 Freiheiten |
+|---|---|---|---|---|
+| Schwarz (Mensch) | 92 % | Median 1 | 118 Steine, **1 Gruppe** | 0 % |
+| KI (hard) | 69 % | Median 5 | 96 Steine, **30 Gruppen** | 36 % |
+
+**Die KI setzt ihre Steine durchaus an eigene an** — 69 % Kontakt, nur 5 %
+weiter als drei entfernt — **und zerfällt trotzdem in 30 Fragmente.** Anschluss
+und Zusammenhalt sind nicht dasselbe.
+
+Das hat eine Konsequenz für jeden geplanten Formterm: ein Anreiz, der
+*Abstände* regelt — `localityBonus` auf den Gegnerzug ebenso wie ein Bonus mit
+Maximum bei d = 2 — zielt an dieser Beobachtung vorbei. Die Größe, die
+auseinanderläuft, ist die **Gruppenzahl**, und die senkt man durch
+Verbindungszüge, nicht durch Sprungdistanzen.
+
+Zwei Vorbehalte, ohne die die Zahlen mehr behaupten, als sie tragen:
+
+- **Eine Partie, und zwar eine aufgegebene.** Verlieren erzeugt
+  Fragmentierung genauso wie Fragmentierung Verlieren erzeugt; aus einer
+  Endstellung ist die Richtung nicht ablesbar. Zu klären wäre das über den
+  **Verlauf** der Gruppenzahl über viele Partien: läuft sie früh auseinander,
+  ist sie Ursache; erst im Zusammenbruch, ist sie Symptom.
+- **Freiheiten je Stein taugen als Kennzahl nicht.** Schwarz hat mit 0,69 den
+  *niedrigeren* Wert, weil eine große solide Masse sich einen Rand teilt.
+  Gruppenzahl und Schwach-Anteil tragen, dieser Mittelwert nicht.
+
+Beim Bauen fiel außerdem eine Falle auf, die den Befund verfälscht hätte: ohne
+Schlagen ist die „Endstellung" die Summe aller je gespielten Steine. Der erste
+Lauf meldete so 32 Gruppen und 54 % schwache Steine statt 30 und 36 % — zu
+Gunsten von mehr Zusammenhang, weil tote Steine Lücken schließen.
+
+### Der Engpass ist nicht Form, sondern der Preis einer schwachen Gruppe
+
+Der Bug-Report-Export derselben Partie enthält den Q-Verlauf, den das SGF nicht
+hat. Damit ließ sich die Ursache-oder-Symptom-Frage für diese Partie
+beantworten — und die Antwort verschiebt den ganzen Ansatz.
+
+Die 21 Steine, die bei Zug 229 starben, waren **eine** Gruppe: eine Mauer
+entlang Reihe 14. Ihre Geschichte:
+
+| Zug | Steine | Freiheiten | Weiß spielt | Q |
+|---|---|---|---|---|
+| 200 | 11 | 5 | M13 | +0,43 |
+| 212 | 14 | 3 | K14 | +0,41 |
+| 224 | 20 | 3 | F14 | +0,37 |
+| 226 | **21** | **2** | M14 | **+0,40** |
+| 228 | 21 | **1** | B19 (Ecke) | −0,88 |
+
+**Weiß hängte zwischen Zug 200 und 226 zehn Steine an eine Gruppe, die nie über
+fünf Freiheiten kam — und die Bewertung blieb bei +0,37 bis +0,43.** Erst bei
+einer Freiheit stürzte Q ab; da war die Gruppe nicht mehr zu retten, und der
+Eckzug B19 war folgerichtig, nicht blind. **Der Fehler liegt bei Zug 212 bis
+226.**
+
+Der Grund steht in den Parametern: Anbauen wird bezahlt
+(`midOwnNeighborBonus` 15, `midOwnGroup2` +40, `midOwnGroup3` +60), Freiheiten
+werden bezahlt (`midLibBonus` 30) — aber **nichts bepreist das Produkt aus
+beidem**. Ein 21-Steine-Klotz auf zwei Freiheiten kostet so wenig wie ein
+Einzelstein auf zwei Freiheiten. Das Risiko skaliert mit `Steine × Schwäche`,
+die Bewertung nicht.
+
+`formcheck.js` misst das jetzt als **Anbau in eine schwache Gruppe**: Züge, die
+an eine bestehende eigene Gruppe anhängen, die dabei bei ≤ 3 Freiheiten bleibt.
+
+| | Anbauzüge | davon in schwache Gruppe | verlorene Steine | größter Einzelverlust |
+|---|---|---|---|---|
+| Schwarz | 106 | **1 (1 %)** | 1 | 1 |
+| KI (hard) | 65 | **8 (12 %)** | 22 | **21** |
+
+**Damit ist der Kandidat für einen Term ein anderer als alle bisher
+diskutierten:** kein Formbonus bei d = 2 (die Abstände stimmen), kein
+Verbindungsbonus (die Gruppe *war* verbunden) — sondern eine Stellungsstrafe,
+die mit **Gruppengröße mal Schwäche** skaliert.
+
+Vorbehalt unverändert: eine Partie. Aber die Metrik braucht keine Q-Werte mehr
+und läuft über jedes SGF, die Prüfung an vielen Partien ist also nur noch eine
+Frage des Materials.
+
+### 16 Partien: die Beschreibung hält, die Kausalfrage bleibt offen
+
+16 Exporte desselben Aufbaus (Mensch Schwarz gegen KI hard) bestätigen die
+Rate, und zwar durchgängig — nicht getragen von ein oder zwei Ausreißern:
+
+| | Anbauzüge | davon in schwache Gruppe | verlorene Steine gesamt | größter Einzelverlust |
+|---|---|---|---|---|
+| Schwarz (16×) | 1995 | **12 (1 %)** | 39 | 2 |
+| KI hard (16×) | 1318 | **224 (17 %)** | 392 | 29 |
+
+Je Partie gemessen liegt die KI-Rate zwischen **9 % und 25 %**, in allen 16
+Fällen weit über der menschlichen Gesamtrate von 1 % — keine Partie zieht den
+Schnitt nach oben, keine liegt nahe am Menschen.
+
+**Was das nicht klärt, und zwar die wichtigere Hälfte: alle 16 Partien sind
+`RE[B+R]`.** Die Ergebnis-Aufteilung aus `formcheck.js` (Sieg gegen Niederlage)
+meldet deshalb „Vergleich braucht beides" — es gibt keine KI-Siege in diesem
+Satz. Ob die KI auch in gewonnenen Partien so in schwache Gruppen investiert
+(Stil, kein Verlustgrund) oder nur in verlorenen (Ursache), bleibt unbeantwortet.
+Mehr Partien mit demselben Ergebnis erhärten die Beschreibung, nicht die
+Kausalität — dafür braucht es KI-Siege, etwa aus Selbstspiel-Partien des
+Harness (dort sind beide Seiten dieselbe Engine, das Ergebnis hängt also nicht
+an einem einzelnen menschlichen Gegner) oder aus Partien gegen eine schwächere
+KI-Stufe.
+
+### Gap oder Spanne? Der Bezug hängt vom Term ab
+
+`lokalitaet_check.js` hat eine Ableitung widerlegt, die aus `spanne_check.js`
+naheliegend schien. Weil der Abstand zwischen bestem und zweitbestem
+`evaluateMove`-Score in Eröffnung und Mittelspiel nur 0,0–0,5 beträgt, lag der
+Schluss nahe, schon ein `localityBonus` von wenigen Dutzend müsse die Spitze
+kippen. Gemessen kippt sie erst bei **200–400**.
+
+Der Grund: bester und zweitbester Zug liegen oft **nebeneinander**. Ein
+Lokalitätsterm gibt beiden fast denselben Zuschlag und verschiebt die
+Reihenfolge nicht. Um die Spitze zu kippen, muss er einen *entfernten*
+Kandidaten hochziehen — dafür zählt die volle Score-Spanne, nicht der Gap.
+
+**Daraus die Regel:** die Gap-Kalibrierung gilt für Terme, die je Zug
+**unabhängig** wirken (wie `netScoreScale` mit einem Prior pro Punkt), nicht
+für **räumlich korrelierte**. Sichtbar an der Top-20-Spalte des Sweeps: das
+Mittelfeld sortiert sich lange um, bevor die Spitze sich bewegt. Der alte
+Vermerk bei `localityBonus` in `index.html` („bis 200 bewegt der Bonus die
+Rangfolge nicht, ab 400 dominiert er") trifft damit zu; 200 ist die Kante und
+der Wert, den ein A/B testen sollte.
+
+Und eine Falle, die der Sweep selbst aufgedeckt hat: `evaluateMove` ist ohne
+Vorkehrung **zwischen zwei Aufrufen nicht reproduzierbar**, der Zufallsstrom
+läuft weiter. Der erste Lauf zeigte bereits in der Dosis-0-Spalte Änderungen
+gegen sich selbst — jeder Dosisvergleich wäre ein Vergleich zweier
+Zufallsziehungen gewesen. Die Spalte bleibt deshalb als Sanity-Check stehen:
+steht dort nicht überall 0, ist der Lauf ungültig.
+
+## Warum jedes Glied einzeln geprüft wird
+
+Zwei Fehlerarten wären sonst unsichtbar geblieben, und beide hätten wie ein
+sauberes Nullergebnis ausgesehen:
+
+**Falsche Merkmale.** Wenn `features.py` und `boardToInput` auseinanderlaufen,
+lernt das Netz auf Merkmalen, die es im Spiel nie sieht. Es trainiert
+fehlerfrei, misst gut, und ist im Browser wertlos.
+
+**Falsch abgelegte Gewichte.** Eine vertauschte Matrixanordnung
+(`W1[j*IN+i]` gegen `W1[i*HID+j]`) lädt ohne Fehlermeldung und rechnet
+Unsinn. Deshalb wird nach dem Export verglichen, nicht nur geladen.
+
+Für KataGos Kanalbelegung gilt dasselbe: `decode.py pruefen` rechnet die
+Freiheiten aus den rekonstruierten Steinen **selbst** nach und hält sie gegen
+die Kanäle 3/4/5, statt den Kommentaren im Quelltext zu glauben. Dazu:
+kein Punkt gleichzeitig eigen und gegnerisch, Kanal 9 (jüngster Zug) muss
+auf einem gegnerischen Stein liegen, das Policy-Ziel auf einem leeren Punkt.
+
+## Herkunft der Formatangaben
+
+Aus KataGos eigenem Quelltext, nicht aus zweiter Hand:
+
+- npz-Schlüssel `binaryInputNCHWPacked`, `globalInputNC`,
+  `policyTargetsNCMove` — `cpp/dataio/trainingwrite.h`
+- 22 räumliche Kanäle (`NUM_FEATURES_SPATIAL_V7`) und ihre Belegung —
+  `cpp/neuralnet/nninputs.cpp`, `fillRowV7`
+- `pos = y * nnXLen + x` (`NNPos::xyToPos`) — identisch zu unserem
+  `idx(x, y)`, ein Transponierfehler ist damit ausgeschlossen
+
+## Erzeugte Dateien
+
+`daten.npz`, `gewichte.json`, `boards.json`, `js_probs.json`, `lokal.json`
+entstehen beim Lauf und stehen in `.gitignore`. Gewichte gehören nicht ins
+Repo — sie sind reproduzierbar und mehrere Megabyte groß.

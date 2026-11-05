@@ -1,0 +1,277 @@
+# Gebiet nach Freiheiten: vorab festgelegte Messung
+
+**Status: festgelegt am 09.10.2026, vor dem Lauf.** Was danach hinzukommt,
+steht als Nachtrag darunter; die Abschnitte 1–5 werden nicht mehr geändert.
+
+---
+
+## 1. Anlass
+
+[`verschenkt-warum.md`](verschenkt-warum.md) hat gezeigt, warum die KI
+gegen GNU Go noch rund 40 % ihrer Züge ab Zug 100 verschenkt:
+- Die Suche folgt meist dem Favoriten von `evaluateMove`.
+- Den Vorsprung eines verschenkten Zuges bringt in 54 % der Fälle der
+  Gebietsanteil (`gebietZug`). Er rechnet den Gewinn auf der Einflusskarte
+  so, als bliebe der neue Stein stehen.
+- Ob er stehen bleibt, hängt stark an den Freiheiten seiner Kette: Mit zwei
+  Freiheiten nach dem Zug sterben 73 %, mit drei 53 %, mit vier 46 %, mit
+  fünf und mehr 16 %.
+
+## 2. Der Schalter und der Pilot
+
+**`gebietFreiheit`**: Ein positiver Gebietsanteil aus `gebietZug` zählt nur
+anteilig, wenn die Kette des neuen Steins danach wenige Freiheiten hat:
+
+| Freiheiten nach dem Zug | 1 | 2 | 3 | ab 4 |
+|---|---:|---:|---:|---:|
+| Anteil des Gebietsgewinns | 0 | 0,25 | 0,6 | 1 |
+
+Ein negativer Anteil bleibt unverändert. Der Schalter wirkt überall, wo
+`evaluateMove` rechnet (Wurzel, Pass-Prüfung, Leicht und Mittel). Bei 0 ist
+die Bewertung bitgenau die alte. Test in `tests/gebiet.js`.
+
+**Pilot** (`verschenkt-warum.md` §3), 16 Partien gegen GNU Go mit Seed 111,
+gepaart mit dem Default: Endstand +22,1 (SD 93,5, t = 0,95), besser in 11
+von 16. Verschenkte eigene Züge ab Zug 100: 38,1 → 26,9 je Partie. Der Pilot
+lief mit demselben Code in einer Kopie außerhalb des Repos.
+
+## 3. Arme
+
+| Arm | Parameter |
+|---|---|
+| A | Default (`gebietFreiheit` 0) |
+| B | `gebietFreiheit` = 1 |
+
+## 4. Messung
+
+Neuer Seed, damit die Pilotpartien nicht mitzählen. Beide Arme werden neu
+gespielt.
+
+**M1, gegen GNU Go, primär:** Stufe 1, neun Vorgabesteine, 120
+Simulationen, Aufgabe aus, bis 600 Züge, `--seed 121`, 60 Partien je Arm in
+vier Teilläufen.
+
+```bash
+for v in 1 16 31 46; do
+  node gnugo-duell.js --partien 15 --von $v --seed 121 --stufe 1 --vorgabe 9 \
+    --maxzuege 600 --schaetzung 120,200 --ki mctsFixedSims=120,resignEnabled=0 \
+    --roh freiheit-gnugo-A-$v.jsonl &
+  # B ebenso mit --ki mctsFixedSims=120,resignEnabled=0,gebietFreiheit=1
+done
+node auswertung/gnugo-vergleich.js --A freiheit-gnugo-A-*.jsonl --B freiheit-gnugo-B-*.jsonl --zug 120,200,ende
+```
+
+Endpunkt: gepaarte Differenz B − A des Endstands, zweiseitig, α = 0,05.
+
+**M2, Selbstspiel, Kontrolle:** 360 Partien, vier Teilläufe zu je 90.
+
+```bash
+for s in 20261090 20261091 20261092 20261093; do
+  node ab-harness.js --games 90 --seed $s \
+    --A mctsFixedSims=120 --B mctsFixedSims=120,gebietFreiheit=1 \
+    --roh freiheit-$s.jsonl --json freiheit-$s.json &
+done
+```
+
+Endpunkt: Siegrate von B, zweiseitig gegen 50 %, α = 0,05.
+
+**Entscheidung, vorab festgelegt** (wie in
+[`endspiel-verlust.md`](endspiel-verlust.md) §4):
+
+| M1 (GNU Go) | M2 (Selbstspiel) | Folge |
+|---|---|---|
+| B signifikant besser | nicht signifikant unter 50 % | Default `gebietFreiheit` = 1 |
+| B signifikant besser | signifikant unter 50 % | kein Default; untersuchen |
+| sonst | — | Default bleibt 0 |
+
+**Sekundär, ohne Anspruch:**
+- M1 nach Zug 120 und 200, Aufgaben von GNU Go je Arm, Partielänge
+- verschenkte Züge je Arm (`auswertung/verschenkt.js`)
+
+## 5. Grenzen
+
+- Die Anteile (0 / 0,25 / 0,6 / 1) sind aus der Verlustrate je Freiheiten
+  grob abgeleitet, nicht optimiert. Gemessen wird nur diese eine Stufe.
+- Freiheiten sind ein grobes Maß für die Stärke einer Kette. Augen und
+  Verbindungen sieht der Schalter nicht.
+- Der Pilot zeigte +22 Punkte; bei einer Streuung um 100 Punkte erkennen 60
+  Paare einen solchen Unterschied nur knapp zur Hälfte. Ein Nullergebnis
+  hieße daher nicht, dass der Schalter wirkungslos ist.
+- GNU Go Stufe 1 mit neun Vorgabesteinen ist ein einzelner, enger Gegner.
+  Gemessen wird mit 120 Simulationen.
+
+---
+
+## 6. Nachtrag: Ergebnis, Default bleibt 0 (09.10.2026)
+
+Gelaufen auf dem Merge-Commit `d2df4ee`, ohne Unterbrechung. Daten:
+`daten/freiheit-gnugo.json` (M1, beide Arme) und `daten/freiheit-20261090.json`
+bis `…93.json` (Hash-Listen M2).
+
+**M1, gegen GNU Go (primär), 60 Paare, Seed 121:**
+
+| | A (Default) | B (`gebietFreiheit` 1) | B − A |
+|---|---:|---:|---|
+| **Endstand** | −74,5 | −55,0 | **+19,5** (SD 99,9), **p = 0,14** |
+| nach Zug 120 | +27,3 | +17,1 | −10,2, p = 0,046 (50 Paare) |
+| nach Zug 200 | −65,1 | −51,3 | +13,8, p = 0,06 (42 Paare) |
+
+- B ist in 39 von 60 Paaren besser, im Median um 33 Punkte.
+- GNU Go gab mit A neunmal auf, mit B siebenmal.
+- Partielänge: Ø 254 Züge (A) gegen 232 (B).
+
+**M2, Selbstspiel (Kontrolle):** B gewinnt 193 von 360 Partien, 53,6 %
+(z = 1,37, p = 0,17, 95-%-KI 48,4–58,7 %). Teilläufe: 53,3 / 53,3 / 52,2 /
+55,6 %.
+
+**Entscheidung nach §4: Default `gebietFreiheit` bleibt 0.** M1 ist nicht
+signifikant. Der Schalter bleibt im Dashboard.
+
+**Sekundär, verschenkte Züge** (`auswertung/verschenkt.js`):
+
+| ab Zug 100 | A | B |
+|---|---:|---:|
+| bis Zug 200 | 38 % (17,1 je Partie) | 37 % (17,1) |
+| nach Zug 200 | 54 % (17,5 je Partie) | 55 % (11,1) |
+
+**Einordnung:**
+- Beide Messungen zeigen in dieselbe Richtung, keine erreicht die Schwelle.
+  Der Pilot (+22,1 über 16 Partien) hat den Effekt etwa richtig geschätzt;
+  §5 hatte die geringe Trennschärfe bei diesem Abstand vorhergesagt.
+- Der Mechanismus greift schwächer als erhofft. Der Anteil verschenkter
+  Züge bleibt gleich, es werden nur weniger, weil die Partien kürzer sind.
+  Den Gebietsanteil schwacher Ketten zu senken, ändert also wenig daran,
+  welche Ketten sterben.
+- Nach Zug 120 liegt B sogar zurück. Wahrscheinlich spielt B im
+  Mittelspiel weniger in umkämpfte Gebiete und gibt dort etwas ab, das sich
+  erst später auszahlt.
+- Aus `verschenkt-warum.md` §4 bleiben die anderen Hebel: die Wurzel bei
+  Baumwiederverwendung und `quickEval`.
+
+---
+
+## 7. Nachtrag: Nachmessung, vorab festgelegt (10.10.2026, vor dem Lauf)
+
+**Anlass:** Beide Messungen aus §6 zeigen in dieselbe Richtung, keine
+erreicht die Schwelle. Seitdem hat sich zweierlei geändert:
+- Der Default enthält `wurzelFrisch` = 1 ([`wurzel-frisch.md`](wurzel-frisch.md)).
+- Gegen GNU Go wird ausgespielt, GNU Go gibt nicht mehr auf
+  ([`gnugo-ausspielen.md`](gnugo-ausspielen.md)). Die Endstände aus §6
+  mischen ausgespielte Partien mit Zwischenständen bei Aufgabe.
+
+In den 45 Paaren aus §6, in denen GNU Go in keinem Arm aufgab, lag B um
++37,1 Punkte vorn (SD 67,4). Das ist nachträglich herausgegriffen und kein
+Beleg, aber Grund für eine saubere Nachmessung. Sie zählt für sich allein
+und wird nicht mit §6 verrechnet.
+
+**Arme:**
+
+| Arm | Parameter |
+|---|---|
+| A | Default (`gebietFreiheit` 0; `leseVerzicht` 1, `wurzelFrisch` 1, `quickRettung` 0) |
+| B | `gebietFreiheit` = 1 |
+
+**M1, gegen GNU Go, primär:** Stufe 1, neun Vorgabesteine, 120
+Simulationen, Aufgabe der KI aus, **GNU Go gibt nicht auf**, bis 600 Züge,
+neuer Seed `--seed 151`, 60 Partien je Arm in vier Teilläufen.
+
+```bash
+for v in 1 16 31 46; do
+  node gnugo-duell.js --partien 15 --von $v --seed 151 --stufe 1 --vorgabe 9 \
+    --maxzuege 600 --schaetzung 120,200 --gnugo-aufgabe 0 \
+    --ki mctsFixedSims=120,resignEnabled=0 --roh freiheit2-gnugo-A-$v.jsonl &
+  # B ebenso mit --ki mctsFixedSims=120,resignEnabled=0,gebietFreiheit=1
+done
+node auswertung/gnugo-vergleich.js --A freiheit2-gnugo-A-*.jsonl --B freiheit2-gnugo-B-*.jsonl --zug 120,200,ende
+```
+
+Endpunkt: gepaarte Differenz B − A des Endstands, zweiseitig, α = 0,05.
+Erreicht eine Partie das Zuglimit, zählt wie bisher GNU Gos Auszählung der
+Schlussstellung; die Zahl solcher Partien wird berichtet.
+
+**M2, Selbstspiel, Kontrolle:** 360 Partien, vier Teilläufe zu je 90.
+
+```bash
+for s in 20261120 20261121 20261122 20261123; do
+  node ab-harness.js --games 90 --seed $s \
+    --A mctsFixedSims=120 --B mctsFixedSims=120,gebietFreiheit=1 \
+    --roh freiheit2-$s.jsonl --json freiheit2-$s.json &
+done
+```
+
+Endpunkt: Siegrate von B, zweiseitig gegen 50 %, α = 0,05.
+
+**Entscheidung, vorab festgelegt** (wie in §4):
+
+| M1 (GNU Go) | M2 (Selbstspiel) | Folge |
+|---|---|---|
+| B signifikant besser | nicht signifikant unter 50 % | Default `gebietFreiheit` = 1 |
+| B signifikant besser | signifikant unter 50 % | kein Default; untersuchen |
+| sonst | — | Default bleibt 0 |
+
+**Sekundär, ohne Anspruch:**
+- M1 nach Zug 120 und 200, Siege je Arm, Partielänge, Partien am Zuglimit
+- Streuung der Paare (SD) im Vergleich zu §6: Prüft die Erwartung aus
+  `gnugo-ausspielen.md`, dass ausgespielte Partien weniger streuen
+- verschenkte Züge je Arm (`auswertung/verschenkt.js`)
+
+**Grenzen:**
+- Erste Messung mit der neuen Methode. Bei einer Streuung um 60 Punkte
+  erkennen 60 Paare einen Unterschied von gut 20 Punkten mit etwa 80 %
+  Wahrscheinlichkeit; bei 100 Punkten wie in §6 nur mit etwa 40 %.
+- GNU Go Stufe 1 mit neun Vorgabesteinen ist ein einzelner, enger Gegner.
+  Gemessen wird mit 120 Simulationen.
+
+---
+
+## 8. Nachtrag: Ergebnis der Nachmessung, Default bleibt 0 (10.10.2026)
+
+Gelaufen auf dem Merge-Commit `77b3f89`, ohne Unterbrechung. Daten:
+`daten/freiheit2-gnugo.json` (M1, beide Arme) und
+`daten/freiheit2-20261120.json` bis `…23.json` (Hash-Listen M2).
+
+**M1, gegen GNU Go (primär), 60 Paare, Seed 151, ausgespielt:**
+
+| | A (Default) | B (`gebietFreiheit` 1) | B − A |
+|---|---:|---:|---|
+| **Endstand** | −81,1 | −72,1 | **+8,9** (SD 72,9), p = 0,35 |
+| nach Zug 120 | +46,4 | +23,5 | −22,9, p = 0,00003 (60 Paare) |
+| nach Zug 200 | −45,2 | −51,9 | −6,7, p = 0,43 (59 Paare) |
+
+- B ist in 33 von 60 Paaren besser, in 27 schlechter, im Median um 14
+  Punkte besser.
+- Teilläufe B − A: +20,4 / +22,0 / +20,4 / −27,1.
+- Keine Aufgaben, kein Zuglimit. Die KI gewann mit A eine Partie, mit B drei.
+- Partielänge: Ø 278 Züge (A) gegen 253 (B).
+
+**M2, Selbstspiel (Kontrolle):** B gewinnt **164 von 360 Partien, 45,6 %**
+(z = −1,69, p = 0,09, 95-%-KI 40,5–50,7 %). Teilläufe: 45,6 / 40,0 / 52,2 /
+44,4 %.
+
+**Entscheidung nach §7: Default `gebietFreiheit` bleibt 0.** M1 ist nicht
+signifikant. Der Schalter bleibt im Dashboard.
+
+**Sekundär:**
+
+| verschenkte Züge ab Zug 100 | A | B |
+|---|---:|---:|
+| bis Zug 200 | 38 % (19,2 je Partie) | 37 % (18,8) |
+| nach Zug 200 | 52 % (19,4 je Partie) | 54 % (13,4) |
+| Leser fängt die eigene Kette danach | 7,5 je Partie | 3,4 |
+
+**Streuung der Paare:** SD 72,9 statt 99,9 in §6, mit neuem Seed und
+ausgespielten Partien. Das passt zur Erwartung aus
+[`gnugo-ausspielen.md`](gnugo-ausspielen.md).
+
+**Einordnung:**
+- Wie in §6 liegt B nach Zug 120 deutlich zurück. B spielt im Mittelspiel
+  weniger in umkämpfte Gebiete und gibt dort Punkte ab. Bis zum Ende holt
+  B das auf, aber nicht mehr.
+- Im Selbstspiel ist B jetzt eher schlechter (45,6 % statt 53,6 % in §6).
+  Damals war `wurzelFrisch` noch aus. Was der Schalter ändert, scheint
+  `wurzelFrisch` zum Teil schon zu erledigen.
+- B verschenkt nach Zug 200 sechs Züge je Partie weniger, vor allem weil die
+  Partien kürzer sind. Der Endstand gewinnt dadurch kaum.
+- Damit ist der Gebietsteil als Hebel gegen verschenkte Züge ausgeschöpft.
+  Zusammen mit `atariVerzicht` ([`atari-verschenkt.md`](atari-verschenkt.md))
+  zeigt sich: Weniger verschenkte Steine bringen für sich kaum Punkte.

@@ -1,0 +1,82 @@
+name: Diagnose Rohdaten sichern
+
+# Sichert die Ergebnis-Artefakte eines fertigen Diagnose-Laufs (docs/diagnose-p1p2.md §9) im Repo.
+# KEINE Neuberechnung: Es werden nur vorhandene Artefakte geladen, verlustfrei komprimiert und
+# beschrieben (auswertung/diagnose/rohdaten-sichern.js), dabei auch die P1-Partien ohne Buchung.
+#
+# Das Ergebnis geht auf einen NEUEN Zweig claude/diagnose-rohdaten-<lauf>, nie auf main und nie mit
+# Force. Daraus öffnet der Bearbeiter einen Pull Request; die Tests laufen dort. Zusätzlich liegt
+# das Ergebnis als Artefakt, falls der Push scheitert.
+#
+# Eingabe  lauf  Nummer des Diagnose-Laufs (Standard: der erste, 41480291668)
+# Von Hand zu starten, nur nach ausdrücklichem „Go“.
+on:
+  workflow_dispatch:
+    inputs:
+      lauf:
+        description: 'Nummer des Diagnose-Laufs, dessen Artefakte gesichert werden'
+        required: false
+        default: '41480291668'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  sichern:
+    name: Sichern
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Artefakte laden
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAUF: ${{ inputs.lauf }}
+        run: |
+          set -euo pipefail
+          mkdir -p roh
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$LAUF/artifacts" --paginate > roh/artifacts.json
+          for n in leeres-brett-g-D muster-ohne-vorgabe-g-D muster-ohne-vorgabe-f-D fuego-siege-D; do
+            gh run download "$LAUF" -n "diagnose-$n" -D "roh/$n"
+          done
+          find roh -type f | sort
+
+      - name: Sichern und beschreiben
+        env:
+          LAUF: ${{ inputs.lauf }}
+        run: |
+          set -uo pipefail
+          status=0
+          node auswertung/diagnose/rohdaten-sichern.js --roh roh --aus docs/daten/diagnose-p1p2/rohdaten --run "$LAUF" | tee sichern.log || status=$?
+          echo "status=$status" >> "$GITHUB_ENV"
+          cat docs/daten/diagnose-p1p2/rohdaten/fehlgeschlagen-p1.md >> "$GITHUB_STEP_SUMMARY" || true
+          exit "$status"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: rohdaten-gesichert
+          path: |
+            docs/daten/diagnose-p1p2/rohdaten/
+            sichern.log
+          retention-days: 90
+
+      - name: Auf neuen Zweig schieben
+        env:
+          LAUF: ${{ inputs.lauf }}
+        run: |
+          set -euo pipefail
+          zweig="claude/diagnose-rohdaten-$LAUF"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$zweig"
+          git add docs/daten/diagnose-p1p2/rohdaten
+          git commit -m "Diagnose P1/P2: Rohdaten des Laufs $LAUF gesichert (keine Neuberechnung)"
+          git push origin "HEAD:refs/heads/$zweig"

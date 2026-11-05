@@ -1,0 +1,265 @@
+Engine-Abgleich der Archive gegen den heutigen index.html (b13373335461aecc06e93b55fc3e4435acdd32ec)
+
+== Leeres Brett: Actions-Lauf 40943994425 (2026-10-29), Commit 443724e6831677ab15a64e909bfec072a253f7ef (PR #215), Archiv docs/daten/leeres-brett/lauf1
+Standardwerte, die sich unterscheiden (alt → heute): musterOhneVorgabe: undefined → 1 | musterWeissOhneVorgabe: undefined → 1 | vorgabeSteine: undefined → 0 | passNachGegnerpass: undefined → 0 | passMarge: undefined → 20 | passSpanne: undefined → 2 | passGemischt: undefined → 0.25
+shared-go-logic: 371 Zeilen damals, 416 heute; nur damals: 0, nur heute: 37
+   nur heute:  function zaehlVorschau(board, komi = 7.5, opt = {}) {
+   nur heute:  const N = BOARD_SIZE;
+   nur heute:  const territory = opt.modus === 'territory', gefBisher = opt.gefangen || {1: 0, 2: 0};
+   nur heute:  const bewiesenTot = new Uint8Array(N), bewiesenLebend = new Uint8Array(N);
+   nur heute:  for (let i = 0; i < N; i++) {
+   nur heute:  if (!board[i]) continue;
+   nur heute:  if (_bnDead[i] === ep) bewiesenTot[i] = 1;
+   nur heute:  else if (_bnAlive[i] === ep) bewiesenLebend[i] = 1;
+   nur heute:  const tot = toteSteineAmEnde(board);
+   nur heute:  const geschaetztTot = new Uint8Array(N), unbewiesen = new Uint8Array(N);
+   nur heute:  for (let i = 0; i < N; i++) {
+   nur heute:  if (!board[i]) continue;
+   nur heute:  if (tot[i] && !bewiesenTot[i]) geschaetztTot[i] = 1;
+   nur heute:  else if (!tot[i] && !bewiesenLebend[i]) unbewiesen[i] = 1;
+   nur heute:  const zaehle = entfernt => {
+   nur heute:  const b = new Uint8Array(N); for (let i = 0; i < N; i++) b[i] = entfernt[i] ? 0 : board[i];
+   nur heute:  const f = {1: 0, 2: 0}, v = new Uint8Array(N); let neutral = 0, gemischt = 0, leer = 0;
+   nur heute:  if (territory) {
+   nur heute:  f[1] = gefBisher[1] || 0; f[2] = gefBisher[2] || 0;
+   nur heute:  for (let i = 0; i < N; i++) if (entfernt[i] && board[i]) f[board[i] === 1 ? 2 : 1]++;
+   nur heute:  } else for (let i = 0; i < N; i++) if (b[i]) f[b[i]]++;
+   nur heute:  if (b[i] || v[i]) continue;
+   nur heute:  const q = [i]; v[i] = 1; let r = 0;
+   nur heute:  if (!b[n]) { if (!v[n]) { v[n] = 1; q.push(n); } } else r |= b[n];
+   nur heute:  leer += q.length;
+   nur heute:  if (r === 1 || r === 2) f[r] += q.length; else { neutral += q.length; if (r === 3) gemischt += q.length; }
+   nur heute:  return {schwarz: f[1], weiss: f[2], neutral, stand: f[1] - f[2] - komi, gemischtAnteil: leer ? gemischt / leer : 0};
+   nur heute:  };
+   nur heute:  const nurBewiesen = zaehle(bewiesenTot);
+   nur heute:  const alle = new Uint8Array(N); for (let i = 0; i < N; i++) alle[i] = bewiesenTot[i] || geschaetztTot[i] ? 1 : 0;
+   nur heute:  const mitSchaetzung = zaehle(alle);
+   nur heute:  let nBT = 0, nGT = 0, nBL = 0, nUB = 0;
+   nur heute:  for (let i = 0; i < N; i++) { nBT += bewiesenTot[i]; nGT += geschaetztTot[i]; nBL += bewiesenLebend[i]; nUB += unbewiesen[i]; }
+   nur heute:  return {bewiesenTot, geschaetztTot, bewiesenLebend, unbewiesen,
+   nur heute:  anzahl: {bewiesenTot: nBT, geschaetztTot: nGT, bewiesenLebend: nBL, unbewiesen: nUB},
+   nur heute:  nurBewiesen, mitSchaetzung, komi, modus: territory ? 'territory' : 'flaeche',
+   nur heute:  sicher: nGT === 0 && nUB === 0};
+worker-ai: 1895 Zeilen damals, 1943 heute; nur damals: 3, nur heute: 47
+   nur damals: function getAIMove(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove) {
+   nur damals: const r = _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove);
+   nur damals: const mg = mc >= PARAMS.musterAb ? PARAMS.musterGewicht : 0;
+   nur heute:  musterOhneVorgabe:      1,
+   nur heute:  musterWeissOhneVorgabe: 1,
+   nur heute:  vorgabeSteine:          0,
+   nur heute:  passNachGegnerpass: 0,
+   nur heute:  passMarge:       20,
+   nur heute:  passSpanne:      2,
+   nur heute:  passGemischt:    0.25,
+   nur heute:  _zeit.simStart = _simStart;
+   nur heute:  _zeit.simEnd = Date.now();
+   nur heute:  const _tNetz = Date.now();
+   nur heute:  _zeit.netzMs = Date.now() - _tNetz;
+   nur heute:  const _zeit = {t0: 0, tEnde: 0, simStart: 0, simEnd: 0, netzMs: 0};
+   nur heute:  function zeitenLesen() {
+   nur heute:  const gesucht = _zeit.simStart > 0 && _zeit.simEnd >= _zeit.simStart;
+   nur heute:  return {
+   nur heute:  gesamtMs: _zeit.tEnde - _zeit.t0,
+   nur heute:  vorMs:   gesucht ? _zeit.simStart - _zeit.t0 : null,
+   nur heute:  netzMs:  _zeit.netzMs,
+   nur heute:  sucheMs: gesucht ? _zeit.simEnd - _zeit.simStart : null,
+   nur heute:  nachMs:  gesucht ? _zeit.tEnde - _zeit.simEnd : null
+   nur heute:  };
+   nur heute:  function passNachGegnerpassPruefung(board, aiColor, captures, extra) {
+   nur heute:  if (!(PARAMS.passNachGegnerpass >= 1) || !extra || !extra.gegnerPasste) return null;
+   nur heute:  const wertung = extra.wertung === 'territory' ? 'territory' : 'flaeche';
+   nur heute:  const v = zaehlVorschau(board, extra.komi === undefined ? 7.5 : extra.komi, {modus: wertung, gefangen: captures});
+   nur heute:  const sicht = aiColor === 1 ? 1 : -1;
+   nur heute:  const mit = sicht * v.mitSchaetzung.stand, nur = sicht * v.nurBewiesen.stand;
+   nur heute:  const spanne = Math.abs(mit - nur), gemischt = v.nurBewiesen.gemischtAnteil;
+   nur heute:  const schlechter = Math.min(mit, nur);
+   nur heute:  let grund = null;
+   nur heute:  if (gemischt > PARAMS.passGemischt) grund = 'nicht ausgespielt';
+   nur heute:  else if (spanne > PARAMS.passSpanne) grund = 'ungeklärte Gruppen (Spanne)';
+   nur heute:  else if (schlechter < PARAMS.passMarge) grund = 'Vorsprung zu klein';
+   nur heute:  return {pass: grund === null, grund, mit, nur, spanne, gemischt, wertung};
+   nur heute:  function getAIMove(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove, extra) {
+   nur heute:  let r;
+   nur heute:  const _t0 = Date.now();
+   nur heute:  _zeit.t0 = _t0; _zeit.simStart = 0; _zeit.simEnd = 0; _zeit.netzMs = 0;
+   nur heute:  const vp = diff === 'hard' ? passNachGegnerpassPruefung(board, aiColor, captures, extra) : null;
+   nur heute:  if (vp && vp.pass) {
+   nur heute:  r = {type: 'pass', requestId: reqId,
+   nur heute:  info: `Pass — Gegner hat gepasst, Vorsprung ${vp.mit.toFixed(1)}/${vp.nur.toFixed(1)} (Versuchsregel)`};
+   nur heute:  r = _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove);
+   nur heute:  if (vp) r.versuch = vp;
+   nur heute:  _zeit.tEnde = Date.now();
+   nur heute:  let mg = mc >= PARAMS.musterAb ? PARAMS.musterGewicht : 0;
+   nur heute:  if (PARAMS.vorgabeSteine < 2) mg *= PARAMS.musterOhneVorgabe * (aiColor === 2 ? PARAMS.musterWeissOhneVorgabe : 1);
+
+== Muster ohne Vorgabe: Actions-Lauf 41022192878 (2026-10-30), Commit e40d82eb140099701d7fc4f275be275e06c374d6 (PR #219), Archiv docs/daten/muster-ohne-vorgabe/lauf1
+Standardwerte, die sich unterscheiden (alt → heute): passNachGegnerpass: undefined → 0 | passMarge: undefined → 20 | passSpanne: undefined → 2 | passGemischt: undefined → 0.25
+shared-go-logic: 371 Zeilen damals, 416 heute; nur damals: 0, nur heute: 37
+   nur heute:  function zaehlVorschau(board, komi = 7.5, opt = {}) {
+   nur heute:  const N = BOARD_SIZE;
+   nur heute:  const territory = opt.modus === 'territory', gefBisher = opt.gefangen || {1: 0, 2: 0};
+   nur heute:  const bewiesenTot = new Uint8Array(N), bewiesenLebend = new Uint8Array(N);
+   nur heute:  for (let i = 0; i < N; i++) {
+   nur heute:  if (!board[i]) continue;
+   nur heute:  if (_bnDead[i] === ep) bewiesenTot[i] = 1;
+   nur heute:  else if (_bnAlive[i] === ep) bewiesenLebend[i] = 1;
+   nur heute:  const tot = toteSteineAmEnde(board);
+   nur heute:  const geschaetztTot = new Uint8Array(N), unbewiesen = new Uint8Array(N);
+   nur heute:  for (let i = 0; i < N; i++) {
+   nur heute:  if (!board[i]) continue;
+   nur heute:  if (tot[i] && !bewiesenTot[i]) geschaetztTot[i] = 1;
+   nur heute:  else if (!tot[i] && !bewiesenLebend[i]) unbewiesen[i] = 1;
+   nur heute:  const zaehle = entfernt => {
+   nur heute:  const b = new Uint8Array(N); for (let i = 0; i < N; i++) b[i] = entfernt[i] ? 0 : board[i];
+   nur heute:  const f = {1: 0, 2: 0}, v = new Uint8Array(N); let neutral = 0, gemischt = 0, leer = 0;
+   nur heute:  if (territory) {
+   nur heute:  f[1] = gefBisher[1] || 0; f[2] = gefBisher[2] || 0;
+   nur heute:  for (let i = 0; i < N; i++) if (entfernt[i] && board[i]) f[board[i] === 1 ? 2 : 1]++;
+   nur heute:  } else for (let i = 0; i < N; i++) if (b[i]) f[b[i]]++;
+   nur heute:  if (b[i] || v[i]) continue;
+   nur heute:  const q = [i]; v[i] = 1; let r = 0;
+   nur heute:  if (!b[n]) { if (!v[n]) { v[n] = 1; q.push(n); } } else r |= b[n];
+   nur heute:  leer += q.length;
+   nur heute:  if (r === 1 || r === 2) f[r] += q.length; else { neutral += q.length; if (r === 3) gemischt += q.length; }
+   nur heute:  return {schwarz: f[1], weiss: f[2], neutral, stand: f[1] - f[2] - komi, gemischtAnteil: leer ? gemischt / leer : 0};
+   nur heute:  };
+   nur heute:  const nurBewiesen = zaehle(bewiesenTot);
+   nur heute:  const alle = new Uint8Array(N); for (let i = 0; i < N; i++) alle[i] = bewiesenTot[i] || geschaetztTot[i] ? 1 : 0;
+   nur heute:  const mitSchaetzung = zaehle(alle);
+   nur heute:  let nBT = 0, nGT = 0, nBL = 0, nUB = 0;
+   nur heute:  for (let i = 0; i < N; i++) { nBT += bewiesenTot[i]; nGT += geschaetztTot[i]; nBL += bewiesenLebend[i]; nUB += unbewiesen[i]; }
+   nur heute:  return {bewiesenTot, geschaetztTot, bewiesenLebend, unbewiesen,
+   nur heute:  anzahl: {bewiesenTot: nBT, geschaetztTot: nGT, bewiesenLebend: nBL, unbewiesen: nUB},
+   nur heute:  nurBewiesen, mitSchaetzung, komi, modus: territory ? 'territory' : 'flaeche',
+   nur heute:  sicher: nGT === 0 && nUB === 0};
+worker-ai: 1899 Zeilen damals, 1943 heute; nur damals: 2, nur heute: 42
+   nur damals: function getAIMove(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove) {
+   nur damals: const r = _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove);
+   nur heute:  passNachGegnerpass: 0,
+   nur heute:  passMarge:       20,
+   nur heute:  passSpanne:      2,
+   nur heute:  passGemischt:    0.25,
+   nur heute:  _zeit.simStart = _simStart;
+   nur heute:  _zeit.simEnd = Date.now();
+   nur heute:  const _tNetz = Date.now();
+   nur heute:  _zeit.netzMs = Date.now() - _tNetz;
+   nur heute:  const _zeit = {t0: 0, tEnde: 0, simStart: 0, simEnd: 0, netzMs: 0};
+   nur heute:  function zeitenLesen() {
+   nur heute:  const gesucht = _zeit.simStart > 0 && _zeit.simEnd >= _zeit.simStart;
+   nur heute:  return {
+   nur heute:  gesamtMs: _zeit.tEnde - _zeit.t0,
+   nur heute:  vorMs:   gesucht ? _zeit.simStart - _zeit.t0 : null,
+   nur heute:  netzMs:  _zeit.netzMs,
+   nur heute:  sucheMs: gesucht ? _zeit.simEnd - _zeit.simStart : null,
+   nur heute:  nachMs:  gesucht ? _zeit.tEnde - _zeit.simEnd : null
+   nur heute:  };
+   nur heute:  function passNachGegnerpassPruefung(board, aiColor, captures, extra) {
+   nur heute:  if (!(PARAMS.passNachGegnerpass >= 1) || !extra || !extra.gegnerPasste) return null;
+   nur heute:  const wertung = extra.wertung === 'territory' ? 'territory' : 'flaeche';
+   nur heute:  const v = zaehlVorschau(board, extra.komi === undefined ? 7.5 : extra.komi, {modus: wertung, gefangen: captures});
+   nur heute:  const sicht = aiColor === 1 ? 1 : -1;
+   nur heute:  const mit = sicht * v.mitSchaetzung.stand, nur = sicht * v.nurBewiesen.stand;
+   nur heute:  const spanne = Math.abs(mit - nur), gemischt = v.nurBewiesen.gemischtAnteil;
+   nur heute:  const schlechter = Math.min(mit, nur);
+   nur heute:  let grund = null;
+   nur heute:  if (gemischt > PARAMS.passGemischt) grund = 'nicht ausgespielt';
+   nur heute:  else if (spanne > PARAMS.passSpanne) grund = 'ungeklärte Gruppen (Spanne)';
+   nur heute:  else if (schlechter < PARAMS.passMarge) grund = 'Vorsprung zu klein';
+   nur heute:  return {pass: grund === null, grund, mit, nur, spanne, gemischt, wertung};
+   nur heute:  function getAIMove(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove, extra) {
+   nur heute:  let r;
+   nur heute:  const _t0 = Date.now();
+   nur heute:  _zeit.t0 = _t0; _zeit.simStart = 0; _zeit.simEnd = 0; _zeit.netzMs = 0;
+   nur heute:  const vp = diff === 'hard' ? passNachGegnerpassPruefung(board, aiColor, captures, extra) : null;
+   nur heute:  if (vp && vp.pass) {
+   nur heute:  r = {type: 'pass', requestId: reqId,
+   nur heute:  info: `Pass — Gegner hat gepasst, Vorsprung ${vp.mit.toFixed(1)}/${vp.nur.toFixed(1)} (Versuchsregel)`};
+   nur heute:  r = _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove);
+   nur heute:  if (vp) r.versuch = vp;
+   nur heute:  _zeit.tEnde = Date.now();
+
+== Siege gegen Fuego ohne Vorgabe: Actions-Lauf 41200615724 (2026-10-31), Commit 0a03266149fad3833cc254f3b08b547f4ff4b07e (PR #225), Archiv docs/daten/fuego-siege/lauf1
+Standardwerte, die sich unterscheiden (alt → heute): passNachGegnerpass: undefined → 0 | passMarge: undefined → 20 | passSpanne: undefined → 2 | passGemischt: undefined → 0.25
+shared-go-logic: 371 Zeilen damals, 416 heute; nur damals: 0, nur heute: 37
+   nur heute:  function zaehlVorschau(board, komi = 7.5, opt = {}) {
+   nur heute:  const N = BOARD_SIZE;
+   nur heute:  const territory = opt.modus === 'territory', gefBisher = opt.gefangen || {1: 0, 2: 0};
+   nur heute:  const bewiesenTot = new Uint8Array(N), bewiesenLebend = new Uint8Array(N);
+   nur heute:  for (let i = 0; i < N; i++) {
+   nur heute:  if (!board[i]) continue;
+   nur heute:  if (_bnDead[i] === ep) bewiesenTot[i] = 1;
+   nur heute:  else if (_bnAlive[i] === ep) bewiesenLebend[i] = 1;
+   nur heute:  const tot = toteSteineAmEnde(board);
+   nur heute:  const geschaetztTot = new Uint8Array(N), unbewiesen = new Uint8Array(N);
+   nur heute:  for (let i = 0; i < N; i++) {
+   nur heute:  if (!board[i]) continue;
+   nur heute:  if (tot[i] && !bewiesenTot[i]) geschaetztTot[i] = 1;
+   nur heute:  else if (!tot[i] && !bewiesenLebend[i]) unbewiesen[i] = 1;
+   nur heute:  const zaehle = entfernt => {
+   nur heute:  const b = new Uint8Array(N); for (let i = 0; i < N; i++) b[i] = entfernt[i] ? 0 : board[i];
+   nur heute:  const f = {1: 0, 2: 0}, v = new Uint8Array(N); let neutral = 0, gemischt = 0, leer = 0;
+   nur heute:  if (territory) {
+   nur heute:  f[1] = gefBisher[1] || 0; f[2] = gefBisher[2] || 0;
+   nur heute:  for (let i = 0; i < N; i++) if (entfernt[i] && board[i]) f[board[i] === 1 ? 2 : 1]++;
+   nur heute:  } else for (let i = 0; i < N; i++) if (b[i]) f[b[i]]++;
+   nur heute:  if (b[i] || v[i]) continue;
+   nur heute:  const q = [i]; v[i] = 1; let r = 0;
+   nur heute:  if (!b[n]) { if (!v[n]) { v[n] = 1; q.push(n); } } else r |= b[n];
+   nur heute:  leer += q.length;
+   nur heute:  if (r === 1 || r === 2) f[r] += q.length; else { neutral += q.length; if (r === 3) gemischt += q.length; }
+   nur heute:  return {schwarz: f[1], weiss: f[2], neutral, stand: f[1] - f[2] - komi, gemischtAnteil: leer ? gemischt / leer : 0};
+   nur heute:  };
+   nur heute:  const nurBewiesen = zaehle(bewiesenTot);
+   nur heute:  const alle = new Uint8Array(N); for (let i = 0; i < N; i++) alle[i] = bewiesenTot[i] || geschaetztTot[i] ? 1 : 0;
+   nur heute:  const mitSchaetzung = zaehle(alle);
+   nur heute:  let nBT = 0, nGT = 0, nBL = 0, nUB = 0;
+   nur heute:  for (let i = 0; i < N; i++) { nBT += bewiesenTot[i]; nGT += geschaetztTot[i]; nBL += bewiesenLebend[i]; nUB += unbewiesen[i]; }
+   nur heute:  return {bewiesenTot, geschaetztTot, bewiesenLebend, unbewiesen,
+   nur heute:  anzahl: {bewiesenTot: nBT, geschaetztTot: nGT, bewiesenLebend: nBL, unbewiesen: nUB},
+   nur heute:  nurBewiesen, mitSchaetzung, komi, modus: territory ? 'territory' : 'flaeche',
+   nur heute:  sicher: nGT === 0 && nUB === 0};
+worker-ai: 1899 Zeilen damals, 1943 heute; nur damals: 2, nur heute: 42
+   nur damals: function getAIMove(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove) {
+   nur damals: const r = _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove);
+   nur heute:  passNachGegnerpass: 0,
+   nur heute:  passMarge:       20,
+   nur heute:  passSpanne:      2,
+   nur heute:  passGemischt:    0.25,
+   nur heute:  _zeit.simStart = _simStart;
+   nur heute:  _zeit.simEnd = Date.now();
+   nur heute:  const _tNetz = Date.now();
+   nur heute:  _zeit.netzMs = Date.now() - _tNetz;
+   nur heute:  const _zeit = {t0: 0, tEnde: 0, simStart: 0, simEnd: 0, netzMs: 0};
+   nur heute:  function zeitenLesen() {
+   nur heute:  const gesucht = _zeit.simStart > 0 && _zeit.simEnd >= _zeit.simStart;
+   nur heute:  return {
+   nur heute:  gesamtMs: _zeit.tEnde - _zeit.t0,
+   nur heute:  vorMs:   gesucht ? _zeit.simStart - _zeit.t0 : null,
+   nur heute:  netzMs:  _zeit.netzMs,
+   nur heute:  sucheMs: gesucht ? _zeit.simEnd - _zeit.simStart : null,
+   nur heute:  nachMs:  gesucht ? _zeit.tEnde - _zeit.simEnd : null
+   nur heute:  };
+   nur heute:  function passNachGegnerpassPruefung(board, aiColor, captures, extra) {
+   nur heute:  if (!(PARAMS.passNachGegnerpass >= 1) || !extra || !extra.gegnerPasste) return null;
+   nur heute:  const wertung = extra.wertung === 'territory' ? 'territory' : 'flaeche';
+   nur heute:  const v = zaehlVorschau(board, extra.komi === undefined ? 7.5 : extra.komi, {modus: wertung, gefangen: captures});
+   nur heute:  const sicht = aiColor === 1 ? 1 : -1;
+   nur heute:  const mit = sicht * v.mitSchaetzung.stand, nur = sicht * v.nurBewiesen.stand;
+   nur heute:  const spanne = Math.abs(mit - nur), gemischt = v.nurBewiesen.gemischtAnteil;
+   nur heute:  const schlechter = Math.min(mit, nur);
+   nur heute:  let grund = null;
+   nur heute:  if (gemischt > PARAMS.passGemischt) grund = 'nicht ausgespielt';
+   nur heute:  else if (spanne > PARAMS.passSpanne) grund = 'ungeklärte Gruppen (Spanne)';
+   nur heute:  else if (schlechter < PARAMS.passMarge) grund = 'Vorsprung zu klein';
+   nur heute:  return {pass: grund === null, grund, mit, nur, spanne, gemischt, wertung};
+   nur heute:  function getAIMove(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove, extra) {
+   nur heute:  let r;
+   nur heute:  const _t0 = Date.now();
+   nur heute:  _zeit.t0 = _t0; _zeit.simStart = 0; _zeit.simEnd = 0; _zeit.netzMs = 0;
+   nur heute:  const vp = diff === 'hard' ? passNachGegnerpassPruefung(board, aiColor, captures, extra) : null;
+   nur heute:  if (vp && vp.pass) {
+   nur heute:  r = {type: 'pass', requestId: reqId,
+   nur heute:  info: `Pass — Gegner hat gepasst, Vorsprung ${vp.mit.toFixed(1)}/${vp.nur.toFixed(1)} (Versuchsregel)`};
+   nur heute:  r = _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove);
+   nur heute:  if (vp) r.versuch = vp;
+   nur heute:  _zeit.tEnde = Date.now();

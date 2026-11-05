@@ -1,0 +1,69 @@
+name: Fuego bauen und prüfen
+
+# Probe aus docs/fuego.md §2: Lässt sich Fuego als zweiter Gegner neben GNU Go
+# in GitHub Actions bauen, spricht es die GTP-Befehle des Duell-Skripts, wie
+# lange braucht ein Zug, und ist es mit festem Seed reproduzierbar? Gebaut wird
+# aus SVN r2038 mit zwei C++-Standards. Nichts wird
+# gemessen und nichts ins Repo geschrieben; der Bericht steht in der
+# Zusammenfassung des Laufs, das Programm als Artefakt. Version 1.1 baut mit
+# heutigem Boost nicht (Lauf #1, docs/fuego.md §4); gebaut wird nur noch SVN.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: fuego-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# Alle Jobs laufen auf Ubuntu 24.04 statt ubuntu-latest: Seit dem 30.10.2026
+# ist ubuntu-latest Ubuntu 26.04 mit neuerem Boost (Fuego lässt sich dort nicht
+# bauen: boost::filesystem::path::normalize fehlt), anderem Chromium-Support und
+# anderen Paketständen von GNU Go. Die Messungen sollen auf dem Stand laufen,
+# auf dem sie vorab festgelegt und bisher gespielt wurden.
+jobs:
+  bauen:
+    name: Fuego aus ${{ matrix.quelle }}, ${{ matrix.std }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        quelle: [svn]
+        std: [gnu++14, gnu++17]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Werkzeuge installieren
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential autoconf automake libtool subversion libboost-all-dev
+          g++ --version | head -n 1
+          dpkg -s libboost-dev | grep '^Version'
+
+      - name: Fuego bauen
+        env:
+          QUELLE: ${{ matrix.quelle }}
+          STD: ${{ matrix.std }}
+        run: bash auswertung/fuego/bauen.sh "$QUELLE" "$STD" fuego-bin
+
+      - name: Fuego prüfen
+        env:
+          QUELLE: ${{ matrix.quelle }}
+          STD: ${{ matrix.std }}
+        run: |
+          set -euo pipefail
+          { echo "# Quelle $QUELLE, $STD"; echo; bash auswertung/fuego/probe.sh fuego-bin/fuego; } > fuego-bin/probe.md
+          cat fuego-bin/probe.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Programm und Bericht sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuego-${{ matrix.quelle }}-${{ matrix.std }}
+          path: fuego-bin/
+          if-no-files-found: warn
+          retention-days: 90

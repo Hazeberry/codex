@@ -1,0 +1,137 @@
+name: Tests
+
+# Regressionstests aus tests/. Läuft bei jedem Push und jedem Pull Request
+# auf main — im Gegensatz zum A/B-Harness, der bewusst nur manuell startet.
+#
+# Warum der Harness hier NICHT mitläuft: sein Zeitbudget ist Wall-Clock pro
+# Zug, die Simulationszahl hängt damit an der Runner-Last, und zwei Läufe mit
+# identischem Seed liefern nachweislich verschiedene Partien. Ein Messwerkzeug
+# ohne festes Ergebnis taugt nicht als Ja/Nein-Prüfung — es würde entweder
+# grundlos rot oder wäre so weit gelockert, dass es nichts mehr fängt. Die
+# Tests hier prüfen stattdessen Invarianten: finit, beschränkt, kein Absturz.
+#
+# Zwei Jobs, weil sie verschieden teuer sind. `node` braucht nichts außer Node
+# und ist in etwa einer halben Minute durch — das ist die Rückmeldung, auf die
+# man wartet. `browser` installiert erst Chromium und läuft deshalb getrennt,
+# damit ein Fehler im schnellen Teil nicht hinter der Browser-Installation
+# wartet.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Ein überholter Lauf auf demselben Branch wird abgebrochen: bei mehreren
+# Pushes hintereinander zählt nur der letzte Stand.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Alle Jobs laufen auf Ubuntu 24.04 statt ubuntu-latest: Seit dem 30.10.2026
+# ist ubuntu-latest Ubuntu 26.04 mit neuerem Boost (Fuego lässt sich dort nicht
+# bauen: boost::filesystem::path::normalize fehlt), anderem Chromium-Support und
+# anderen Paketständen von GNU Go. Die Messungen sollen auf dem Stand laufen,
+# auf dem sie vorab festgelegt und bisher gespielt wurden.
+jobs:
+  node:
+    name: Node (alle Suiten außer Browser)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          # v7 hat package-manager-cache standardmäßig an (im Log als
+          # `package-manager-cache: true` sichtbar). Hier ist nichts zu
+          # cachen — das Repo hat bewusst keine package.json — und sobald
+          # doch eine dazukäme, würde die Automatik ohne Lockfile über
+          # „Dependencies lock file is not found" stolpern. Also aus.
+          package-manager-cache: false
+
+      # EIN Schritt über den Runner, nicht mehrere Einzelaufrufe. Die frühere
+      # Fassung listete die Dateien hier auf und driftete prompt: beim
+      # Hinzufügen von resign-criterion.js wurde die Liste nicht mitgepflegt,
+      # der Job blieb grün und prüfte den neuen Test nicht. Die Suite-Liste
+      # lebt jetzt nur in tests/run.js; --ohne-browser lässt genau den Teil
+      # weg, der einen eigenen Job mit Chromium hat.
+      #
+      # Der Harness läuft dabei nur als Rauchtest mit, nicht als Messlauf:
+      # sein Zeitbudget ist Wall-Clock und damit als Ja/Nein-Prüfung untauglich.
+      - name: Tests (ohne Browser)
+        run: node tests/run.js --ohne-browser
+
+  browser:
+    name: Browser (Worker + localStorage)
+    # Gepinnt wie Playwright: ubuntu-latest ist seit dem 30.10.2026 Ubuntu
+    # 26.04, und dafür installiert Playwright 1.56.1 kein Chromium
+    # („Playwright does not support chromium on ubuntu26.04-x64“).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          # v7 hat package-manager-cache standardmäßig an (im Log als
+          # `package-manager-cache: true` sichtbar). Hier ist nichts zu
+          # cachen — das Repo hat bewusst keine package.json — und sobald
+          # doch eine dazukäme, würde die Automatik ohne Lockfile über
+          # „Dependencies lock file is not found" stolpern. Also aus.
+          package-manager-cache: false
+
+      # Das Repo hat bewusst keine package.json — Playwright wird nur für
+      # diesen Job installiert, ohne dem Projekt eine Abhängigkeit zu geben.
+      # Version gepinnt, damit ein Chromium-Update den Lauf nicht ohne
+      # zugehörigen Commit verändert.
+      - name: Playwright + Chromium
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      # REQUIRE_BROWSER=1 ist hier der eigentliche Punkt: ohne die Variable
+      # überspringt sich der Test, wenn er Chromium nicht findet, und der Lauf
+      # bliebe grün, ohne etwas geprüft zu haben. In CI muss das ein
+      # Fehlschlag sein.
+      - name: Ende-zu-Ende im Browser
+        env:
+          REQUIRE_BROWSER: '1'
+        run: |
+          node tests/browser-nan.js
+          node tests/browser-ui.js
+          node tests/browser-zaehlvorschau.js
+          node tests/browser-passregel.js
+          node tests/browser-zeiten.js
+
+  ergebnis:
+    name: Zusammenfassung
+    runs-on: ubuntu-24.04
+    needs: [node, browser]
+    if: always()
+    steps:
+      - name: In die Run-Übersicht schreiben
+        env:
+          NODE_ERGEBNIS: ${{ needs.node.result }}
+          BROWSER_ERGEBNIS: ${{ needs.browser.result }}
+        run: |
+          set -euo pipefail
+          sym() { case "$1" in success) echo '✅';; failure) echo '❌';; cancelled) echo '⚪';; *) echo '⚠️';; esac; }
+          {
+            echo "## Regressionstests"
+            echo
+            echo "| Ebene | Ergebnis |"
+            echo "|---|---|"
+            echo "| Node — alle Suiten außer Browser | $(sym "$NODE_ERGEBNIS") $NODE_ERGEBNIS |"
+            echo "| Browser — Worker + localStorage | $(sym "$BROWSER_ERGEBNIS") $BROWSER_ERGEBNIS |"
+            echo
+            echo "Details in [\`tests/README.md\`](tests/README.md)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$NODE_ERGEBNIS" = success ] && [ "$BROWSER_ERGEBNIS" = success ]

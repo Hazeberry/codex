@@ -1,0 +1,225 @@
+name: A/B-Harness
+
+# Manueller Self-Play-Messlauf. Die KI-Logik wird von ab-harness.js zur
+# Laufzeit direkt aus index.html extrahiert — gemessen wird also exakt der
+# Stand, der auf GitHub Pages läuft, ohne Code-Duplikat.
+#
+# Zur Reproduzierbarkeit — gemessen, nicht vermutet: Der Seed allein macht
+# Läufe NICHT reproduzierbar. Das Budget ist Wall-Clock pro Zug, die Zahl der
+# Simulationen pro Zug hängt also an der Maschinenlast. Zwei Läufe mit
+# identischem Seed UND identischer Konfiguration liefern nachweislich
+# verschiedene Partien (lokal verifiziert). Der Seed fixiert nur den
+# Zufallsstrom, nicht, an welcher Stelle er verbraucht wird.
+#
+# Reproduzierbar wird ein Lauf mit mctsFixedSims=N in params_a UND params_b,
+# und nur im Standardmodus (paired = 0): dann zählt die Suche Simulationen
+# statt Millisekunden, und derselbe Seed liefert Zug für Zug dieselben
+# Partien (docs/pilot-benson-defense.md, §13). Im gepaarten Modus spielt die
+# gemeinsame Eröffnung weiter mit Zeitbudget; dort laufen Läufe trotz
+# gleichem Seed auseinander (Errata E7).
+#
+# Für A/B ist das Rauschen, keine Verzerrung: es trifft A und B gleich.
+# Es erhöht aber die Varianz — Grund, warum die Partienzahl zählt und
+# warum der gepaarte Modus (gemeinsame Eröffnung, Farbtausch) vorzuziehen
+# ist. Gemessene Nullverteilung bei 20 Partien: 7:13 zwischen zwei
+# IDENTISCHEN Konfigurationen, alles von 30 % bis 70 % ist mit Zufall
+# vereinbar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      games:
+        description: 'Partienzahl im Standardmodus (ignoriert, wenn paired > 0)'
+        required: true
+        default: '20'
+      seed:
+        description: 'Zufalls-Seed. Reproduzierbar nur zusammen mit mctsFixedSims=N in params_a und params_b, im Standardmodus (s. Kopfkommentar)'
+        required: true
+        default: '2026'
+      paired:
+        description: 'Paare im gepaarten Modus (0 = Standardmodus). Gleiche Eröffnung, dann Farbtausch — trennt Parameter- von Farbeffekt'
+        required: false
+        default: '0'
+      maxmoves:
+        description: 'Zug-Limit pro Partie. Höher setzen, wenn resignEnabled=0 — sonst deckelt das Limit die Längenmessung'
+        required: false
+        default: '400'
+      params_a:
+        description: 'PARAMS für A, z. B. mctsValueScale=200,resignEnabled=0. Phasentausch: key@zug=wert'
+        required: false
+        default: ''
+      params_b:
+        description: 'PARAMS für B, z. B. mctsValueScale=200,mctsValueScale@200=1000 (ab Zug 200 umschalten)'
+        required: false
+        default: ''
+
+# Alle Jobs laufen auf Ubuntu 24.04 statt ubuntu-latest: Seit dem 30.10.2026
+# ist ubuntu-latest Ubuntu 26.04 mit neuerem Boost (Fuego lässt sich dort nicht
+# bauen: boost::filesystem::path::normalize fehlt), anderem Chromium-Support und
+# anderen Paketständen von GNU Go. Die Messungen sollen auf dem Stand laufen,
+# auf dem sie vorab festgelegt und bisher gespielt wurden.
+jobs:
+  selfplay:
+    runs-on: ubuntu-24.04
+    # 20 Partien × bis zu 400 Zügen × 250 ms ≈ 35 min, plus Overhead der
+    # Bewertung. Großzügig gesetzt, damit auch 100-Partien-Läufe durchlaufen.
+    timeout-minutes: 300
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          # v7 hat package-manager-cache standardmäßig an (im Log als
+          # `package-manager-cache: true` sichtbar). Hier ist nichts zu
+          # cachen — das Repo hat bewusst keine package.json — und sobald
+          # doch eine dazukäme, würde die Automatik ohne Lockfile über
+          # „Dependencies lock file is not found" stolpern. Also aus.
+          package-manager-cache: false
+
+      # Eingaben werden über env übergeben und geprüft, statt sie direkt in
+      # die Shell-Zeile zu interpolieren (sonst Script-Injection über das
+      # Dispatch-Formular).
+      - name: Eingaben prüfen
+        env:
+          IN_GAMES: ${{ inputs.games }}
+          IN_SEED: ${{ inputs.seed }}
+          IN_PAIRED: ${{ inputs.paired }}
+          IN_MAXMOVES: ${{ inputs.maxmoves }}
+          IN_A: ${{ inputs.params_a }}
+          IN_B: ${{ inputs.params_b }}
+        run: |
+          set -euo pipefail
+          case "$IN_GAMES"    in ''|*[!0-9]*) echo "::error::games muss eine positive ganze Zahl sein: '$IN_GAMES'"; exit 2;; esac
+          case "$IN_SEED"     in ''|*[!0-9]*) echo "::error::seed muss eine nicht-negative ganze Zahl sein: '$IN_SEED'"; exit 2;; esac
+          case "$IN_PAIRED"   in ''|*[!0-9]*) echo "::error::paired muss eine nicht-negative ganze Zahl sein: '$IN_PAIRED'"; exit 2;; esac
+          case "$IN_MAXMOVES" in ''|*[!0-9]*) echo "::error::maxmoves muss eine positive ganze Zahl sein: '$IN_MAXMOVES'"; exit 2;; esac
+          [ "$IN_GAMES"    -ge 1 ] || { echo "::error::games muss ≥ 1 sein"; exit 2; }
+          [ "$IN_MAXMOVES" -ge 1 ] || { echo "::error::maxmoves muss ≥ 1 sein"; exit 2; }
+
+          # params_a/params_b landen als Argument in der Kommandozeile. Nur
+          # schluessel=zahl bzw. schluessel@zug=zahl zulassen — alles andere
+          # (Anfuehrungszeichen, Semikolon, $(), Backticks) faellt hier durch.
+          # Die @-Form setzt einen Parameter ab einem Zug (Phasentausch).
+          PARAM_ONE='[A-Za-z_][A-Za-z0-9_]*(@[0-9]+)?=-?[0-9]+(\.[0-9]+)?'
+          PARAM_RE="^${PARAM_ONE}(,${PARAM_ONE})*$"
+          for v in A B; do
+            eval "s=\$IN_$v"
+            if [ -n "$s" ] && ! printf '%s' "$s" | grep -Eq "$PARAM_RE"; then
+              echo "::error::params_$v muss die Form schluessel=zahl[,schluessel=zahl] haben: '$s'"; exit 2
+            fi
+          done
+
+          {
+            echo "GAMES=$IN_GAMES"
+            echo "SEED=$IN_SEED"
+            echo "PAIRED=$IN_PAIRED"
+            echo "MAXMOVES=$IN_MAXMOVES"
+            echo "PARAMS_A=$IN_A"
+            echo "PARAMS_B=$IN_B"
+          } >> "$GITHUB_ENV"
+
+          if [ "$IN_PAIRED" -gt 0 ]; then
+            echo "LABEL=${IN_PAIRED}paare-seed${IN_SEED}-run${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          else
+            echo "LABEL=${IN_GAMES}p-seed${IN_SEED}-run${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          fi
+
+      # Hosted Runner teilen sich Hardware mit fremden Jobs — die Leistung
+      # schwankt zwischen Läufen. Da das Zeitbudget fest ist, schlägt das
+      # direkt auf Sims/Zug durch und damit auf die Züge selbst (außer mit
+      # mctsFixedSims, dann zählt die Suche Simulationen). Ohne diesen
+      # Kontext lässt sich hinterher nicht entscheiden, ob ein Unterschied in
+      # der Siegrate von der Konfiguration kam oder vom Runner.
+      - name: Runner-Kontext
+        run: |
+          set -euo pipefail
+          mkdir -p ergebnisse
+          {
+            echo "Lauf:      #${GITHUB_RUN_NUMBER} · $(date -u +%FT%TZ)"
+            echo "Commit:    ${GITHUB_SHA}"
+            echo "Runner:    ${RUNNER_OS} ${RUNNER_ARCH} · ${GITHUB_RUNNER_IMAGE:-ubuntu-latest}"
+            echo "Node:      $(node -v)"
+            echo "Kerne:     $(nproc)"
+            echo "CPU:       $(awk -F': ' '/model name/{print $2; exit}' /proc/cpuinfo)"
+            echo "RAM:       $(awk '/MemTotal/{printf "%.1f GB", $2/1048576}' /proc/meminfo)"
+          } | tee "ergebnisse/runner-run${GITHUB_RUN_NUMBER}.txt"
+
+      - name: Self-Play-Lauf
+        run: |
+          set -euo pipefail
+          mkdir -p ergebnisse
+          ARGS=(--seed "$SEED" --budget 250 --maxmoves "$MAXMOVES")
+          if [ "$PAIRED" -gt 0 ]; then
+            ARGS+=(--paired "$PAIRED")
+          else
+            ARGS+=(--games "$GAMES")
+          fi
+          if [ -n "$PARAMS_A" ]; then ARGS+=(--A "$PARAMS_A"); fi
+          if [ -n "$PARAMS_B" ]; then ARGS+=(--B "$PARAMS_B"); fi
+          ARGS+=(--json "ergebnisse/ab-${LABEL}.json")
+
+          # Die effektive Kommandozeile mit ins Artefakt, damit der Lauf ohne
+          # das Actions-Log rekonstruierbar bleibt.
+          printf 'node ab-harness.js' >> "ergebnisse/runner-run${GITHUB_RUN_NUMBER}.txt"
+          printf ' %q' "${ARGS[@]}"   >> "ergebnisse/runner-run${GITHUB_RUN_NUMBER}.txt"
+          printf '\n'                 >> "ergebnisse/runner-run${GITHUB_RUN_NUMBER}.txt"
+
+          node ab-harness.js "${ARGS[@]}" 2>&1 | tee "ergebnisse/ab-${LABEL}.log"
+
+      # Der Aggregat-Block direkt in die Run-Übersicht, damit man das Ergebnis
+      # sieht, ohne das Artefakt herunterzuladen.
+      - name: Zusammenfassung
+        if: always()
+        run: |
+          set -euo pipefail
+          LOG="ergebnisse/ab-${LABEL}.log"
+          {
+            if [ "$PAIRED" -gt 0 ]; then
+              echo "## A/B-Harness — ${PAIRED} Paare (gepaart), Seed ${SEED}"
+            else
+              echo "## A/B-Harness — ${GAMES} Partien, Seed ${SEED}"
+            fi
+            echo
+            echo "**A:** \`${PARAMS_A:-Standard}\` · **B:** \`${PARAMS_B:-Standard}\` · Zug-Limit ${MAXMOVES}"
+            echo
+            echo "> Sims/Zug unten mitlesen: gleicher Seed erzeugt nur bei"
+            echo "> gleicher Simulationszahl gleiche Züge. Weichen zwei Läufe"
+            echo "> dort ab, ist ein Unterschied in der Siegrate nicht der"
+            echo "> Konfiguration zuzuschreiben."
+            echo
+            if [ -f "ergebnisse/runner-run${GITHUB_RUN_NUMBER}.txt" ]; then
+              echo '<details><summary>Runner-Kontext</summary>'
+              echo
+              echo '```'
+              cat "ergebnisse/runner-run${GITHUB_RUN_NUMBER}.txt"
+              echo '```'
+              echo
+              echo '</details>'
+              echo
+            fi
+            if [ -f "$LOG" ]; then
+              echo '```'
+              tail -n 30 "$LOG"
+              echo '```'
+            else
+              echo '_Kein Log — der Lauf ist vor der ersten Ausgabe abgebrochen._'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # always(): Bei Timeout oder Abbruch sind Log UND JSON noch da. Der
+      # Harness schreibt das JSON nach JEDER Partie neu (schreibeJson(false)),
+      # ein abgebrochener Lauf ist also auswertbar — nur das Aggregat fehlt,
+      # weil das erst am Laufende gedruckt wird. Hier stand vorher das
+      # Gegenteil ("JSON erst am Ende"); der Unterschied ist nicht
+      # akademisch, denn er entscheidet, ob man Teildaten eines
+      # abgebrochenen Laufs überhaupt ansieht.
+      - name: Ergebnisse sichern
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ab-harness-${{ env.LABEL }}
+          path: ergebnisse/
+          if-no-files-found: warn
+          retention-days: 90

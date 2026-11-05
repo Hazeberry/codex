@@ -1,0 +1,42 @@
+# Hash-Listen der Messläufe
+
+Je Lauf ein kleiner Fingerabdruck statt des Rohdumps (`pilot-benson-defense.md`,
+§14.4): der Befehl, `params_hash`, je Partie der Sieger (`S`/`W` = Farbe) und
+der `final_board_hash`. Die Rohdumps selbst sind nicht aufgehoben — mit
+`mctsFixedSims` erzeugt derselbe Befehl auf demselben Commit Zug für Zug
+dieselben Partien.
+
+Eine Wiederholung prüfen:
+
+```bash
+node ab-harness.js <Befehl aus der Liste> --roh neu.jsonl
+node auswertung/hashliste.js neu.jsonl --pruefe docs/daten/<lauf>.json
+```
+
+Weicht eine Partie ab, stimmt der Commit nicht, oder die Reproduzierbarkeit
+ist gebrochen. Den Commit aus dem Befehl auschecken, nicht den neuesten
+Stand: Seit der Ko-Korrektur vom 13.10. spielt die KI auf dem neuen Stand
+andere Züge (`docs/code-review.md` §4). Im Paarmodus gilt das nicht (Errata E7); alle Läufe hier sind
+im Standardmodus gefahren.
+
+Wurde ein Lauf unterbrochen und mit `--fortsetzen` zu Ende gespielt, steht das
+im Befehl. Bitgleich nachvollziehbar ist er dann mit derselben Unterbrechung:
+erst bis zur genannten Partie laufen lassen, dann mit `--fortsetzen` weiter.
+Ein ununterbrochener Lauf kann davon später abweichen; gemessen einmal, bei
+`endspiel-150.json` ab Partie 151 (`docs/endspielgrenze.md`, §8). Die
+Ursache ist gefunden und seit dem 03.10. behoben (§9 dort); für Läufe auf
+älteren Commits gilt die Einschränkung weiter.
+
+## Lehrdaten der Endspiel-Muster
+
+Die Dateien `muster-endspiel-*` sind keine Hash-Listen, sondern Daten für
+`docs/muster-endspiel.md`:
+
+- `muster-endspiel-entw-a.jsonl.gz`, `…-entw-b.jsonl.gz`, `…-pruef.jsonl.gz`:
+  je Partie eine Zeile mit Seed, Nummer, Vorgabesteinen, allen Zügen und
+  `ziele`, GNU Gos Zug (Stufe 10) für die beschrifteten Stellungen
+  (`auswertung/muster-daten.js`). Die Kandidatenlisten daraus erzeugt
+  `auswertung/muster-endspiel-daten.js`; sie hängen von der Engine ab und
+  stehen deshalb nicht im Repo.
+- `muster-endspiel-ergebnisse.json`: der Endstand der KI je Partie
+  (`"Seed#Nummer"`), für die Teilmengen „gewonnene“ und „verlorene Partien“.
