@@ -41,6 +41,10 @@ def resume(previous, target, run, get_source):
         folder = previous / ('diagnose-' + case['id'])
         result_file = folder / 'ergebnis.json'
         if not result_file.exists():
+            # Bereits übernommene Fälle werden im Planartefakt mitgesichert.
+            folder = previous / 'diagnose-plan' / case['id']
+            result_file = folder / 'ergebnis.json'
+        if not result_file.exists():
             missing.append(dict(id=case['id'], gegner=case['gegner']))
             continue
         result = json.loads(result_file.read_text())
@@ -53,8 +57,8 @@ def resume(previous, target, run, get_source):
             raise ValueError('Pflichtrohdaten fehlen: ' + case['id'])
         shutil.copytree(folder, target / case['id'])
         copied.append(case['id'])
-    if not copied or not missing:
-        raise ValueError('Fortsetzung erwartet bestandene und noch fehlende Fälle')
+    if not copied:
+        raise ValueError('Vorlauf enthält keinen übernehmbaren Fall')
     provenance = dict(vorlauf=run, quellenSha=old_sha, diagnoseSha256=hashlib.sha256(old_source).hexdigest(),
                       diagnoseAktuellSha256=hashlib.sha256(current_source).hexdigest(),
                       reproduktionAstSha256=hashlib.sha256(old_replay).hexdigest(),
