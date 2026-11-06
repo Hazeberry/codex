@@ -76,11 +76,12 @@ function bewerte(dir, {probe = true, nJe = probe ? {g: 8, f: 4} : {g: 480, f: 48
         pf.push(prefix + ': Protokollpfad ungültig');
       else stream = json(path.join(dir, rel), true);
       if (!stream.length || stream.some(e => e.nr !== r.nr)) pf.push(prefix + ': GTP-Protokoll fehlt oder enthält fremde Nummer');
+      const zeitAusfall = !probe && lauf.status === 'timeout' && lauf.timeout === true && lauf.code === -9 && lauf.dauerMs >= (gegner === 'g' ? 600000 : 1800000);
       const starts = stream.filter(e => e.typ === 'prozess-start'), ends = stream.filter(e => e.typ === 'prozess-ende');
       const gs = starts.filter(e => e.name === 'GNU Go'), fs_ = starts.filter(e => e.name === 'Fuego');
       if (gs.length < 1 || gs.length > 2 || fs_.length !== (gegner === 'f' ? 1 : 0)
           || gs.some(e => !Array.isArray(e.argumente) || e.argumente[e.argumente.indexOf('--level') + 1] !== '1')
-          || starts.some(e => !['GNU Go', 'Fuego'].includes(e.name)) || starts.some(e => !ends.some(x => x.pid === e.pid))) pf.push(prefix + ': Prozessstatus oder Orakelfreiheit nicht belegt');
+          || starts.some(e => !['GNU Go', 'Fuego'].includes(e.name)) || (!zeitAusfall && starts.some(e => !ends.some(x => x.pid === e.pid)))) pf.push(prefix + ': Prozessstatus oder Orakelfreiheit nicht belegt');
       const partieSeed = seed * 100000 + r.nr;
       if (gs.some((e, i) => !Array.isArray(e.argumente) || e.argumente[e.argumente.indexOf('--seed') + 1] !== String(partieSeed + 7919 * i))
           || fs_.some(e => !Array.isArray(e.argumente) || e.argumente[e.argumente.indexOf('--srand') + 1] !== String(partieSeed))) pf.push(prefix + ': Prozess-Seed stimmt nicht');
@@ -106,7 +107,7 @@ function bewerte(dir, {probe = true, nJe = probe ? {g: 8, f: 4} : {g: 480, f: 48
         else { ausfaelle.push({name, nr: r.nr, farbe: color(r.nr), grund: r.abgebrochen}); nichtPruefbar.push(r.nr); }
         continue;
       }
-      if (lauf.status === 'timeout' && !probe && lauf.timeout === true && lauf.code === -9 && lauf.dauerMs >= (gegner === 'g' ? 600000 : 1800000)) {
+      if (zeitAusfall) {
         ausfaelle.push({name, nr: r.nr, farbe: color(r.nr), grund: 'vorab begrenzte Partiezeit überschritten'}); nichtPruefbar.push(r.nr); continue;
       }
       if (lauf.status !== 'ok' || lauf.timeout || lauf.code !== 0 || r.abgebrochen) { pf.push(prefix + ': Zeitüberschreitung oder technischer Fehler'); continue; }

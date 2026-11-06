@@ -1,6 +1,12 @@
 # Übergabe – Arbeit in Hazeberry/codex (Stand 06.11.2026)
 
 ## Aktueller Stand in diesem Repository
+- **H/R-Hauptlauf jetzt konkret vorbereitet:** §13 in `docs/prior-anhebung-ohne-orakel.md`.
+  Aktueller Default-Ausgangspunkt `6a6fe6960c029551ed8405e62d3b633b36a93645`.
+  480 je Arm/Gegner = 2880 regulär +18 Wiederholungen +4 Archivkontrollen.
+  Hauptlauf nicht gestartet; neue Budget-/Paketplanung vor Merge zur Durchsicht.
+  Nach Go zuerst neuer passender Engine-Vergleich, dann bedingt Hauptlauf.
+  Planungswert 25–30 Runnerstunden/3–5 h Wanduhr; feste Jobobergrenzen §13.
 - Ziel der weiteren Arbeit: `Hazeberry/codex`. Vollständiger Import mit Historie durch
   PR #1, Merge `1bf2ff3cc5258038697b91a79224c70e25761d87`.
 - Vorabfestlegung für die Prior-Anhebung ohne Orakel: `docs/prior-anhebung-ohne-orakel.md`.
@@ -15,8 +21,8 @@
   keine Ausfälle/Timeouts. 18 Wiederholungen identisch, vier Archivkontrollen passend;
   H/R gegen beide Gegner in beiden Farben tatsächlich angehoben. Maximum 44,3 s.
 - **Keine Wirkungsauswertung** aus der Probe. Ob H hilft oder besser als R ist, bleibt
-  offen. Hauptumfang (Vorschlag 480 je Arm/Gegner), Budget und Pakete sind noch festzulegen;
-  Hauptlauf braucht eigenes Go. GNU-Go-geprägte Daten und GNU-Go-Wertung bleiben enthalten.
+  offen. Hauptumfang, Budget und Pakete sind jetzt in §13 konkretisiert, vor Merge
+  zur Durchsicht; Hauptlauf braucht eigenes Go. GNU-Go-geprägte Daten und GNU-Go-Wertung bleiben enthalten.
 - Ergebnisse §11/12, vollständige Rohartefakte unter
   `docs/daten/prior-anhebung-ohne-orakel/`. Quellen-SHA und SHA-256 sind gesichert.
 - **Diagnose abgeschlossen, gültig:** Lauf 42130235314, Versuch 2, mit drei übernommenen
@@ -92,6 +98,7 @@
   Stellungen; nicht als allgemeine Siegquote interpretieren.
 - Bericht: `docs/gefangenendeckel-fortsetzungen.md`, vollständige Rohdaten und
   64 entpackte SGFs unter `docs/daten/deckel-fortsetzungen/lauf1/`.
+- Ergebnis-PR #17 nach grüner CI gemergt: `6a6fe6960c029551ed8405e62d3b633b36a93645`.
 - Die Q-Aufgabe bleibt als eigener nächster Ansatz offen; keine Freigabe
   für eine Spieländerung oder neue Messung aus diesem Pilot ableiten.
 - PR #15 nach grüner CI gemergt: `d6249e484ac70f46dbed5bced7b63fc9ce027674`.
@@ -177,6 +184,7 @@ Fall d1, e, c0 und d0 kamen nicht vor.
   sind nach Merge ebenfalls löschbar.
 - `claude/gefangene-rollout-ergebnisse` (#15) und `claude/gefangenendeckel-fortsetzungen`
   (#16) sind nach Merge ebenfalls löschbar.
-- `claude/gefangenendeckel-fortsetzungen-ergebnisse` bleibt bis zum Ergebnis-Merge erhalten.
+- `claude/gefangenendeckel-fortsetzungen-ergebnisse` (#17) ist nach Merge ebenfalls löschbar.
+- `claude/hr-hauptlauf-default` bleibt bis zum Abschluss der Hauptlauf-Vorbereitung erhalten.
 - Die historische Liste löschbarer Branches aus der alten Übergabe gilt ausschließlich
   für `Hazeberry/Go-html-Game-MoE`; daraus folgt kein Löschauftrag in einem der Repositories.

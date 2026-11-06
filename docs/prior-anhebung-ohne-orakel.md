@@ -6,7 +6,8 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 Vorabfestlegung vom 05.11.2026; Umsetzung mit Go in der Sitzung vom 06.11.2026.
 Konkretisierung in §10 mit anschließendem Go. Ergebnisse von Engine-Vergleich und
-technischer Probe in §11/12; Wirkung und Hauptlauf bleiben offen.
+technischer Probe in §11/12; der Hauptlauf ist in §13 konkret vorbereitet,
+Wirkung und Start bleiben offen.
 Ziel-Repository: `Hazeberry/codex`.
 
 ## 1. Grundlage und Frage
@@ -392,3 +393,154 @@ die endgültige Festlegung von Umfang, Budget und Paketen sowie dessen eigenes S
 
 Die Abmeldung der PR-Aktivität nach Merge von PR #7 wurde versucht; GitHub verweigerte
 `updateSubscription` mit `FORBIDDEN: Resource not accessible by integration`.
+
+## 13. Hauptlauf mit der aktuellen Default-Engine (zur Durchsicht, 06.11.2026)
+
+Der Eigentümer hat nach der Statusklärung beauftragt, den offenen H/R-Vergleich
+mit der aktuellen Default-Engine nachzuholen. Diese Konkretisierung schließt
+Umfang, Budget und Paketierung vor dem ersten Hauptlauf. Noch keine Hauptpartie
+oder neue Archiv-Engine-Reproduktion gestartet. Vor Merge Durchsicht und Go;
+das anschließende Start-Go umfasst neuen Engine-Vergleich und danach den
+Hauptlauf nur bei bestandenen Vorprüfungen. Keine automatische Folgefreigabe
+für weitere Messungen oder einen Defaultwechsel.
+
+### Engine und unveränderte Fragestellung
+
+Aktueller Default-Ausgangsstand:
+`6a6fe6960c029551ed8405e62d3b633b36a93645` (nach Ergebnissicherung PR #17).
+Die genaue neue Implementierungs-/Mess-SHA wird im Actions-Lauf gespeichert.
+Die statischen Texte der Blöcke `shared-go-logic` und `worker-ai` müssen exakt
+mit dem technisch geprüften Stand `6bfaa33d69822f13a049b5813d4b6c77b63b61a3`
+übereinstimmen. Die vollständige HTML-Datei hat sich durch die Undo-Protokoll-
+korrektur geändert. Deshalb ist vor dem Hauptlauf ein **neuer** grüner Lauf von
+`prior-ohne-orakel-vergleich.yml` mit passendem vollständigem index.html-Hash
+verpflichtend. Der alte Vergleich wird nicht still als passend angenommen.
+
+`haupt-vorpruefung.js` sperrt geänderte Engine-Blöcke und geänderte Defaults.
+Geprüft werden insbesondere captureCap=0, deathTransfer=1, Rollout-Tiefe 24,
+Skala 200, Aufgabe standardmäßig an, Zeitbudget 1800, adaptiv an und Tree-Reuse 1.
+Die Spiel-Engine und diese Defaults werden nicht geändert. Die festgelegten
+**Messbedingungen** bleiben 120 feste Simulationen und Aufgabe aus; alle anderen
+Suchparameter sind Default. Keine Übernahme von Deckel 200 oder Rollout-Tiefe 0
+aus den jüngsten Diagnosen. Kein Orakel zur Zugauswahl.
+
+A/H/R, Auswahlregel und Seed-Ableitung aus §2/3/9/10 bleiben unverändert.
+Die technische Probe §12 wird als Technik- und Planungsvorlage herangezogen;
+keine ihrer Endstände fließen in die Hauptauswertung ein. Weil die Engine-Blöcke
+statisch unverändert sind, ist keine Wiederholung der 58-Partien-Probe vorgesehen.
+Ein später geänderter Block sperrt diese Freigabe und braucht neue Planung/Probe.
+Die für Hauptpakete ergänzten Werkzeuge werden gesondert kurz getestet und mit
+vollständigen Quellenhashes aufgezeichnet.
+
+### Umfang, Bedingungen und Statistik endgültig festgelegt
+
+- **480 Partien je Arm und Gegner**, insgesamt 2880 reguläre Partien.
+- GNU Go 1 und Fuego mit 100 Spielen je Zug, GNU Go 1 als Flächenschiedsrichter,
+  Komi 7,5, keine Vorgabe, Aufgabe aus, maximal 600 Züge wie §4.
+- Versuchsseed 237 gegen GNU Go, 238 gegen Fuego; Nummern 1–480. Gerade Nummern
+  KI Schwarz, ungerade KI Weiß. Gleiche Nummer/Seed/Farbe über alle drei Arme.
+- Wiederholung Nr. 1–3 je Arm/Gegner: 18 zusätzliche Partien mit denselben Seeds.
+- Vier zusätzliche A-Archivkontrollen, Seed 222, Nummern 1–4.
+- **Gesamt: 2902 Partien**, keine Ersatzpartien und keine adaptive Umfangsänderung.
+
+Primäre Endpunkte, vier zweiseitige gepaarte t-Tests und Bonferroni α=0,0125,
+98,75-%-Intervalle aus §5 bleiben unverändert: H−A und H−R je Gegner, jeweils
+auf denselben vollständigen Dreiergruppen. Ergänzend R−A, Farben, Clopper-Pearson
+und exakter McNemar-Test wie §5. Keine Zwischenanalyse, kein Abbruch wegen
+beobachteter Wirkung, keine nachträgliche Änderung von Arm/Schwelle/Umfang.
+
+§6 gilt unverändert: mindestens 471/480 auswertbare Partien je Arm/Gegner,
+mindestens 456 vollständige Dreiergruppen je Gegner; alle technischen Pflichten
+und Wiederholungen. Nichtsignifikanz belegt weder Wirkungslosigkeit noch
+Gleichwertigkeit. Das Ergebnis gilt für diese Regel bei 120 Simulationen.
+
+### Paketierung und Arbeitsablauf
+
+`prior-ohne-orakel-haupt.yml` startet nur manuell. Eingabe ist die Run-ID des
+neuen grünen Engine-Vergleichs; dessen Quelle und Abdeckung werden geprüft.
+Node ist auf **22.23.4** festgelegt, wie in der technischen Probe. Runner Ubuntu
+24.04; Fuego wird einmal aus dem bestehenden SVN-r2038-Aufbau mit gnu++14 gebaut
+und dasselbe Binary an alle Fuego-Pakete verteilt.
+
+144 Pakete: je Gegner/Arm 24 Pakete mit je 20 regulären Partien. Die erste
+Paketnummer beginnt bei 1, dann 21, 41, …, 461. Im ersten Paket jedes Arms/Gegners
+werden zusätzlich die drei Wiederholungen gespielt; damit enthält es 23 Partien.
+Alle übrigen Pakete enthalten genau 20. Ein eigener Node-/GTP-Prozess je Partie.
+Maximal zwölf reguläre Paketjobs parallel. Kein Array mit mehr als 256 Jobs.
+
+Die vier Seed-222-Kontrollen laufen in einem eigenen Job. Erst wenn sie
+vollständig mit dem bestehenden Archiv bei Zugfolge und Endstand übereinstimmen,
+können die 144 regulären Pakete starten. Das ist eine frühe Sperre zusätzlich zur
+abschließenden vollständigen Prüfung; sie ersetzt diese nicht. Auch die erste
+gemeinsame Eingriffsgelegenheit und echte Anhebungen beider Farben werden weiterhin
+im vollständigen Bericht geprüft.
+
+Jede Partie wird sofort inklusive Laufstatus an ihre Paketdatei angehängt und
+synchronisiert. GTP-Seitenprotokoll und Prozesslog bleiben erhalten. Beim
+Zusammenführen werden Paket-ID, Bereich und Reihenfolge sämtlicher Nummern,
+Metadaten/Binaryversionen, Wiederholungen und doppelte Dateien unabhängig geprüft.
+Die vollständige bestehende Hauptauswertung wird erst auf diesen kanonischen
+Armdateien ausgeführt. Fehlendes Paket oder abweichende Quellen ergibt kein Urteil.
+
+### Zeitgrenzen und Runnerbudget
+
+Partiezeitgrenzen aus §9 bleiben **600 Sekunden GNU Go** und **1800 Sekunden Fuego**,
+einschließlich Initialisierung, Suche, Gegnerabfragen und Endwertung. Der externe
+Wächter beendet bei Überschreitung die Prozessgruppe. Eine belegte Überschreitung
+ist im Hauptlauf ein zulässiger Ausfall, keine gewertete Niederlage. Vollständige
+Metadaten und ein lesbares, korrektes abgeschlossenes Protokollpräfix sind nötig;
+ein beschädigtes Protokoll, ein Engine-Absturz oder falscher Kontext bleibt ein
+technischer Fehler. Fehlende Prozess-Endereignisse infolge des eigenen SIGKILL
+werden ausschließlich bei diesem extern belegten Timeout zugelassen. Die
+Wiederholungs-/Archivkontrollen müssen dennoch vollständig prüfbar bestehen.
+Die technische Probe bleibt bei Zeitüberschreitungen weiterhin ungültig.
+
+| Job | Anzahl | Rechenschrittlimit | Joblimit |
+|---|---:|---:|---:|
+| Vorprüfung | 1 | – | 20 min |
+| Fuego-Bau | 1 | 26 min | 30 min |
+| GNU-Go-Pakete | 72 | 45 min | 55 min |
+| Fuego-Pakete | 72 | 60 min | 70 min |
+| Vier Archivkontrollen | 1 | 45 min | 55 min |
+| Zusammenführen/Bericht | 1 | – | 30 min |
+
+Konfigurierte Höchstsumme: **9135 Runner-Minuten = 152 h 15 min**. Hinzu kommt
+für den neuen Engine-Vergleich dessen eigene Höchstsumme von 130 Minuten, zusammen
+**154 h 25 min**. Das sind technische Obergrenzen, keine erwartete Nutzung.
+
+Aus den sechs Arm-/Gegner-Medianen der gültigen Probe ergibt sich bei Skalierung
+mit 480 rechnerisch etwa **25,8 Stunden reine Partiezeit**. Planungswert mit
+Initialisierung/Bau/Bericht: grob **25–30 Runnerstunden**, bei zwölf parallelen
+Paketen grob **3–5 Stunden Wanduhr**. Die kleine Probe und mögliche lange Ausreißer
+machen daraus keine zugesicherte Schranke. Abrechnung hängt zudem von Jobrundung
+ab. Ein Häufen langer Partien kann ein Paket trotz zulässiger Einzelzeitgrenzen
+an sein Schrittlimit bringen. Dann fehlen Pflichtnummern und der Lauf ist ungültig;
+das Budget wird nicht still erweitert.
+
+Uploads verwenden always(); Schrittlimits lassen Zeit für Sicherung. Bei einem
+fehlgeschlagenen Zusammenführen werden zusätzlich alle bis dahin heruntergeladenen
+Originalpakete als eigenes Teilroh-Artefakt gesichert. Keine Effektauswertung auf
+unvollständigen Daten. 90 Tage Actions-Aufbewahrung, anschließende vollständige
+Rohdatensicherung im Repository nach dem Lauf.
+
+### Fortsetzung und Entscheidung
+
+Der Workflow bietet **keine automatische Wiederaufnahme oder Wiederholung** an.
+Ein neuer Start dieses Workflows spielt alle 2902 Partien neu und braucht daher
+ein eigenes Go. Bei technischem Fehler wird erst eine konkrete Fortsetzungsplanung
+mit Quellen-/Konfigurationsnachweis und wiederverwendbaren vollständigen Paketen
+vorgelegt; keine angefangene Partie wird still überschrieben, kein Ausfall nachgefüllt.
+
+Der Lauf ändert keinen Default. Ein positiver Hauptbefund begründet eine gesonderte
+Entscheidung, nicht die automatische Aktivierung von H in der Oberfläche. Ein
+negativer oder unklarer Befund wird gleichermaßen dokumentiert.
+
+### Kurze Prüfungen des Hauptlauf-Aufbaus
+
+`tests/prior-ohne-orakel-haupt.js` und sein Python-Unterbau prüfen die 144 Pakete,
+Nummern-/Seed-Verteilung und Budgetrechnung, erste/spätere Pakete mit Prozessattrappen,
+den Lokalstart-Wächter, Zusammenführung mit bekannter synthetischer Hauptwirkung,
+fehlende Pakete, belegte/unbelegte Timeouts, Default-/Quellen-/Probesperren und
+frühe Archivkontrollen. Die bisherigen Berichts- und Werkzeugtests bestehen weiter.
+Alle kurzen Prüfungen sind in Testsammlung und README eingetragen. Keine reale
+H/R-Partie oder umfangreiche Archiv-Reproduktion wurde zur Vorbereitung lokal gerechnet.
