@@ -1,0 +1,16 @@
+{
+  "id": "g-S-127",
+  "gegner": "g",
+  "arm": "S",
+  "nr": 127,
+  "seed": 234,
+  "archiv": {
+    "nr": 127,
+    "stufe": 1,
+    "ki": {
+      "mctsFixedSims": 120,
+      "resignEnabled": 0
+    },
+    "abgebrochen": "GNU Go: genmove B → ? GNU Go beendet (code null, signal SIGSEGV) "
+  }
+}

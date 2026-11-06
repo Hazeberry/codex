@@ -1,0 +1,88 @@
+boardsize 19
+clear_board
+komi 7.5
+genmove B
+play W Q17
+genmove B
+play W R18
+genmove B
+play W Q16
+genmove B
+play W R15
+genmove B
+play W C4
+genmove B
+play W B3
+genmove B
+play W D4
+genmove B
+play W E3
+genmove B
+play W D2
+genmove B
+play W B4
+genmove B
+play W F3
+genmove B
+play W K17
+genmove B
+play W J17
+genmove B
+play W Q18
+genmove B
+play W S16
+genmove B
+play W Q15
+genmove B
+play W S14
+genmove B
+play W R9
+genmove B
+play W D17
+genmove B
+play W C17
+estimate_score
+genmove B
+play W R6
+genmove B
+play W O4
+genmove B
+play W S5
+genmove B
+play W B16
+genmove B
+play W C15
+genmove B
+play W B14
+genmove B
+play W A15
+genmove B
+play W E16
+genmove B
+play W D14
+genmove B
+play W F15
+genmove B
+play W E13
+genmove B
+play W G14
+genmove B
+play W F12
+genmove B
+play W H13
+genmove B
+play W G11
+genmove B
+play W J12
+genmove B
+play W H10
+genmove B
+play W K11
+genmove B
+play W J9
+genmove B
+play W L10
+estimate_score
+genmove B
+play W K8
+genmove B

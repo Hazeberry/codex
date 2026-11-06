@@ -19,9 +19,19 @@
   Hauptlauf braucht eigenes Go. GNU-Go-geprägte Daten und GNU-Go-Wertung bleiben enthalten.
 - Ergebnisse §11/12, vollständige Rohartefakte unter
   `docs/daten/prior-anhebung-ohne-orakel/`. Quellen-SHA und SHA-256 sind gesichert.
-- Die gesonderte technische Diagnose zu Laufzeiten/Absturz ist in PR #6 dokumentiert;
-  dieser PR ist noch offen. Die historischen Angaben darunter sind der übernommene
-  Ausgangsstand, nicht der Status dieser neuen Untersuchung.
+- **Diagnose abgeschlossen, gültig:** Lauf 42130235314, Versuch 2, mit drei übernommenen
+  Reproduktionen aus Lauf 42124976320. Alle sechs Pflichtreproduktionen bestanden.
+  Bericht: `docs/diagnose-laufzeit-absturz.md`; Rohdaten und Actions-Bericht unter
+  `docs/daten/diagnose-laufzeit-absturz/lauf1/`. Die Diagnose selbst ändert keinen Spielcode.
+- In den beiden untersuchten langen Fuego-Partien dominiert die Wartezeit beim
+  GNU-Go-Orakel: P 766,6 von 783,7 s, S 1160,6 von 1198,5 s. Zugfolgen und Endstände
+  stimmen exakt mit dem Archiv überein. Die interne GNU-Go-Lesefunktion ist nicht ermittelt.
+- GNU Go stürzt in allen vier Wiederholungen nach identischer Zugfolge mit Zug 82
+  (Weiß K8) bei `genmove B` ab. Erster Auslöser war bereits `mc=81`, mit tatsächlichem
+  Eingriff in N und S. **Die Vermutung „vor dem ersten Eingriff“ ist damit widerlegt.**
+  Eigenständiges GTP-Replay unter GDB reproduziert den SIGSEGV; Quellcodeursache offen.
+- Die Diagnoseergebnisse stehen in PR #6; dieser PR bleibt bis zur Durchsicht offen.
+  Die historischen Angaben darunter stammen aus der übernommenen Übergabe.
 - Node- und Browser-CI von PR #7 waren grün. Die Abmeldung der PR-Aktivität wurde
   versucht; GitHub verweigerte `updateSubscription` mit FORBIDDEN (App-Berechtigung).
 
@@ -29,8 +39,10 @@
 
 Übernommen aus `Hazeberry/Go-html-Game-MoE`, Commit
 `818ba2a54763a9977b802f48b74b9f41aaee868b`, ursprünglicher Branch `ccr-00c70722-9f7z7m`.
-Alle folgenden PR- und Laufnummern beziehen sich auf **das ursprüngliche Repository**.
-Die Ergebnisangaben sind übernommene Berichte; es wurde nichts neu berechnet.
+Die PR- und Laufnummern der historischen Merges und Spielstärke-Ergebnisse beziehen
+sich auf **das ursprüngliche Repository**. Diese Spielstärke-Zahlen wurden übernommen
+und nicht neu berechnet. Verweise auf die neue technische Diagnose und die Branchliste
+beziehen sich auf `Hazeberry/codex`.
 
 ## Merges (Commit auf main)
 | PR | Inhalt | Merge |
@@ -56,9 +68,10 @@ Die Ergebnisangaben sind übernommene Berichte; es wurde nichts neu berechnet.
 - N − A: kein nachgewiesener Unterschied (GNU Go +0,7 [−5,2; +6,6], Fuego −0,9 [−6,9; +5,1]).
 - S − N: positiv (+26,3 GNU Go; +30,4 Fuego). P − A: positiv (+13,8 GNU Go; +11,7 Fuego).
 - Nicht getrennt voneinander abgezogen; die Mittelwerte sind additiv (N − A) + (S − N) = S − A.
-- Ausfall: Partie 127 gegen GNU Go in allen Armen (SIGSEGV). Die Ursache liegt nach Vermutung an einer
-  Stellung vor dem ersten Eingriff; das ist nicht geprüft.
-- Laufzeit: 83,5 h Partiezeit, rund 4 h 40 min Wanduhr. Einzelne Fuego-Partien bis 1118 s; die Ursache ist nicht untersucht.
+- Ausfall: Partie 127 gegen GNU Go in allen Armen (SIGSEGV). Die damalige Vermutung
+  einer Stellung vor dem ersten Eingriff wurde durch die neue Diagnose korrigiert (siehe oben).
+- Laufzeit: 83,5 h Partiezeit, rund 4 h 40 min Wanduhr. Einzelne Fuego-Partien bis 1118 s;
+  die neue Diagnose ordnet deren dominanten Zeitanteil den GNU-Go-Orakelabfragen zu.
 
 **Engine-Vergleich** (Lauf 41617738140, alt `370df8e`, neu `e0de66f`): GLEICH über 26 Replays und 1328 KI-Abfragen.
 Die Vorprüfung ist bestanden. Abdeckung: S und ZS nur 22 bzw. 16 Stellen ab Zug 81, für ZS nur 5 mit Fall d.
@@ -68,9 +81,11 @@ Fall d1, e, c0 und d0 kamen nicht vor.
 - **GNU-Go-Verwandtschaft:** Hypothese, Ursache nicht nachgewiesen. Dass der Gewinn auch gegen Fuego auftrat,
   spricht gegen eine rein gegnerspezifische Ausnutzung. Er trennt aber nicht den Einfluss von (a) dem
   GNU-Go-Orakel, (b) den GNU-Go-geprägten Netz- und Musterdaten und (c) der GNU-Go-Wertung (Endstand-Zählung).
-- **Lange Fuego-Partien und GNU-Go-Absturz:** nicht untersucht. Fuego-Partien dauerten bis 1117,8 s (Arm P) bzw.
-  1112,3 s (Arm S), Probe-Maximum 170,2 s. GNU Go stürzte in Partie 127 in allen vier Armen mit SIGSEGV bei
-  `genmove B` ab. Die gemeinsame Stellung vor dem Eingriff ist eine **Vermutung**, keine ermittelte Ursache.
+- **Interne GNU-Go-Ursachen:** Die beiden langen Fuego-Partien und der Absturz sind
+  reproduziert und zeitlich eingegrenzt. Offen bleiben die GNU-Go-Funktion hinter den
+  teuren Orakelabfragen und der Quellcodefehler hinter dem SIGSEGV. Der GDB-Backtrace
+  enthält keine GNU-Go-Funktionsnamen. Stellungsgleichheit ist bestätigt, die frühere
+  Vermutung „vor dem ersten Eingriff“ widerlegt; siehe Diagnosebericht.
 - **Nutzung ohne Orakel:** offen. Der Versuch zeigt, dass die Prior-Anhebung hilft, auch bei Zügen, die schon
   Kandidaten sind (P − A +13,8 und +11,7; S − N positiv). Arm P braucht aber GNU Go, um zu wissen, welchen Zug
   er anheben soll. N − A zeigt keinen nachgewiesenen Gewinn; das ist **kein** Beleg für Wirkungslosigkeit.
@@ -89,8 +104,10 @@ Fall d1, e, c0 und d0 kamen nicht vor.
 
 ## Branches
 
-- In `Hazeberry/codex` ist `claude/repository-import` nach PR #1 löschbar, nicht gelöscht.
-- `claude/prior-ohne-orakel-umsetzung` ist nach Merge von PR #7 löschbar, nicht gelöscht.
-- `claude/prior-ohne-orakel-probe-ergebnisse` enthält den Ergebnisnachtrag; bis zum Merge erhalten.
+- In `Hazeberry/codex` nach Merge löschbar, nicht gelöscht: `claude/repository-import`
+  (#1), `claude/prior-anhebung-ohne-orakel` (#2), `claude/diagnose-laufzeit-absturz` (#3),
+  `claude/diagnose-laufzeit-fortsetzen` (#4), `claude/diagnose-ergebnissicherung` (#5),
+  `claude/prior-ohne-orakel-umsetzung` (#7) und `claude/prior-ohne-orakel-probe-ergebnisse` (#8).
+- `claude/diagnose-laufzeit-ergebnisse` bleibt bis zum Abschluss von PR #6 erhalten.
 - Die historische Liste löschbarer Branches aus der alten Übergabe gilt ausschließlich
   für `Hazeberry/Go-html-Game-MoE`; daraus folgt kein Löschauftrag in einem der Repositories.

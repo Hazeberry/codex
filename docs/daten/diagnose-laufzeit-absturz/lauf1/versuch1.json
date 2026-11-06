@@ -1,0 +1,12 @@
+{
+  "id": 42130235314,
+  "run_attempt": 1,
+  "head_sha": "1937d4d74f0c000c09601988120adaffcc1f4987",
+  "event": "workflow_dispatch",
+  "status": "completed",
+  "conclusion": "failure",
+  "created_at": "2026-11-05T23:33:11Z",
+  "run_started_at": "2026-11-05T23:33:11Z",
+  "updated_at": "2026-11-05T23:37:19Z",
+  "html_url": "https://github.com/Hazeberry/codex/actions/runs/42130235314"
+}

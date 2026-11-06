@@ -1,0 +1,17 @@
+{
+  "vorlauf": "42124976320",
+  "quellenSha": "4d556f713967ed6f2524e756559fc99430d8ed20",
+  "diagnoseSha256": "2ed12ee4268bfdf39bc0d50191b022df69215e4ae833130f7d18ec377cc85bdf",
+  "diagnoseAktuellSha256": "7e18bdb0e798e4f4e187cdac16da09b9485810e0d478e6d2b2c0c9b9e81883ce",
+  "reproduktionAstSha256": "c00076a9f0c5380f661a3b46a2c2fdc785cdcf2d6f9c7c7fc8bf2e5acc2d5b58",
+  "uebernommen": [
+    "g-N-127",
+    "g-S-127",
+    "f-S-27"
+  ],
+  "neu": [
+    "g-A-127",
+    "g-P-127",
+    "f-P-27"
+  ]
+}
