@@ -5,7 +5,8 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 # Prior-Anhebung ohne Orakel – Vorabfestlegung (Entwurf)
 
 Vorabfestlegung vom 05.11.2026; Umsetzung mit Go in der Sitzung vom 06.11.2026.
-Konkretisierung in §10 zur Durchsicht vor dem Merge. Kein Messlauf gestartet.
+Konkretisierung in §10 mit anschließendem Go. Ergebnisse von Engine-Vergleich und
+technischer Probe in §11/12; Wirkung und Hauptlauf bleiben offen.
 Ziel-Repository: `Hazeberry/codex`.
 
 ## 1. Grundlage und Frage
@@ -304,3 +305,90 @@ Diese Konkretisierung vor dem Merge lesen; anschließend grüne CI und Merge.
 Danach eigenes Start-Go für den oben beschriebenen Engine-Vergleich und anschließend
 für die technische Probe. Erst deren gültiger Technikbericht erlaubt die endgültige
 Planung des Hauptversuchs. Die Eignung von H bleibt bis zu dessen Auswertung offen.
+
+## 11. Ergebnisnachtrag: Engine-Vergleich (06.11.2026)
+
+Go in der Sitzung vom 06.11.2026 für die Konkretisierung in §10, Merge von PR #7,
+Engine-Vergleich und anschließende technische Probe. PR #7 wurde mit voller Kopf-SHA
+`268336ce42caaa4e03b5c18bfc826f4cae3df73d` und Methode `merge` gemergt;
+Implementierungs-/Merge-Stand `6bfaa33d69822f13a049b5813d4b6c77b63b61a3`.
+Vorher waren 50 Node-Testsuiten und alle fünf Browser-Suiten grün
+([CI 42162679006](https://github.com/Hazeberry/codex/actions/runs/42162679006)).
+
+**Engine-Vergleich gültig: GLEICH.**
+[Actions-Lauf 42164242839](https://github.com/Hazeberry/codex/actions/runs/42164242839),
+Ausgangsstand `1bf2ff3cc5258038697b91a79224c70e25761d87`, neuer Stand wie oben.
+Die sechs getrennten Replays (Seed 222, Nummern 1/2, bis Zug 130; alt, neu aus,
+neu A) stimmen in allen **130 KI-Abfragen** bei Zug, Kindern, Priors, N/W und
+kumuliertem Suchzufallsverbrauch überein. Keine Archivabweichung.
+Die zusätzliche Auswahlbewertung ab Zug 81 ist an **25 Stellen für Schwarz und
+25 für Weiß** abgedeckt. Alle Vorprüfungen bestanden; keine Aussage über weitere
+Partien, spätere Züge oder Zeitbudgets.
+
+Quellen und unverändertes ZIP mit den sechs Dumps:
+[`docs/daten/prior-anhebung-ohne-orakel/engine-vergleich-42164242839/`](daten/prior-anhebung-ohne-orakel/engine-vergleich-42164242839/).
+Artefakt `prior-engine-pruefung`, ID `13477644638`, ZIP-SHA-256
+`90b58898d5023556a01349ce47c9ca1604fcdec6ce6afbe68571ddc9a4884b47`.
+Die technische Probe verwendet diesen Vergleich als Pflichtnachweis.
+
+## 12. Ergebnisnachtrag: technische Probe (06.11.2026)
+
+**Gültig.** [Actions-Lauf 42164396423](https://github.com/Hazeberry/codex/actions/runs/42164396423),
+Versuchsseed 236, Implementierungsstand `6bfaa33d69822f13a049b5813d4b6c77b63b61a3`.
+Der Start war durch dasselbe ausdrückliche Go nach Durchsicht von §10 gedeckt;
+der Pflichtvergleich aus §11 war vorher bestanden.
+
+- **58/58 Partien** mit Status `ok`: 36 reguläre Probenpartien, 18 Wiederholungen und
+  vier Archivkontrollen mit Seed 222. Keine Abbrüche oder Zeitüberschreitungen.
+- **70/70 technische Pflichtprüfungen bestanden**. Alle 18 Wiederholungen stimmen
+  bei Zugfolge, Endstand und zeitunabhängigem Eingriffsprotokoll überein. Alle vier
+  Archivkontrollen sind bei Zugfolge und Endstand gleich.
+- Acht vollständige Dreiergruppen gegen GNU Go und vier gegen Fuego. In allen zwölf
+  Gruppen stimmt die erste Eingriffsgelegenheit einschließlich vorheriger Zugfolge,
+  Stellungshash, Auswahlwerten und Basispriors überein.
+- A hebt nie an. H und R heben gegen beide Gegner in beiden Farben tatsächlich an.
+  Priors, Normierung, Ausnahmen, Zufallsableitung, Quellen und Prozessprotokolle
+  erfüllen die festgelegten Prüfungen. Es gab keine Orakelabfrage zur Zugauswahl;
+  GNU Go blieb Gegner beziehungsweise Schiedsrichter. Alle Pakete verwendeten Node
+  v22.23.4 sowie dieselben GNU-Go- und Fuego-Binaries je Rolle.
+
+### Zeiten und tatsächliche Anhebungen
+
+Die Tabelle umfasst nur die **36 regulären Probenpartien**. Angegeben ist die gesamte
+Partieprozessdauer einschließlich Initialisierung, Gegner und Endwertung. S/W bezeichnet
+die KI-Farbe; die Eingriffszahlen sind Züge, keine Partien.
+
+| Gegner | Arm | Partien | Median s | Maximum s | Anhebungen S | Anhebungen W |
+|---|---|---:|---:|---:|---:|---:|
+| GNU Go | A | 8 | 24,5 | 27,3 | 0 | 0 |
+| GNU Go | H | 8 | 29,5 | 33,5 | 364 | 406 |
+| GNU Go | R | 8 | 31,4 | 34,3 | 371 | 416 |
+| Fuego | A | 4 | 41,1 | 44,3 | 0 | 0 |
+| Fuego | H | 4 | 28,4 | 34,3 | 221 | 215 |
+| Fuego | R | 4 | 38,9 | 43,8 | 260 | 236 |
+
+Über **alle 58** Partien: 1791,4 s summierte Partiezeit (29 min 51 s), Maximum 44,3 s.
+Summierte Joblaufzeiten einschließlich Vorprüfung, Bau und Bericht: **35 min 14 s**
+ohne Abrechnungsrundung. Wanduhr vom Run-Start bis Abschluss: **7 min 41 s**.
+Die konfigurierte Höchstsumme betrug 475 Minuten. Zeitstempel sind in `run.json` und
+`jobs.json` gesichert. Diese kleine Probe liefert keine sichere Laufzeitschranke für
+den Hauptlauf und keinen Nachweis, dass frühere Absturz- oder Laufzeitursachen behoben sind.
+
+### Daten und Grenze der Aussage
+
+Unverändertes Gesamtartefakt mit Rohzeilen, Einzelpartie- und GTP-Protokollen sowie
+Quellenmetadaten, daneben der lesbare Bericht und Prüfbericht:
+[`docs/daten/prior-anhebung-ohne-orakel/probe-42164396423/`](daten/prior-anhebung-ohne-orakel/probe-42164396423/).
+Artefakt `prior-probe-gesamt-1`, ID `13478352571`, ZIP-SHA-256
+`6b9e1bb92b980c9ac25168c2399d58d8c1b2236652e0b81c1c65efe255e25e07`.
+Die heruntergeladenen ZIP-Prüfsummen stimmen mit den von GitHub gemeldeten Digests überein.
+
+Der Bericht enthält **keine Endstand-Differenzen, Siegquoten oder Wirkungsauswertung**;
+`auswertung` ist null. Der Aufbau und die konkrete Auswahlregel funktionieren unter
+den geprüften Bedingungen technisch. Ob H den Endstand verbessert und besser als R
+ist, bleibt offen. Auch die Herkunft aus GNU-Go-geprägten Daten und die GNU-Go-Wertung
+sind durch diese Probe nicht getrennt untersucht. Vor einem Hauptlauf stehen weiterhin
+die endgültige Festlegung von Umfang, Budget und Paketen sowie dessen eigenes Start-Go.
+
+Die Abmeldung der PR-Aktivität nach Merge von PR #7 wurde versucht; GitHub verweigerte
+`updateSubscription` mit `FORBIDDEN: Resource not accessible by integration`.

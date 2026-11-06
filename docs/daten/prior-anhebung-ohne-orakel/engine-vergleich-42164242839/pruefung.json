@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "gueltig": true,
+  "ergebnis": "GLEICH",
+  "baseline": "1bf2ff3cc5258038697b91a79224c70e25761d87",
+  "neu": "6bfaa33d69822f13a049b5813d4b6c77b63b61a3",
+  "neuIndexSHA256": "a3856ae909b73be6e004f814a1216c82d349ec48ed8a7069c00e2a9473169dec",
+  "werkzeugSHA256": "2d1984dcc383041275681a0cf87a1400d74f835f7e6db7051566a2750f607753",
+  "replaySHA256": "5f8f28bae81dd8d5389890d0c84b0f9ceb211fc2b18a375af2bcd3f4864c4dd9",
+  "zufallGeprueft": true,
+  "priorGeprueft": true,
+  "coverage": {
+    "S": 25,
+    "W": 25
+  },
+  "stellen": 130,
+  "gruende": []
+}

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "repository": "Hazeberry/codex",
+  "lauf": 42164242839,
+  "url": "https://github.com/Hazeberry/codex/actions/runs/42164242839",
+  "workflow": ".github/workflows/prior-ohne-orakel-vergleich.yml",
+  "sourceSHA": "6bfaa33d69822f13a049b5813d4b6c77b63b61a3",
+  "artefakt": {
+    "id": 13477644638,
+    "name": "prior-engine-pruefung",
+    "datei": "artefakt.zip",
+    "sha256": "90b58898d5023556a01349ce47c9ca1604fcdec6ce6afbe68571ddc9a4884b47"
+  }
+}

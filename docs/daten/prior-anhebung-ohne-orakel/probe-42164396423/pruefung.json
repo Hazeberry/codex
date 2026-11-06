@@ -1,0 +1,696 @@
+{
+  "version": 1,
+  "probe": true,
+  "gueltig": true,
+  "nJe": {
+    "g": 8,
+    "f": 4
+  },
+  "pruefungen": [
+    {
+      "name": "Vorprüfung Engine-Vergleich",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-A: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-A: Vollständigkeit",
+      "anzahl": 8,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-A: Pflichtdaten und Prozessstatus",
+      "anzahl": 8,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-A: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 1340,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-A: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-A: Vollständigkeit",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-A: Pflichtdaten und Prozessstatus",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-A: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 547,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-A: Wiederholungskontrolle",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-H: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-H: Vollständigkeit",
+      "anzahl": 8,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-H: Pflichtdaten und Prozessstatus",
+      "anzahl": 8,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-H: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 1233,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-H: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-H: Vollständigkeit",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-H: Pflichtdaten und Prozessstatus",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-H: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 455,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-H: Wiederholungskontrolle",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-H: tatsächliche Anhebung S",
+      "anzahl": 586,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-H: tatsächliche Anhebung W",
+      "anzahl": 647,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-R: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-R: Vollständigkeit",
+      "anzahl": 8,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-R: Pflichtdaten und Prozessstatus",
+      "anzahl": 8,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-R: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 1222,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-R: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-R: Vollständigkeit",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-R: Pflichtdaten und Prozessstatus",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-g-R: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 479,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-R: Wiederholungskontrolle",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-R: tatsächliche Anhebung S",
+      "anzahl": 578,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g-R: tatsächliche Anhebung W",
+      "anzahl": 644,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-A: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-A: Vollständigkeit",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-A: Pflichtdaten und Prozessstatus",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-A: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 807,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-A: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-A: Vollständigkeit",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-A: Pflichtdaten und Prozessstatus",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-A: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 591,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-A: Wiederholungskontrolle",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-H: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-H: Vollständigkeit",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-H: Pflichtdaten und Prozessstatus",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-H: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 729,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-H: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-H: Vollständigkeit",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-H: Pflichtdaten und Prozessstatus",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-H: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 531,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-H: Wiederholungskontrolle",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-H: tatsächliche Anhebung S",
+      "anzahl": 360,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-H: tatsächliche Anhebung W",
+      "anzahl": 369,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-R: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-R: Vollständigkeit",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-R: Pflichtdaten und Prozessstatus",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-R: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 742,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-R: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-R: Vollständigkeit",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-R: Pflichtdaten und Prozessstatus",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "wiederholung-f-R: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 532,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-R: Wiederholungskontrolle",
+      "anzahl": 3,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-R: tatsächliche Anhebung S",
+      "anzahl": 392,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f-R: tatsächliche Anhebung W",
+      "anzahl": 350,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "kontrolle: Quelle und Konfiguration",
+      "anzahl": 1,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "kontrolle: Vollständigkeit",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "kontrolle: Pflichtdaten und Prozessstatus",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "kontrolle: Eingriffsregeln, Priors und Zählersummen",
+      "anzahl": 660,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "Kontrolle Seed 222",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "g: gleiche erste Gelegenheit",
+      "anzahl": 8,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    },
+    {
+      "name": "f: gleiche erste Gelegenheit",
+      "anzahl": 4,
+      "nichtPruefbar": [],
+      "ok": true,
+      "anzahlFehler": 0,
+      "fehler": []
+    }
+  ],
+  "ausfaelle": [],
+  "zeiten": {
+    "g-A": {
+      "n": 8,
+      "medianMs": 24496.933518000005,
+      "maximumMs": 27283.659439000003
+    },
+    "g-H": {
+      "n": 8,
+      "medianMs": 29503.80196100002,
+      "maximumMs": 33537.597823
+    },
+    "g-R": {
+      "n": 8,
+      "medianMs": 31386.229229000008,
+      "maximumMs": 34296.142414
+    },
+    "f-A": {
+      "n": 4,
+      "medianMs": 41061.389128499985,
+      "maximumMs": 44316.182115999996
+    },
+    "f-H": {
+      "n": 4,
+      "medianMs": 28428.991497000003,
+      "maximumMs": 34345.78091899999
+    },
+    "f-R": {
+      "n": 4,
+      "medianMs": 38902.89545399999,
+      "maximumMs": 43763.847438
+    }
+  },
+  "abdeckung": {
+    "g-A": {
+      "S": {
+        "kiZuege": 647,
+        "frischeWurzeln": 643,
+        "gelegenheiten": 429,
+        "anhebungen": 0
+      },
+      "W": {
+        "kiZuege": 693,
+        "frischeWurzeln": 689,
+        "gelegenheiten": 461,
+        "anhebungen": 0
+      }
+    },
+    "g-H": {
+      "S": {
+        "kiZuege": 586,
+        "frischeWurzeln": 582,
+        "gelegenheiten": 364,
+        "anhebungen": 364
+      },
+      "W": {
+        "kiZuege": 647,
+        "frischeWurzeln": 643,
+        "gelegenheiten": 406,
+        "anhebungen": 406
+      }
+    },
+    "g-R": {
+      "S": {
+        "kiZuege": 578,
+        "frischeWurzeln": 574,
+        "gelegenheiten": 371,
+        "anhebungen": 371
+      },
+      "W": {
+        "kiZuege": 644,
+        "frischeWurzeln": 640,
+        "gelegenheiten": 416,
+        "anhebungen": 416
+      }
+    },
+    "f-A": {
+      "S": {
+        "kiZuege": 423,
+        "frischeWurzeln": 421,
+        "gelegenheiten": 286,
+        "anhebungen": 0
+      },
+      "W": {
+        "kiZuege": 384,
+        "frischeWurzeln": 382,
+        "gelegenheiten": 244,
+        "anhebungen": 0
+      }
+    },
+    "f-H": {
+      "S": {
+        "kiZuege": 360,
+        "frischeWurzeln": 358,
+        "gelegenheiten": 221,
+        "anhebungen": 221
+      },
+      "W": {
+        "kiZuege": 369,
+        "frischeWurzeln": 348,
+        "gelegenheiten": 215,
+        "anhebungen": 215
+      }
+    },
+    "f-R": {
+      "S": {
+        "kiZuege": 392,
+        "frischeWurzeln": 390,
+        "gelegenheiten": 260,
+        "anhebungen": 260
+      },
+      "W": {
+        "kiZuege": 350,
+        "frischeWurzeln": 348,
+        "gelegenheiten": 236,
+        "anhebungen": 236
+      }
+    }
+  },
+  "vollstaendigeGruppen": {
+    "g": 8,
+    "f": 4
+  },
+  "alpha": 0.0125,
+  "auswertung": null
+}
