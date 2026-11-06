@@ -1,0 +1,41 @@
+{
+  "runId": 42169766921,
+  "quellenSha": "09cdb2be87d693f6eb89a190274e7e49f5769b9a",
+  "artefakte": [
+    {
+      "datei": "aufgabe-113-120-611.zip",
+      "sha256": "50b266c10ab9526aff6fe5cde11ea867a91ac2e7ce481dad63412102cbc8aab7",
+      "bytes": 5526
+    },
+    {
+      "datei": "aufgabe-113-120-612.zip",
+      "sha256": "5ab00c28d503f8cdf496ba8a903e49ce8d4ebb8c6cce115c2eda0d7917b91503",
+      "bytes": 5457
+    },
+    {
+      "datei": "aufgabe-113-3000-611.zip",
+      "sha256": "cc6f4bbc7baf045269980224ea68cdaf30488fdee44609f3c01d2a3bc7cea950",
+      "bytes": 6532
+    },
+    {
+      "datei": "aufgabe-113-3000-612.zip",
+      "sha256": "c0e213dce214cb62e2f4060007d8e528f0321e790d92850abc6b2bb148e996ab",
+      "bytes": 5841
+    },
+    {
+      "datei": "aufgabe-113-diagnose-611.zip",
+      "sha256": "1b5e52d43e5f5a242c7b5abd2a35cad9ce66c45601084c9612e1d2e130a09698",
+      "bytes": 6796
+    },
+    {
+      "datei": "aufgabe-113-gnu10-611.zip",
+      "sha256": "9ff41f03ace75328fbc2fb0c67c84ef654fbb22c261527922e0f39a3088a2bdc",
+      "bytes": 4096
+    },
+    {
+      "datei": "aufgabe-113-gnu10-612.zip",
+      "sha256": "7d5689ec0353662083cb05feb6cbbfcce401efc6050001f3a2a04ea4fd79dd3c",
+      "bytes": 3886
+    }
+  ]
+}

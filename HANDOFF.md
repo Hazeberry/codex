@@ -30,10 +30,23 @@
   (Weiß K8) bei `genmove B` ab. Erster Auslöser war bereits `mc=81`, mit tatsächlichem
   Eingriff in N und S. **Die Vermutung „vor dem ersten Eingriff“ ist damit widerlegt.**
   Eigenständiges GTP-Replay unter GDB reproduziert den SIGSEGV; Quellcodeursache offen.
-- Die Diagnoseergebnisse stehen in PR #6; dieser PR bleibt bis zur Durchsicht offen.
+- PR #6 ist nach Konfliktauflösung gemergt: `d688b257f8499d8c0a62e9639ecfde3b7f21a07d`.
   Die historischen Angaben darunter stammen aus der übernommenen Übergabe.
 - Node- und Browser-CI von PR #7 waren grün. Die Abmeldung der PR-Aktivität wurde
   versucht; GitHub verweigerte `updateSubscription` mit FORBIDDEN (App-Berechtigung).
+
+## Aktuelle Einzelfall-Diagnose: Aufgabe nach Zug 113
+
+- Nutzer-Go vom 06.11.2026, Untersuchung in PR #10 (vor Merge zur Durchsicht).
+- Lauf 42169766921 gültig: 22 externe Bewertungen, sechs vollständige Fortsetzungen.
+  Weiß gewinnt alle sechs gegen GNU Go 1; eigene KI mit 3000 Simulationen
+  W+72,5/W+136,5. Deutlicher Befund für voreilige Aufgabe in diesem Fall,
+  technische Ursache der negativen Q-Werte noch offen. Keine Defaultänderung.
+- Bericht: `docs/untersuchung-aufgabe-113.md`, Rohartefakte unter
+  `docs/daten/aufgabe-113/lauf1/`, Quellenstand `09cdb2be87d693f6eb89a190274e7e49f5769b9a`.
+- Separater Protokollfehler: Undo ließ alte KI-Diagnosen stehen (P14/P13 bei Zug 42).
+  Korrektur in PR #9 nach grüner CI 42169061237 gemergt:
+  `0a0cc366cb9bdd33d8d3048c26e5d4ef3408c92d`.
 
 ## Herkunft der folgenden Übergabe
 
@@ -108,6 +121,8 @@ Fall d1, e, c0 und d0 kamen nicht vor.
   (#1), `claude/prior-anhebung-ohne-orakel` (#2), `claude/diagnose-laufzeit-absturz` (#3),
   `claude/diagnose-laufzeit-fortsetzen` (#4), `claude/diagnose-ergebnissicherung` (#5),
   `claude/prior-ohne-orakel-umsetzung` (#7) und `claude/prior-ohne-orakel-probe-ergebnisse` (#8).
-- `claude/diagnose-laufzeit-ergebnisse` bleibt bis zum Abschluss von PR #6 erhalten.
+- `claude/diagnose-laufzeit-ergebnisse` ist nach Merge von PR #6 ebenfalls löschbar.
+- `claude/diagnose-undo-protokoll` ist nach Merge von PR #9 ebenfalls löschbar.
+- `claude/aufgabe-113-untersuchung` (#10) bleibt bis zum Merge erhalten.
 - Die historische Liste löschbarer Branches aus der alten Übergabe gilt ausschließlich
   für `Hazeberry/Go-html-Game-MoE`; daraus folgt kein Löschauftrag in einem der Repositories.

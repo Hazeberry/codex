@@ -48,3 +48,8 @@ Berechtigung ist damit nicht bewiesen: Q ist keine kalibrierte Gewinnchance,
 die Frage nach einer zu frühen Aufgabe fehlt eine unabhängige Bewertung bzw.
 kontrollierte Fortsetzung der Stellung. Die historische Untersuchung in
 `docs/aufgaben.md` entscheidet diesen Einzelfall nicht.
+
+Nachtrag: Die inzwischen ausgeführte externe Bewertung und sechs Fortsetzungen
+sprechen in diesem Einzelfall deutlich für eine voreilige Aufgabe. Alle sechs
+Fortsetzungen gewinnt Weiß; siehe `untersuchung-aufgabe-113.md`. Der ursprüngliche
+Protokollabgleich allein konnte diese Frage nicht entscheiden.
