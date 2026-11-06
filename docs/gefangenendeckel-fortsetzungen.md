@@ -1,7 +1,8 @@
 # Gefangenendeckel: kontrollierte freie Fortsetzungen
 
 Vorabfestlegung, 06.11.2026. Nach dem Befund der Diagnose 42261233661 als
-nächster Testaufbau vorbereitet. Keine Partien gestartet. Durchsicht vor Merge
+nächster Testaufbau vorbereitet; inzwischen nach Go ausgeführt (Ergebnis unten).
+Durchsicht vor Merge
 und ausdrückliches Go vor dem manuellen Actions-Lauf gemäß CLAUDE.md.
 Engine-Datei und Spieldefaults bleiben unverändert.
 
@@ -114,3 +115,102 @@ und 32 Paare. Sieben Python-Tests mit reinen GTP-Attrappen prüfen Parametertren
 Zugnummern, Farben, Wertungsperspektive, SGF, Abbruch/Aufgabe, Prozessbereinigung,
 den vollständigen Bericht und Ablehnung beschädigter Ergebnisse. Die kurzen
 Tests spielen keine tatsächliche Engine-Partie.
+
+## Ergebnis des freigegebenen Piloten (06.11.2026)
+
+Go nach Durchsicht von PR #16; nach grüner Node-/Browser-CI gemergt.
+Quellenstand `92501db0d2aa86e6f1a56707fad8718f3cf24245`.
+[Lauf 42266545848](https://github.com/Hazeberry/codex/actions/runs/42266545848):
+**gültig**, 64/64 vollständige Partien, 32/32 vollständige A/B-Paare.
+Alle 66 Jobs grün, keine Timeouts, Abbrüche oder Wiederholungen. Alle Partien
+enden mit zwei Pässen, nach 68 bis 313 zusätzlichen Zügen.
+
+Vollständiges unverändertes Actions-Artefakt unter
+`docs/daten/deckel-fortsetzungen/lauf1/deckel-fortsetzungen-gesamt.zip`,
+SHA-256 gegen GitHubs Digest geprüft. Daneben Maschinenbericht, vorbereitete
+Startstellungen und Manifest mit Quellen-/Dateiprüfsummen. Alle 64 SGFs zusätzlich
+entpackt unter `sgf/`. Sämtliche 64 Quellenbelege stimmen mit dem gemessenen
+Commit und den Eingabe-/Engine-Prüfsummen überein. A und B unterscheiden sich
+in ihren tatsächlichen Suchparametern ausschließlich durch captureCap.
+
+### Primärer Befund: Wirkung hängt von der Ausgangsstellung ab
+
+Deckel minus Default, jeweils acht Kontexte aus Farben × Budgets × Seeds:
+
+| Ausgangsstellung | besser / gleich / schlechter | Punktedifferenz, Spanne | Mittel, rein beschreibend |
+|---|---:|---:|---:|
+| Partie 113 nach 95 | 0 / 6 / 2 | −6 bis 0 | −1,5 |
+| Partie 113 nach 113 | 0 / 0 / 8 | −42 bis −2 | −12,0 |
+| Partie 127 nach 111 | 0 / 8 / 0 | 0 | 0,0 |
+| Partie 127 nach 127 | 8 / 0 / 0 | +14 bis +58 | +36,5 |
+
+Über alle 32 Paare: acht bessere, 14 gleiche und zehn schlechtere Endstände mit
+Deckel. Der rein beschreibende Gesamtmittelwert +5,75 verdeckt die gegensätzlichen
+Ausgangsstellungen. Er ist keine inferenzielle Verbesserung der Spielstärke und
+keine vorab festgelegte Default-Entscheidung. Alle Einzelwerte bleiben primär
+maßgeblich; sie stehen in `bericht.json`.
+
+Bei ausgeschalteter Aufgabe gewinnt der Default 31/32 Fortsetzungen, der Deckel
+30/32. Das sind keine allgemeinen Siegquotenschätzungen: nur vier gezielt gewählte
+Stellungen. In einem knappen Weiß-Fall vor dem Gruppenverlust (Partie 113 nach 95,
+3000 Simulationen, Seed 762) kippt ein Default-Sieg W+4,5 mit Deckel in B+1,5.
+Die farbgetauschte Variante verliert die untersuchte schwarze Engine mit beiden
+Armen (−10,5 bzw. −16,5 aus ihrer Sicht).
+
+### Einzelwerte: ursprüngliche Weiß-Perspektive
+
+Endstände aus Sicht der untersuchten Engine, positiv = Sieg:
+
+| Start | Simulationen | Seed | Default | Deckel | Differenz |
+|---|---:|---:|---:|---:|---:|
+| 113 nach 95 | 120 | 761 | +112,5 | +112,5 | 0 |
+| 113 nach 95 | 120 | 762 | +120,5 | +120,5 | 0 |
+| 113 nach 95 | 3000 | 761 | +174,5 | +174,5 | 0 |
+| 113 nach 95 | 3000 | 762 | +4,5 | −1,5 | −6 |
+| 113 nach 113 | 120 | 761 | +178,5 | +176,5 | −2 |
+| 113 nach 113 | 120 | 762 | +178,5 | +176,5 | −2 |
+| 113 nach 113 | 3000 | 761 | +178,5 | +136,5 | −42 |
+| 113 nach 113 | 3000 | 762 | +178,5 | +176,5 | −2 |
+| 127 nach 111 | 120 | 761 | +104,5 | +104,5 | 0 |
+| 127 nach 111 | 120 | 762 | +104,5 | +104,5 | 0 |
+| 127 nach 111 | 3000 | 761 | +46,5 | +46,5 | 0 |
+| 127 nach 111 | 3000 | 762 | +46,5 | +46,5 | 0 |
+| 127 nach 127 | 120 | 761 | +88,5 | +102,5 | +14 |
+| 127 nach 127 | 120 | 762 | +86,5 | +102,5 | +16 |
+| 127 nach 127 | 3000 | 761 | +92,5 | +150,5 | +58 |
+| 127 nach 127 | 3000 | 762 | +92,5 | +150,5 | +58 |
+
+Die schwarze Perspektive ist vollständig im Maschinenbericht enthalten. Die
+Punktedifferenzen B−A stimmen in diesem Pilot für beide Farben überein. Absolute
+Endstände unterscheiden sich wegen des Komi und gegebenenfalls anderer Züge.
+26 von 32 Farbpaaren haben sogar dieselbe Feldzugfolge mit vertauschten Farben;
+Farben sind hier daher ausdrücklich keine unabhängigen Wiederholungen.
+
+### Ausgewählte Partien zum Nachspielen
+
+- Aufgabe nach 113, 3000 Simulationen, Seed 761:
+  [Default W+178,5](daten/deckel-fortsetzungen/lauf1/sgf/partie113-113-W-3000-761-0.sgf),
+  [Deckel W+136,5](daten/deckel-fortsetzungen/lauf1/sgf/partie113-113-W-3000-761-200.sgf).
+- Aufgabe nach 127, 3000 Simulationen, Seed 761:
+  [Default W+92,5](daten/deckel-fortsetzungen/lauf1/sgf/partie127-127-W-3000-761-0.sgf),
+  [Deckel W+150,5](daten/deckel-fortsetzungen/lauf1/sgf/partie127-127-W-3000-761-200.sgf).
+- Knapper Fall nach Zug 95, 3000 Simulationen, Seed 762:
+  [Default W+4,5](daten/deckel-fortsetzungen/lauf1/sgf/partie113-95-W-3000-762-0.sgf),
+  [Deckel B+1,5](daten/deckel-fortsetzungen/lauf1/sgf/partie113-95-W-3000-762-200.sgf).
+
+### Einordnung
+
+Die vorherige Q-Diagnose und dieser Pilot beantworten verschiedene Fragen:
+Der Deckel verhindert auf den festgehaltenen Aufgabepfaden die Q-Auslösung,
+liefert aber beim freien Weiterspielen keine durchgehend besseren Endstände.
+In Partie 113 ist er nach der Aufgabe in allen Varianten schlechter, in Partie
+127 nach der Aufgabe in allen besser. Die Ergebnisse werden nicht zu einer
+pauschalen Verbesserung oder Wirkungslosigkeit umgedeutet.
+
+Damit ist captureCap=200 nach diesem Pilot kein begründeter allgemeiner Ersatz
+für den Default. Das Problem der unzuverlässigen Q-Aufgabe bleibt ein gesonderter
+Ansatz: Die ursprünglichen weißen Aufgabestellungen gewinnen hier mit beiden
+Armen und ausgeschalteter Aufgabe. Eine mögliche Absicherung der Aufgabe bei
+beibehaltener Suchbewertung wäre ein neuer Eingriff mit eigener Vorabfestlegung
+und Go. Dieser Versuch ändert keinen Default und beweist keine allgemeine
+Überlegenheit des Referenzarms.

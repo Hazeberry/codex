@@ -1,0 +1,326 @@
+{
+  "gueltig": true,
+  "games": 64,
+  "pairs": [
+    {
+      "start": "partie113-95-W",
+      "sims": 120,
+      "seed": 761,
+      "defaultPoints": 112.5,
+      "capPoints": 112.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-95-W",
+      "sims": 120,
+      "seed": 762,
+      "defaultPoints": 120.5,
+      "capPoints": 120.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-95-W",
+      "sims": 3000,
+      "seed": 761,
+      "defaultPoints": 174.5,
+      "capPoints": 174.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-95-W",
+      "sims": 3000,
+      "seed": 762,
+      "defaultPoints": 4.5,
+      "capPoints": -1.5,
+      "deltaCapMinusDefault": -6.0,
+      "defaultWon": true,
+      "capWon": false
+    },
+    {
+      "start": "partie113-95-S",
+      "sims": 120,
+      "seed": 761,
+      "defaultPoints": 79.5,
+      "capPoints": 79.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-95-S",
+      "sims": 120,
+      "seed": 762,
+      "defaultPoints": 107.5,
+      "capPoints": 107.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-95-S",
+      "sims": 3000,
+      "seed": 761,
+      "defaultPoints": 159.5,
+      "capPoints": 159.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-95-S",
+      "sims": 3000,
+      "seed": 762,
+      "defaultPoints": -10.5,
+      "capPoints": -16.5,
+      "deltaCapMinusDefault": -6.0,
+      "defaultWon": false,
+      "capWon": false
+    },
+    {
+      "start": "partie113-113-W",
+      "sims": 120,
+      "seed": 761,
+      "defaultPoints": 178.5,
+      "capPoints": 176.5,
+      "deltaCapMinusDefault": -2.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-113-W",
+      "sims": 120,
+      "seed": 762,
+      "defaultPoints": 178.5,
+      "capPoints": 176.5,
+      "deltaCapMinusDefault": -2.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-113-W",
+      "sims": 3000,
+      "seed": 761,
+      "defaultPoints": 178.5,
+      "capPoints": 136.5,
+      "deltaCapMinusDefault": -42.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-113-W",
+      "sims": 3000,
+      "seed": 762,
+      "defaultPoints": 178.5,
+      "capPoints": 176.5,
+      "deltaCapMinusDefault": -2.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-113-S",
+      "sims": 120,
+      "seed": 761,
+      "defaultPoints": 163.5,
+      "capPoints": 161.5,
+      "deltaCapMinusDefault": -2.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-113-S",
+      "sims": 120,
+      "seed": 762,
+      "defaultPoints": 163.5,
+      "capPoints": 161.5,
+      "deltaCapMinusDefault": -2.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-113-S",
+      "sims": 3000,
+      "seed": 761,
+      "defaultPoints": 163.5,
+      "capPoints": 121.5,
+      "deltaCapMinusDefault": -42.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie113-113-S",
+      "sims": 3000,
+      "seed": 762,
+      "defaultPoints": 163.5,
+      "capPoints": 161.5,
+      "deltaCapMinusDefault": -2.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-111-W",
+      "sims": 120,
+      "seed": 761,
+      "defaultPoints": 104.5,
+      "capPoints": 104.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-111-W",
+      "sims": 120,
+      "seed": 762,
+      "defaultPoints": 104.5,
+      "capPoints": 104.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-111-W",
+      "sims": 3000,
+      "seed": 761,
+      "defaultPoints": 46.5,
+      "capPoints": 46.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-111-W",
+      "sims": 3000,
+      "seed": 762,
+      "defaultPoints": 46.5,
+      "capPoints": 46.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-111-S",
+      "sims": 120,
+      "seed": 761,
+      "defaultPoints": 89.5,
+      "capPoints": 89.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-111-S",
+      "sims": 120,
+      "seed": 762,
+      "defaultPoints": 89.5,
+      "capPoints": 89.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-111-S",
+      "sims": 3000,
+      "seed": 761,
+      "defaultPoints": 31.5,
+      "capPoints": 31.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-111-S",
+      "sims": 3000,
+      "seed": 762,
+      "defaultPoints": 31.5,
+      "capPoints": 31.5,
+      "deltaCapMinusDefault": 0.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-127-W",
+      "sims": 120,
+      "seed": 761,
+      "defaultPoints": 88.5,
+      "capPoints": 102.5,
+      "deltaCapMinusDefault": 14.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-127-W",
+      "sims": 120,
+      "seed": 762,
+      "defaultPoints": 86.5,
+      "capPoints": 102.5,
+      "deltaCapMinusDefault": 16.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-127-W",
+      "sims": 3000,
+      "seed": 761,
+      "defaultPoints": 92.5,
+      "capPoints": 150.5,
+      "deltaCapMinusDefault": 58.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-127-W",
+      "sims": 3000,
+      "seed": 762,
+      "defaultPoints": 92.5,
+      "capPoints": 150.5,
+      "deltaCapMinusDefault": 58.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-127-S",
+      "sims": 120,
+      "seed": 761,
+      "defaultPoints": 73.5,
+      "capPoints": 87.5,
+      "deltaCapMinusDefault": 14.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-127-S",
+      "sims": 120,
+      "seed": 762,
+      "defaultPoints": 71.5,
+      "capPoints": 87.5,
+      "deltaCapMinusDefault": 16.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-127-S",
+      "sims": 3000,
+      "seed": 761,
+      "defaultPoints": 77.5,
+      "capPoints": 135.5,
+      "deltaCapMinusDefault": 58.0,
+      "defaultWon": true,
+      "capWon": true
+    },
+    {
+      "start": "partie127-127-S",
+      "sims": 3000,
+      "seed": 762,
+      "defaultPoints": 77.5,
+      "capPoints": 135.5,
+      "deltaCapMinusDefault": 58.0,
+      "defaultWon": true,
+      "capWon": true
+    }
+  ]
+}

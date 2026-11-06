@@ -79,6 +79,23 @@
   captureCap=200 gegen Default, Aufgabe von Zugqualität trennen; noch kein Go dafür.
 - PR #13 ist nach grüner CI gemergt: `b70c469dc97808877419be2c088ddbe93a053c54`.
 
+## Kontrollierte Gefangenendeckel-Fortsetzungen
+
+- PR #16 nach Go und grüner CI gemergt: `92501db0d2aa86e6f1a56707fad8718f3cf24245`.
+- Lauf 42266545848 gültig: 64 vollständige Partien/32 Paare, keine Ausfälle.
+  Vier Startstellungen, beide Farben, 120/3000 Simulationen, Seeds 761/762;
+  captureCap 0/200, Aufgabe aus, GNU Go1 Gegner und Flächenschiedsrichter.
+- Gemischt: Deckel 8 Paare besser, 14 gleich, 10 schlechter. Nach Aufgabe113
+  in allen acht Kontexten schlechter (−2 bis −42), nach Aufgabe127 in allen
+  besser (+14 bis +58). Kein allgemeiner Stärkegewinn und keine Defaultänderung.
+- Siege ohne Aufgabe: Default 31/32, Deckel 30/32. Nur vier ausgewählte
+  Stellungen; nicht als allgemeine Siegquote interpretieren.
+- Bericht: `docs/gefangenendeckel-fortsetzungen.md`, vollständige Rohdaten und
+  64 entpackte SGFs unter `docs/daten/deckel-fortsetzungen/lauf1/`.
+- Die Q-Aufgabe bleibt als eigener nächster Ansatz offen; keine Freigabe
+  für eine Spieländerung oder neue Messung aus diesem Pilot ableiten.
+- PR #15 nach grüner CI gemergt: `d6249e484ac70f46dbed5bced7b63fc9ce027674`.
+
 ## Herkunft der folgenden Übergabe
 
 Übernommen aus `Hazeberry/Go-html-Game-MoE`, Commit
@@ -158,6 +175,8 @@ Fall d1, e, c0 und d0 kamen nicht vor.
   sind nach Merge ebenfalls löschbar.
 - `claude/death-transfer-ergebnisse` (#13) und `claude/gefangene-rollout-aufgabe` (#14)
   sind nach Merge ebenfalls löschbar.
-- `claude/gefangene-rollout-ergebnisse` bleibt bis zum Merge des Ergebnisnachtrags erhalten.
+- `claude/gefangene-rollout-ergebnisse` (#15) und `claude/gefangenendeckel-fortsetzungen`
+  (#16) sind nach Merge ebenfalls löschbar.
+- `claude/gefangenendeckel-fortsetzungen-ergebnisse` bleibt bis zum Ergebnis-Merge erhalten.
 - Die historische Liste löschbarer Branches aus der alten Übergabe gilt ausschließlich
   für `Hazeberry/Go-html-Game-MoE`; daraus folgt kein Löschauftrag in einem der Repositories.
