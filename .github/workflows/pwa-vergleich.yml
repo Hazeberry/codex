@@ -20,6 +20,10 @@ on:
         description: Genau eine Partie, Engine Weiß gegen PWA Schwarz, 120 Simulationen
         type: boolean
         default: false
+      ergebnis_aus:
+        description: Nur vorhandene Einzelpartie aus dieser Lauf-ID exportieren; startet keine neue Partie
+        type: string
+        default: ''
 
 concurrency:
   group: pwa-vergleich
@@ -27,6 +31,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 # Alle Jobs laufen auf Ubuntu 24.04 statt ubuntu-latest: Seit dem 30.10.2026
 # ist ubuntu-latest Ubuntu 26.04 mit neuerem Boost (Fuego lässt sich dort nicht
@@ -241,19 +246,29 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq gnugo
+      - uses: actions/download-artifact@v7
+        if: inputs.ergebnis_aus != ''
+        with:
+          name: pwa-einzelpartie
+          path: einzelpartie/
+          run-id: ${{ inputs.ergebnis_aus }}
+          github-token: ${{ github.token }}
       - name: Herkunft sichern
+        if: inputs.ergebnis_aus == ''
         run: |
           mkdir -p einzelpartie
           git rev-parse HEAD > einzelpartie/quellen-sha.txt
           sha256sum index.html vergleich/pwa-index.html > einzelpartie/sha256.txt
           /usr/games/gnugo --version > einzelpartie/gnugo-version.txt
       - name: Genau eine Partie spielen
+        if: inputs.ergebnis_aus == ''
         timeout-minutes: 15
         env:
           SEED: '613'
         run: bash auswertung/pwa-spielen.sh M1 1 1 einzelpartie/partie.jsonl
       - name: Gültigkeit prüfen und SGF schreiben
         run: |
+          git rev-parse HEAD > einzelpartie/auswertung-sha.txt
           python3 auswertung/pwa-einzelpartie.py einzelpartie
           cat einzelpartie/bericht.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7

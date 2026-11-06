@@ -16,8 +16,9 @@ def export(folder):
     assert p['zuegeAnzahl'] == len(p['zuege']) < 600, 'Zuglimit/unvollständige Partie'
     assert p['zuege'][-2:] == ['pass', 'pass'], 'Keine zwei Schluss-Pässe'
     assert p['wirFarbe'] == 'W' and p['beginnt'] == 'S' and p['vorgabe'] == 0 and p['komi'] == 7.5
-    assert p['ki']['mctsFixedSims'] == p['gegner']['ki']['mctsFixedSims'] == 120
-    assert p['ki']['resignEnabled'] == p['gegner']['ki']['resignEnabled'] == 0
+    opponent = {k: float(v) for k, v in (pair.split('=') for pair in p['gegner']['ki'].split(','))}
+    assert p['ki']['mctsFixedSims'] == opponent['mctsFixedSims'] == 120
+    assert p['ki']['resignEnabled'] == opponent['resignEnabled'] == 0
     assert p['gegner']['sha256'] == '9100c565458b84bac71d8de308e8c064b53de37269bf725e7696ba30a838e685'
     assert re.fullmatch(r'[BW]\+[0-9.]+|0', p['gnugoStand']), 'Endstand unlesbar'
     assert p['neustarts'] == 0, 'Schiedsrichter-Neustart: kein Urteil'
