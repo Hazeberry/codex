@@ -5779,6 +5779,7 @@ function saveUndoState() {
     captures: {...state.captures}, currentHash: state.currentHash,
     consecutivePasses: state.consecutivePasses, moveCount: state.moveCount,
     gameOver: state.gameOver, logLength: state.log.length,
+    aiDiagLength: state.aiDiag.length,
     deadStones: new Set(state.deadStones), lastMove: state.lastMove,
     sgfLen: state.sgfMoves.length,
     koPoint: state.koPoint,                 // Fix 7
@@ -5802,6 +5803,7 @@ function undo() {
   state.koPoint = prev.koPoint;            // Fix 7
   state.sgfMoves.length = prev.sgfLen;     // SGF-Zugliste mit zurückrollen
   state.log.splice(prev.logLength);
+  state.aiDiag.length = prev.aiDiagLength;
   state.hashListe.length = prev.hashLen;
   state.boardHistory = new Set(state.hashListe);
   if (globalThis.policyNet && policyNet._gameBuffer && policyNet._gameBuffer.length > prev.netBufLen)

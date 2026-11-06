@@ -58,6 +58,28 @@ async function einZug(n, netz) {
   return {d: r, fehler};
 }
 
+test('Rückgängig entfernt Diagnoseeinträge zurückgenommener Züge', async () => {
+  if (!(await vorbereiten())) return 'skip';
+  const ctx = await browser.newContext(), page = await ctx.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${port}/spiel.html`, {waitUntil: 'load'});
+    const result = await page.evaluate(() => {
+      state.aiEnabled = false;
+      state.moveCount = 41;
+      state.aiDiag = [{zug: 40, info: 'erhalten'}];
+      placeStone(3, 3);
+      state.aiDiag.push({zug: 42, info: 'zurückgenommen'});
+      undo();
+      const nachUndo = state.aiDiag.map(x => x.info);
+      placeStone(4, 4);
+      state.aiDiag.push({zug: 42, info: 'neu'});
+      return {nachUndo, eintraege42: state.aiDiag.filter(x => x.zug === 42).map(x => x.info)};
+    });
+    pruefeGleich(result.nachUndo.join(','), 'erhalten', 'frühere Diagnose erhalten');
+    pruefeGleich(result.eintraege42.join(','), 'neu', 'nur Diagnose des aktuellen Verlaufs');
+  } finally { await ctx.close(); }
+});
+
 test('Zeitmesspunkte: Teile gehen auf, Dauer im Hauptthread enthält Worker-Zeit und Nachrichtenweg', async () => {
   if (!(await vorbereiten())) return 'skip';
   const {d, fehler} = await einZug(100, 0.8);
