@@ -24,9 +24,9 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def quellen():
+def quellen(extra=()):
     return {'sourceSHA': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-            'hashes': {p: sha(p) for p in FILES}}
+            'hashes': {p: sha(p) for p in [*FILES, *extra]}}
 
 
 def bounded(args, log, seconds):
@@ -56,20 +56,25 @@ def lines(path, repair=False):
     return [json.loads(line) for line in data if line.strip()]
 
 
-def package(art, output, resume=False):
+def package(art, output, resume=False, *, haupt=False, von=1, umfang=None, extra=()):
     if os.environ.get('GITHUB_ACTIONS') != 'true':
         raise ValueError('Partien ausschließlich in GitHub Actions')
-    subprocess.run(['git', 'diff', '--exit-code', 'HEAD', '--', *FILES], check=True, capture_output=True)
+    subprocess.run(['git', 'diff', '--exit-code', 'HEAD', '--', *FILES, *extra], check=True, capture_output=True)
     control = art == 'kontrolle'
     gegner, arm = ('g', 'A') if control else art.split('-')
-    seed, count = (222, 4) if control else (236, 8 if gegner == 'g' else 4)
+    seed, count = (222, 4) if control else ((237 if gegner == 'g' else 238, 480) if haupt else (236, 8 if gegner == 'g' else 4))
+    if not haupt and (von != 1 or umfang is not None):
+        raise ValueError('Paketgrenzen nur im Hauptlauf')
+    amount = count if umfang is None else umfang
+    if not isinstance(von, int) or not isinstance(amount, int) or von < 1 or amount < 1 or von + amount - 1 > count:
+        raise ValueError('Paketgrenzen ungültig')
     output.mkdir(parents=True, exist_ok=True)
     versions = {'node': subprocess.check_output(['node', '--version'], text=True).strip(),
                 'gnugoSHA256': sha('/usr/games/gnugo'),
                 'gnugo': subprocess.check_output(['/usr/games/gnugo', '--version'], text=True).strip()}
     if gegner == 'f':
         versions['fuegoSHA256'] = sha('fuego-bin/fuego')
-    meta = {**quellen(), 'version': 1, 'art': art, 'gegner': gegner, 'arm': arm,
+    meta = {**quellen(extra), 'version': 1, 'art': art, 'gegner': gegner, 'arm': arm,
             'seed': seed, 'n': count, 'wiederholungen': [] if control else [1, 2, 3], 'versions': versions,
             'konfiguration': {'sims': 120, 'komi': 7.5, 'vorgabe': 0, 'resign': 0,
                               'gegnerStufe': 1, 'fuegoSpiele': 100, 'maxZuege': 600}}
@@ -82,17 +87,17 @@ def package(art, output, resume=False):
             raise ValueError('Fortsetzen abgelehnt: Metadaten fehlen')
         meta_path.write_text(json.dumps(meta, indent=2) + '\n')
     bad = False
-    for repeat in ([False] if control else [False, True]):
+    for repeat in ([False] if control or haupt and von != 1 else [False, True]):
         name = ('wiederholung-' if repeat else '') + art
         file = output / (name + '.jsonl')
         existing = lines(file, repair=resume)
-        maximum = 3 if repeat else count
+        planned = list(range(1, 4)) if repeat else list(range(von, von + amount))
         numbers = [r['nr'] for r in existing]
-        if len(numbers) != len(set(numbers)) or any(n < 1 or n > maximum for n in numbers):
+        if len(numbers) != len(set(numbers)) or any(n not in planned for n in numbers):
             raise ValueError('fremde oder doppelte Partienummern')
         if any(r.get('priorLauf', {}).get('status') not in ['ok', 'gegner-absturz'] for r in existing):
             raise ValueError('kein automatischer Neustart technischer Fehler oder Zeitüberschreitungen')
-        for nr in range(1, maximum + 1):
+        for nr in planned:
             if nr in numbers:
                 continue
             folder = output / 'einzeln' / f'{name}-{nr}'
@@ -125,11 +130,18 @@ def package(art, output, resume=False):
                 state['status'] = 'gegner-absturz' if expected in row['abgebrochen'] and 'beendet (' in row['abgebrochen'] else 'technisch'
             state.update({'quelle': meta['sourceSHA'], 'protokoll': stream.relative_to(output).as_posix(),
                           'log': (folder / 'partie.log').relative_to(output).as_posix()})
+            if haupt and state['timeout'] and not row.get('priorOhneOrakel'):
+                try:
+                    partial = lines(stream)
+                    row['priorOhneOrakel'] = {'version': 1, 'arm': arm, 'seed': seed, 'nr': nr, 'gegner': gegner,
+                        'ereignisse': [e['protokoll'] for e in partial if e.get('typ') == 'ki-zug']}
+                except (ValueError, KeyError):
+                    pass  # Beschädigte Pflichtdaten bleiben technisch ungültig.
             row['priorLauf'] = state
             with file.open('a') as f:
                 f.write(json.dumps(row, separators=(',', ':')) + '\n'); f.flush(); os.fsync(f.fileno())
             print(f'{name} Nr. {nr}: {state["status"]}, {state["dauerMs"]/1000:.1f} s', flush=True)
-            bad |= state['status'] not in ['ok', 'gegner-absturz']
+            bad |= state['status'] not in (['ok', 'gegner-absturz', 'timeout'] if haupt else ['ok', 'gegner-absturz'])
     return 1 if bad else 0
 
 

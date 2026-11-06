@@ -1,0 +1,181 @@
+name: Prior ohne Orakel – Hauptlauf A H R
+# Vorabfestlegung §13: 2880 reguläre Partien +18 Wiederholungen +4 Kontrollen.
+# Nur nach eigenem Go, keine Zwischenanalyse und keine automatische Wiederaufnahme.
+on:
+  workflow_dispatch:
+    inputs:
+      engine_vergleich_lauf:
+        description: Neuer grüner Engine-Vergleich für das aktuelle index.html (Run-ID)
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: prior-ohne-orakel-haupt
+  cancel-in-progress: false
+jobs:
+  vorpruefung:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+          package-manager-cache: false
+      - name: Vergleichsbeleg laden
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAUF: ${{ inputs.engine_vergleich_lauf }}
+        run: |
+          [[ "$LAUF" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$LAUF" > vergleich-lauf.json
+      - uses: actions/download-artifact@v7
+        with:
+          name: prior-engine-pruefung
+          path: vergleich/
+          run-id: ${{ inputs.engine_vergleich_lauf }}
+          github-token: ${{ github.token }}
+      - name: Aktueller Default und gültige Vorprüfungen
+        id: plan
+        run: |
+          mkdir -p vorbereitung
+          node tests/prior-ohne-orakel-haupt.js
+          node auswertung/prior-ohne-orakel/haupt-vorpruefung.js vergleich-lauf.json vergleich/pruefung.json vorbereitung/hauptfreigabe.json
+          node auswertung/prior-ohne-orakel/vorpruefung.js vergleich-lauf.json vergleich/pruefung.json vorbereitung/enginevergleich.json
+          python3 auswertung/prior-ohne-orakel/haupt.py quellen > vorbereitung/quellen.json
+          echo "matrix=$(python3 auswertung/prior-ohne-orakel/haupt.py plan)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: prior-haupt-vorbereitung
+          path: vorbereitung/
+          retention-days: 90
+  fuego:
+    needs: vorpruefung
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fuego bauen
+        timeout-minutes: 26
+        run: |
+          sudo timeout 120s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 240s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y -qq build-essential autoconf automake libtool subversion libboost-filesystem-dev libboost-thread-dev libboost-program-options-dev libboost-system-dev libboost-date-time-dev libboost-test-dev
+          timeout 1100s bash auswertung/fuego/bauen.sh svn gnu++14 fuego-bin
+          sha256sum fuego-bin/fuego > fuego-bin/sha256.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-haupt-fuego-bin
+          path: fuego-bin/
+          if-no-files-found: error
+          retention-days: 90
+  spielen:
+    needs: [vorpruefung, fuego, kontrolle]
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ matrix.jobMinutes }}
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix: ${{ fromJSON(needs.vorpruefung.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v7
+        if: matrix.opponent == 'f'
+        with:
+          name: prior-haupt-fuego-bin
+          path: fuego-bin/
+      - name: Gegnerbibliotheken installieren
+        timeout-minutes: 6
+        run: |
+          sudo timeout 120s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 180s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y -qq gnugo libboost-filesystem-dev libboost-thread-dev libboost-program-options-dev libboost-system-dev
+          if [ -f fuego-bin/fuego ]; then chmod +x fuego-bin/fuego; fi
+      - name: Festgelegtes Paket spielen
+        timeout-minutes: ${{ matrix.stepMinutes }}
+        run: python3 auswertung/prior-ohne-orakel/haupt.py run '${{ matrix.id }}' 'ergebnisse/${{ matrix.id }}'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-haupt-paket-${{ matrix.id }}
+          path: ergebnisse/
+          retention-days: 90
+          if-no-files-found: error
+  kontrolle:
+    needs: vorpruefung
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+          package-manager-cache: false
+      - name: GNU Go installieren
+        timeout-minutes: 6
+        run: |
+          sudo timeout 120s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 180s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y -qq gnugo
+      - name: Vier Archivkontrollen
+        timeout-minutes: 45
+        run: |
+          python3 auswertung/prior-ohne-orakel/haupt.py run kontrolle ergebnisse/kontrolle
+          node auswertung/prior-ohne-orakel/haupt-vorpruefung.js --kontrolle ergebnisse/kontrolle
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-haupt-paket-kontrolle
+          path: ergebnisse/
+          retention-days: 90
+          if-no-files-found: error
+  bericht:
+    needs: [vorpruefung, spielen, kontrolle]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: prior-haupt-paket-*
+          path: pakete/
+          merge-multiple: true
+      - uses: actions/download-artifact@v7
+        with:
+          name: prior-haupt-vorbereitung
+          path: vorbereitung/
+      - name: Vollständige Pakete prüfen und Hauptbericht
+        run: |
+          set -euo pipefail
+          python3 auswertung/prior-ohne-orakel/haupt.py merge pakete ergebnisse
+          cp vorbereitung/*.json ergebnisse/
+          node --max-old-space-size=5120 auswertung/prior-ohne-orakel/bericht.js ergebnisse --haupt --bericht ergebnisse/bericht.md --json ergebnisse/pruefung.json
+          cat ergebnisse/bericht.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-haupt-gesamt-${{ github.run_attempt }}
+          path: |
+            ergebnisse/
+            vorbereitung/
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: prior-haupt-unvollstaendige-rohpakete-${{ github.run_attempt }}
+          path: pakete/
+          retention-days: 90
+          if-no-files-found: warn

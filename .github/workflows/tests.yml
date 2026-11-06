@@ -44,6 +44,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Der Quellenwächter vergleicht den Default mit dem geprüften historischen Commit.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:

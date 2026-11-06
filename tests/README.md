@@ -2,6 +2,7 @@
 
 | Datei | Prüft |
 |---|---|
+| `prior-ohne-orakel-haupt.js` | Hauptlauf-Pakete/Seeds/Budget, Quellen- und Default-Gate, Archivkontrolle vor Hauptstart, Paketassembler und zulässiger Timeout; synthetische Daten/Prozessattrappen |
 | `deckel-fortsetzungen.js` | Acht geprüfte Startstellungen; Python-Tests mit GTP-Attrappen für Paarung, SGF, Abbrüche, Farben und vollständigen Fortsetzungsbericht |
 | `gefangene-rollout.js` | Faktorplan, Herkunft des Gefangenenwerts, gekappte Gegenrechnung, archivgebundene Aufgaberegel und vier kurze Messkontrollen |
 | `death-transfer-diagnose.js` | Archivrekonstruktion, Farbpaarung, Messanker, Vorzeichen der Bewertungszerlegung, kurze Messkontrolle und fehlende Pflichtdaten |
@@ -233,3 +234,5 @@ deshalb **nicht** reproduzierbar (siehe Haupt-README). Diese Tests umgehen
 das: sie prüfen Invarianten — finit, beschränkt, kein Absturz — und keine
 Spielstärke. Nur `mctsPUCT` bekommt ein kleines Zeitbudget, und dort zählt
 allein, *dass* ein Zug herauskommt.
+
+`prior-ohne-orakel-fixture.js` ist der gemeinsame synthetische Datenhelfer für die Berichts- und Hauptlauftests.
