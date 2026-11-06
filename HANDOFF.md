@@ -64,6 +64,21 @@
   Kein Go für neue Partien oder Spieländerungen aus dieser Diagnose ableiten.
 - PR-Aktivität abmelden versucht; GitHub verweigerte die Mutation (FORBIDDEN).
 
+## Gefangenenwert, Rollouts und Q-Aufgabe
+
+- PR #14 nach Go und grüner CI gemergt: `acf0559204e24dc36620af4384d11068c3552c17`.
+- Lauf 42261233661 gültig: 72 Pakete, 576 Abfragen plus 576 bestandene Kontrollen.
+  Vier Arme (captureCap 0/200 × Rollout-Tiefe 24/0), 18 Archivstellungen.
+- Zusätzliche Gefangene vor dem Schlag entstehen überwiegend bereits im Suchbaum,
+  nicht erst im Rollout. An den Aufgabestellungen dominieren initiale Gefangene.
+- Deckel 200 verhindert die Q-Aufgabesonde in beiden aktuellen Archivpfaden;
+  Tiefe 0 verhindert sie nicht. Keine neuen Partien, kein Nachweis besserer Züge.
+- Bericht: `docs/gefangene-rollout-aufgabe.md`, vollständige Rohdaten unter
+  `docs/daten/gefangene-rollout/lauf1/`. Engine und Defaults unverändert.
+- Kandidat für eigene nächste Vorabfestlegung: kontrollierte Fortsetzungen mit
+  captureCap=200 gegen Default, Aufgabe von Zugqualität trennen; noch kein Go dafür.
+- PR #13 ist nach grüner CI gemergt: `b70c469dc97808877419be2c088ddbe93a053c54`.
+
 ## Herkunft der folgenden Übergabe
 
 Übernommen aus `Hazeberry/Go-html-Game-MoE`, Commit
@@ -141,6 +156,8 @@ Fall d1, e, c0 und d0 kamen nicht vor.
 - `claude/diagnose-undo-protokoll` ist nach Merge von PR #9 ebenfalls löschbar.
 - `claude/aufgabe-113-untersuchung` (#10) und `claude/death-transfer-diagnose` (#12)
   sind nach Merge ebenfalls löschbar.
-- `claude/death-transfer-ergebnisse` bleibt bis zum Merge des Ergebnisnachtrags erhalten.
+- `claude/death-transfer-ergebnisse` (#13) und `claude/gefangene-rollout-aufgabe` (#14)
+  sind nach Merge ebenfalls löschbar.
+- `claude/gefangene-rollout-ergebnisse` bleibt bis zum Merge des Ergebnisnachtrags erhalten.
 - Die historische Liste löschbarer Branches aus der alten Übergabe gilt ausschließlich
   für `Hazeberry/Go-html-Game-MoE`; daraus folgt kein Löschauftrag in einem der Repositories.
