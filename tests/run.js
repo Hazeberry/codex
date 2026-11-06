@@ -23,7 +23,7 @@ const OHNE_BROWSER = argv.includes('--ohne-browser');
 const pfad = argv.find(a => !a.startsWith('--'));
 const HTML = pfad ? [path.resolve(pfad)] : [];
 
-const ALLE = ['gefangene-rollout.js', 'death-transfer-diagnose.js', 'regeln.js', 'nan-guards.js', 'resign-criterion.js', 'transfer-telemetry.js',
+const ALLE = ['deckel-fortsetzungen.js', 'gefangene-rollout.js', 'death-transfer-diagnose.js', 'regeln.js', 'nan-guards.js', 'resign-criterion.js', 'transfer-telemetry.js',
               'benson-transfer.js', 'benson-lebend-treppe.js', 'endspiel-netz.js', 'feste-sims.js', 'roh-dump.js',
               'influence.js', 'endspiel-gleichstand.js', 'epochen.js', 'raumrisiko.js', 'gebiet.js', 'endspiel-augen.js', 'gegnerwert.js', 'lesen.js', 'wurzel.js', 'quick-rettung.js', 'atari-verzicht.js', 'muster.js', 'gebiet-sicher.js', 'zaehlung.js', 'extern.js', 'lizenz.js', 'ko-suche.js', 'muster-endspiel.js', 'dagger.js', 'gnugo-bruecke.js', 'fuego-gegner.js', 'komponenten.js', 'pwa.js', 'komi.js', 'endspiel-abraeumen.js', 'zaehlvorschau.js', 'zeit-zerlegung.js', 'passregel-versuch.js', 'diagnose-p1p2.js', 'diagnose-p2-rang.js', 'kandidaten-orakel.js', 'kandidaten-orakel-spiel.js', 'kandidaten-orakel-haupt.js', 'engine-vergleich.js', 'kandidaten-orakel-vierarm.js',
               'prior-ohne-orakel.js', 'prior-ohne-orakel-bericht.js', 'prior-ohne-orakel-werkzeuge.js', 'diagnose-laufzeit-absturz.js', 'training-stability.js', 'harness-smoke.js', 'browser-nan.js', 'browser-ui.js', 'browser-zaehlvorschau.js', 'browser-passregel.js', 'browser-zeiten.js'];
