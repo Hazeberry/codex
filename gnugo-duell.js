@@ -121,7 +121,7 @@ const opt = {partien: 10, seed: 1, stufe: 10, ki: {}, kiStufen: {}, roh: null, g
              maxZuege: 400, von: 1, vorgabe: 0, schaetzung: [], gnugoAufgabe: 1, orakel: 0,
              orakelZug: null, orakelZugStufe: 10, kandidatenOrakel: null, kandidatenAb: 80,
              gegner: 'gnugo', fuego: path.join(__dirname, 'fuego-bin', 'fuego'), fuegoSpiele: 1000,
-             gegnerHtml: null, gegnerKi: ''};
+             gegnerHtml: null, gegnerKi: '', priorOhneOrakel: null, priorProtokoll: null};
 for (let i = 0; i < a.length; i++) {
   const v = a[i + 1];
   switch (a[i]) {
@@ -149,6 +149,10 @@ for (let i = 0; i < a.length; i++) {
       if (!['A', 'N', 'P', 'S', 'ZS'].includes(v)) { console.error(`--kandidaten-orakel A|N|P|S|ZS erwartet (docs/kandidaten-orakel.md, docs/kandidaten-orakel-vierarm.md): ${v}`); process.exit(2); }
       opt.kandidatenOrakel = v; i++; break;
     case '--kandidaten-ab': opt.kandidatenAb = +v; i++; break;
+    case '--prior-ohne-orakel':
+      if (!['A', 'H', 'R'].includes(v)) { console.error('--prior-ohne-orakel A|H|R erwartet'); process.exit(2); }
+      opt.priorOhneOrakel = v; i++; break;
+    case '--prior-protokoll': opt.priorProtokoll = v; i++; break;
     case '--gegner':
       if (v !== 'gnugo' && v !== 'fuego' && v !== 'ki') { console.error(`--gegner erwartet gnugo, fuego oder ki: ${v}`); process.exit(2); }
       opt.gegner = v; i++; break;
@@ -182,6 +186,23 @@ if (opt.gegner === 'ki' && !(opt.gegnerHtml && fs.existsSync(opt.gegnerHtml))) {
 
 if (opt.kandidatenOrakel && opt.orakelZug) { console.error('--kandidaten-orakel und --orakel-zug schließen sich aus (das eine fragt nur, das andere ersetzt den Zug)'); process.exit(2); }
 if (!(Number.isInteger(opt.kandidatenAb) && opt.kandidatenAb >= 0)) { console.error(`--kandidaten-ab erwartet eine ganze Zahl ≥ 0: ${opt.kandidatenAb}`); process.exit(2); }
+if (opt.priorOhneOrakel) {
+  if (opt.orakel || opt.orakelZug || opt.kandidatenOrakel || opt.gegner === 'ki') {
+    console.error('--prior-ohne-orakel: kein Orakel und nur Gegner gnugo/fuego erlaubt'); process.exit(2);
+  }
+  if (opt.partien !== 1 || !opt.roh || !Number.isSafeInteger(opt.seed) || opt.seed < 0
+      || !Number.isSafeInteger(opt.von) || opt.von < 1) {
+    console.error('--prior-ohne-orakel benötigt --partien 1, --roh, nichtnegativen Seed und --von >= 1'); process.exit(2);
+  }
+  opt.priorProtokoll = opt.priorProtokoll || opt.roh + '.prior.jsonl';
+  fs.mkdirSync(path.dirname(opt.priorProtokoll), {recursive: true});
+  try { fs.writeFileSync(opt.priorProtokoll, '', {flag: 'wx'}); }
+  catch (e) { console.error('Prior-Protokoll muss eine neue Datei sein: ' + e.message); process.exit(2); }
+} else if (opt.priorProtokoll) { console.error('--prior-protokoll benötigt --prior-ohne-orakel'); process.exit(2); }
+let priorTeil = null;
+function priorLog(daten) {
+  if (opt.priorOhneOrakel) fs.appendFileSync(opt.priorProtokoll, JSON.stringify({nr: opt.von, zeitMs: Date.now(), ...daten}) + '\n');
+}
 
 /* ── Engine laden, wie weiterspielen.js; dazu ein Setzer für die
       Modulzustände, die über Partien hinweg nicht weiterleben dürfen. ── */
@@ -195,6 +216,7 @@ globalThis.document = {getElementById: () => null};
   + 'neuePartie(){_mctsSavedRoot=null;_hopelessStreak=0;_allDeadStreak=0;_lastMsPerSim=null;},'
   + 'baumVerwerfen(){_mctsSavedRoot=null;},'
   + 'kandidatenProtokoll:typeof leseKandidatenOrakel==="function"?leseKandidatenOrakel:null,'
+  + 'priorProtokoll:typeof lesePriorOhneOrakel==="function"?lesePriorOhneOrakel:null,'
   + 'wurzel:typeof leseWurzelWaechter==="function"?leseWurzelWaechter:null};');
 const E = globalThis.__D;
 const {urteilAusGtp} = require('./auswertung/lebensurteil.js');
@@ -232,11 +254,13 @@ function vonGtp(s) {
 /* ── GTP: eine Anfrage, eine Antwort (endet mit Leerzeile) ──────────── */
 function gtpStarten(programm, argumente, name) {
   const p = spawn(programm, argumente, {stdio: ['pipe', 'pipe', 'pipe']});
+  if (opt.priorOhneOrakel) priorLog({typ: 'prozess-start', name, pid: p.pid, programm, argumente});
   const vor = name === 'GNU Go' ? '' : `[${name}] `;
   let puffer = '', warte = [], stderr = '';
   p.stderr.on('data', d => { stderr += d.toString(); });
   /* Stirbt das Programm, darf keine Anfrage ewig warten. */
   p.on('exit', (code, sig) => {
+    if (opt.priorOhneOrakel) priorLog({typ: 'prozess-ende', name, pid: p.pid, code, sig, stderr: stderr.slice(-2000)});
     for (const w of warte.splice(0)) w(`? ${name} beendet (code ${code}, signal ${sig}) ${stderr.slice(-300)}`);
   });
   p.stdout.on('data', d => {
@@ -248,7 +272,10 @@ function gtpStarten(programm, argumente, name) {
     }
   });
   const frage = befehl => new Promise((ok, fehler) => {
+    const priorT0 = opt.priorOhneOrakel ? performance.now() : 0;
+    if (opt.priorOhneOrakel) priorLog({typ: 'gtp-frage', name, pid: p.pid, befehl});
     warte.push(antwort => {
+      if (opt.priorOhneOrakel) priorLog({typ: 'gtp-antwort', name, pid: p.pid, befehl, antwort, dauerMs: performance.now() - priorT0});
       if (process.env.GTP_DEBUG) console.error(vor + '<< ' + antwort);
       if (antwort.startsWith('=')) ok(antwort.slice(1).trim());
       else fehler(new Error(`${name}: ${befehl} → ${antwort}`));
@@ -357,13 +384,16 @@ function gnugoMitNeustart(seed, stufe = opt.stufe) {
 }
 
 async function partie(nr) {
+  priorTeil = opt.priorOhneOrakel ? {version: 1, arm: opt.priorOhneOrakel, seed: opt.seed,
+    gegner: opt.gegner === 'fuego' ? 'f' : 'g', nr, ereignisse: []} : null;
   try { return await partieSpielen(nr); }
   catch (e) {
     const weich = /(GNU Go|Fuego|KI-Gegner) beendet/.test(e.message)
       || (opt.gegner === 'fuego' && /^(GNU Go|Fuego): (play|genmove|set_free_handicap) /.test(e.message))
       || (opt.gegner === 'ki' && /^(GNU Go|KI-Gegner): (play|genmove|set_free_handicap) /.test(e.message));
     if (!weich) throw e;
-    return {nr, stufe: opt.stufe, ki: opt.ki, abgebrochen: e.message.slice(0, 120)};
+    return {nr, stufe: opt.stufe, ki: opt.ki, abgebrochen: e.message.slice(0, 120),
+      ...(priorTeil ? {priorOhneOrakel: priorTeil} : {})};
   }
 }
 
@@ -437,6 +467,7 @@ async function partieSpielen(nr) {
           orakel.zuege++; orakel.tot += u.toteSteine.length; orakel.krit += u.krit.length;
         }
         let extra;
+        if (priorTeil) extra = {priorOhneOrakel: {arm: priorTeil.arm, seed: opt.seed, gegner: priorTeil.gegner, nr}};
         if (oz && opt.kandidatenOrakel && mc >= opt.kandidatenAb) {
           /* Kandidaten-Orakel: Zug des zweiten GNU Go VOR der Suche (ändert unseren Zufallsstrom nicht) */
           kandStat.abfragen++;
@@ -446,11 +477,18 @@ async function partieSpielen(nr) {
           kandStat.abfrageMs += Date.now() - tq;
           extra = {kandidatenOrakel: {arm: opt.kandidatenOrakel, g: gi}};
         }
+        const priorT0 = priorTeil ? performance.now() : 0;
         const r = E.getAIMove(board, f, Array.from(hist), {...caps}, mc, 'hard', 1, ko, last, extra);
+        if (priorTeil) {
+          const prot = E.priorProtokoll && E.priorProtokoll();
+          if (!prot) throw new Error('Pflichtprotokoll priorOhneOrakel fehlt');
+          const eintrag = {...prot, dauerMs: performance.now() - priorT0};
+          priorTeil.ereignisse.push(eintrag); priorLog({typ: 'ki-zug', protokoll: eintrag});
+        }
         if (r.type === 'resign') { aufgabe = f; break; }
         i = r.type === 'stone' ? r.y * 19 + r.x : -1;
         const m = /MCTS (\d+) Sims/.exec(r.info || ''); if (m) sims.push(+m[1]);
-        if (extra) {
+        if (extra && extra.kandidatenOrakel) {
           const p = E.kandidatenProtokoll ? E.kandidatenProtokoll() : null, k = extra.kandidatenOrakel;
           /* kompakt: ein Eintrag je Zug; p = null, wenn die Wurzel nicht neu gebildet wurde */
           kandProt.push(p ? {mc, f: wir === 1 ? 'S' : 'W', g: p.g, fall: p.fall, r: p.r, rn: p.rn, n: p.nIdx, pG: p.pG, pN: p.pN,
@@ -538,6 +576,7 @@ async function partieSpielen(nr) {
             ...(o ? {orakel: {stufe: opt.orakel, ...orakel, neustarts: o.neustarts()}} : {}),
             ...(oz && opt.orakelZug ? {orakelZug: {ab: opt.orakelZug.ab, anteil: opt.orakelZug.anteil, stufe: opt.orakelZugStufe, ...orakelZug, neustarts: oz.neustarts()}} : {}),
             ...(oz && opt.kandidatenOrakel ? {kandidatenOrakel: {arm: opt.kandidatenOrakel, ab: opt.kandidatenAb, stufe: opt.orakelZugStufe, ...kandStat, neustarts: oz.neustarts(), partieMs: Date.now() - kandT0, ereignisse: kandProt}} : {}),
+            ...(priorTeil ? {priorOhneOrakel: priorTeil} : {}),
             wurzel: E.wurzel ? E.wurzel(true) : undefined,
             zuege};
   } finally { g.ende(); if (fu) fu.ende(); if (o) o.ende(); if (oz) oz.ende(); E.setzeLebensurteil(null); }
