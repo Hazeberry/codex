@@ -1,7 +1,8 @@
 # Gefangenenwert, Rollout-Verluste und Q-basierte Aufgabe
 
 Vorabfestlegung, 06.11.2026. Auftrag: diesen nächsten Ansatz vorbereiten.
-Testaufbau und kurze Funktionsprüfungen; noch keine Messserie gestartet.
+Testaufbau und kurze Funktionsprüfungen; inzwischen nach Go gemessen.
+Ergebnis und Quellen stehen im Nachtrag unten.
 Gemäß CLAUDE.md vor Merge zur Durchsicht, danach eigenes Go für den Actions-Lauf.
 Keine Änderung an `index.html` oder Spieldefaults.
 
@@ -137,3 +138,104 @@ Weiterspielen sagen. Kein Defaultwechsel oder neue Partien allein aus dieser Son
 Aufgabeserie mit Erholung/Datenlücke, vier kurze Messkontrollen einer Einzelstellung,
 Tiefe 0, fehlende Messanker und Pflichtpakete. Testsammlung und README enthalten
 sie; der neue Messworkflow startet ausschließlich manuell nach Go in Actions.
+
+## Ergebnis des freigegebenen Laufs (06.11.2026)
+
+Go für Merge und Messung nach Durchsicht von PR #14. Quellen-/Merge-Stand
+`acf0559204e24dc36620af4384d11068c3552c17`.
+[Lauf 42261233661](https://github.com/Hazeberry/codex/actions/runs/42261233661)
+ist **gültig**: 72/72 Pakete, 576/576 Abfragen und 576/576 bestandene Messkontrollen.
+Alle 74 Jobs grün; kein Timeout oder Wiederanlauf. Sämtliche Farbpaare haben
+hier exakt gleiche Q-Werte; keine weitergehende Symmetriebehauptung.
+
+Das vollständige Originalartefakt liegt unter
+`docs/daten/gefangene-rollout/lauf1/gefangene-rollout-gesamt.zip`.
+SHA-256 gegen GitHubs Digest geprüft; 72 Quellenbelege stimmen mit dem gemessenen
+Commit sowie den Eingabe-/Engine-Prüfsummen überein. `bericht.json` daneben enthält
+die Einzelwerte, Faktorvergleiche und alle Aufgabesonden. `manifest.json` sichert
+die Herkunft. Keine Änderung an der Spiel-Engine.
+
+### Primäre Bewertungsbeiträge
+
+Mittelwerte der Blätter des gewählten Default-Zugs, ursprüngliche Weiß-Perspektive,
+3000 Simulationen, Seed 741. Einheiten sind interne Bewertungswerte, keine Go-Punkte.
+
+| Stellung | Initiale Gefangene | Im Baum hinzu | Im Rollout hinzu | Q |
+|---|---:|---:|---:|---:|
+| Partie 113, nach 101 | −80,00 | −300,44 | −5,82 | −0,93170 |
+| Partie 113, nach 113 | −440,00 | +12,33 | +0,15 | −0,95756 |
+| Partie 127, nach 117 | −40,00 | −342,00 | −6,46 | −0,94104 |
+| Partie 127, nach 127 | −400,00 | 0,00 | 0,00 | −0,95527 |
+
+Die zusätzlichen Gefangenen entstehen in den beiden untersuchten Stellungen
+vor dem realen Schlag überwiegend bereits im Suchbaum. Der bisherige Verdacht,
+dass hauptsächlich die anschließenden Rollout-Züge den Verlust erzeugen, wird
+für diese Fälle nicht gestützt. Einzelne Gruppenidentitäten wurden nicht verfolgt.
+An den späteren Aufgabestellungen sind vor allem die schon real gebuchten
+Gefangenen ausschlaggebend; zusätzliche Rollout-Schläge sind dort fast null.
+
+Gegenrechnungen an identischen Default-Blättern:
+
+- Partie 113 nach 101: ohne zusätzlichen Rollout-Gefangenensaldo Q −0,91656,
+  vor dem gesamten Rollout Q −0,93051 (tatsächlich nachher −0,93170).
+- Partie 127 nach 117: ohne zusätzlichen Rollout-Gefangenensaldo Q −0,92513,
+  vor dem gesamten Rollout Q −0,93374 (tatsächlich nachher −0,94104).
+- Partie 127 nach 127: Entfernen nur des initialen Gefangenenterms würde an
+  diesen Blättern Q von −0,95527 auf +0,10946 ändern. Das ist eine rechnerische
+  Zerlegung, keine neue Suche und kein Vorschlag, echte Gefangene zu ignorieren.
+
+Dass die Gegenrechnung eines einzelnen Terms und die Vor-Rollout-Bewertung
+verschieden ausfallen, liegt an den weiteren veränderten Bewertungsmerkmalen,
+insbesondere Transfer sowie Gruppen/Freiheiten. Der Restwert bleibt bei der
+Term-Gegenrechnung ausdrücklich unverändert.
+
+### Vier Sucharme an den Aufgabestellungen
+
+Q-Spannen über beide Seeds, Weiß, 3000 Simulationen:
+
+| Stellung | A: Default | B: Deckel 200 | C: Tiefe 0 | D: beides |
+|---|---:|---:|---:|---:|
+| Partie 113, nach 113 | −0,9576…−0,9574 | −0,6763…−0,6760 | −0,9578…−0,9576 | −0,6712…−0,6706 |
+| Partie 127, nach 127 | −0,9553…−0,9553 | −0,7136…−0,7126 | −0,9552…−0,9552 | −0,7128…−0,7125 |
+
+Die vollständigen B−A-, C−A- und Wechselwirkungskontraste D−C−B+A je Kontext
+stehen in `bericht.json` unter `paare`; keine Aggregation als unabhängige Stichprobe.
+Die Rollout-Entfernung lässt die negativen Q-Werte an diesen Stellungen fast
+unverändert. Der Deckel verändert sie deutlich, ohne dass daraus automatisch
+bessere Zugwahl folgt.
+
+Zugwechsel gegenüber A über alle 144 Kontexte: B 16/144, C 2/144, D 18/144.
+Farben, Seeds und benachbarte Stellungen sind abhängig; das sind keine Siegquoten.
+Die Bewertung der veränderten Züge durch einen Gegner oder Schiedsrichter fehlt.
+
+### Aufgabesonden
+
+Je Partie/Arm acht Kontexte aus Farben × Budgets × Seeds:
+
+| Archiv | A: Default | B: Deckel 200 | C: Tiefe 0 | D: beides |
+|---|---|---|---|---|
+| Partie 113 | 8/8 lösen bei mc=113 aus | 0/8 | 8/8 bei mc=113 | 0/8 |
+| Partie 127 | 8/8 lösen bei mc=127 aus | 0/8 | 8/8 bei mc=127 | 0/8 |
+| Alt 494, Fenster 85–93 | 0/8 | 0/8 | 0/8 | 0/8 |
+
+Die Kontrollsonde mit Aufgabe aus löst definitionsgemäß nie aus. Die beiden
+aktuellen Fünferserien lassen sich auf diesem festgehaltenen Archivpfad mit dem
+Deckel unterbrechen, durch Abschalten der Rollout-Züge dagegen nicht.
+
+Das ist keine Wiederholung der Handy-Partien: Schon der Referenzarm weicht teils
+vom nächsten Originalzug ab (3000 Simulationen, Weiß, Seed 741: 5/7 Archivtreffer
+in Partie 113, 4/6 in Partie 127, 3/5 im alten Fenster). Daher weder „16 gerettete
+Partien“ noch der Nachweis einer verbesserten Aufgabeentscheidung im freien Spiel.
+
+### Einordnung
+
+Für diese Fälle ist der tatsächliche Gefangenenterm der stärkste direkte Hebel
+auf Q und die Q-Aufgabesonde. Die zusätzlichen Verluste vor dem Schlag entstehen
+überwiegend in der Baumsuche. Eine pauschale Schuldzuweisung an kurze Rollouts
+wäre nach dieser Diagnose falsch; das schließt Rollout-Schwächen anderswo nicht aus.
+
+`captureCap=200` ist damit ein konkreter Kandidat für kontrollierte Fortsetzungen,
+kein neuer Default. Ob er spielerisch hilft, ob er berechtigte Aufgaben verzögert
+und wie er die geänderten Züge bewertet, bleibt offen. Historische Versuche werden
+nicht als neue Bestätigung umgedeutet. Neue Partien brauchen eine eigene
+Vorabfestlegung und Go; dieser Lauf spielte keine Partie.

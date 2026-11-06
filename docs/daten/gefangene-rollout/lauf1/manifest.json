@@ -1,0 +1,13 @@
+{
+  "runId": 42261233661,
+  "artifactId": 13524009627,
+  "quellenSha": "acf0559204e24dc36620af4384d11068c3552c17",
+  "inputSha256": "f2c3bb2d849554be54a5e66df1ac693b93655eb3c835c76fd6588320917826ce",
+  "engineSha256": "a14ac4d4058072ec552ca524832095f628412224b96ff7159806e35499fcb4b6",
+  "githubDigestGeprueft": true,
+  "dateien": {
+    "bericht.json": "3b91c8be97469a5035b87cfbd0f82530b8250552c2f27e8ae01c8db5988c776e",
+    "gefangene-rollout-gesamt.zip": "beda0920e44a026dea554522471d1096035a03e56836e5fab33a56df49762730",
+    "actions-bericht.txt": "5aa4ed38ee87b92f12367c7b25f17a4aefda55c38afcd2fc3c986d602d77380d"
+  }
+}
