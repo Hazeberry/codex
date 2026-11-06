@@ -37,7 +37,8 @@
 
 ## Aktuelle Einzelfall-Diagnose: Aufgabe nach Zug 113
 
-- Nutzer-Go vom 06.11.2026, Untersuchung in PR #10 (vor Merge zur Durchsicht).
+- Nutzer-Go vom 06.11.2026, Untersuchung in PR #10 gemergt:
+  `0756a9f67ff255a7e2ed6746cd1549ac80ff2a39`.
 - Lauf 42169766921 gültig: 22 externe Bewertungen, sechs vollständige Fortsetzungen.
   Weiß gewinnt alle sechs gegen GNU Go 1; eigene KI mit 3000 Simulationen
   W+72,5/W+136,5. Deutlicher Befund für voreilige Aufgabe in diesem Fall,
@@ -47,6 +48,21 @@
 - Separater Protokollfehler: Undo ließ alte KI-Diagnosen stehen (P14/P13 bei Zug 42).
   Korrektur in PR #9 nach grüner CI 42169061237 gemergt:
   `0a0cc366cb9bdd33d8d3048c26e5d4ef3408c92d`.
+
+## deathTransfer-Diagnose abgeschlossen
+
+- Aufbau PR #12 nach Go und grüner CI gemergt: `8ad41af0c0e67da49b6caf8653c3bd5695d44960`.
+- Lauf 42256206462 gültig: 32 Pakete, 192 Abfragen plus 192 bestandene Messkontrollen.
+  Dosen 0/0,5/1, acht Stellungen, zwei Farben/Seeds und 120/3000 Simulationen.
+- An beiden aktuellen Aufgabestellungen bleibt Q auch ohne Transfer unter −0,95;
+  bereits gebuchte Gefangene dominieren dort. Vor Gruppenverlusten und in der
+  historischen Stellung kann Transfer Q deutlich beeinflussen. In 64/64 Kontexten
+  blieb der gewählte Zug zwischen Dosis 0 und 1 gleich; kein Spielstärkeurteil.
+- Bericht: `docs/death-transfer-diagnose.md`, vollständige Rohdaten unter
+  `docs/daten/death-transfer/lauf1/`. Keine Defaultänderung, keine neuen Partien.
+- Nächste Ursachenfrage: Gefangenenterm/Rollout-Verluste/Skalierung und Q-Aufgabe.
+  Kein Go für neue Partien oder Spieländerungen aus dieser Diagnose ableiten.
+- PR-Aktivität abmelden versucht; GitHub verweigerte die Mutation (FORBIDDEN).
 
 ## Herkunft der folgenden Übergabe
 
@@ -123,6 +139,8 @@ Fall d1, e, c0 und d0 kamen nicht vor.
   `claude/prior-ohne-orakel-umsetzung` (#7) und `claude/prior-ohne-orakel-probe-ergebnisse` (#8).
 - `claude/diagnose-laufzeit-ergebnisse` ist nach Merge von PR #6 ebenfalls löschbar.
 - `claude/diagnose-undo-protokoll` ist nach Merge von PR #9 ebenfalls löschbar.
-- `claude/aufgabe-113-untersuchung` (#10) bleibt bis zum Merge erhalten.
+- `claude/aufgabe-113-untersuchung` (#10) und `claude/death-transfer-diagnose` (#12)
+  sind nach Merge ebenfalls löschbar.
+- `claude/death-transfer-ergebnisse` bleibt bis zum Merge des Ergebnisnachtrags erhalten.
 - Die historische Liste löschbarer Branches aus der alten Übergabe gilt ausschließlich
   für `Hazeberry/Go-html-Game-MoE`; daraus folgt kein Löschauftrag in einem der Repositories.
