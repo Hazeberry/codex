@@ -38,7 +38,7 @@ const ANKER = [
    '      endspielNetzWurzel(board, aiColor, mc, scored, koPoint);\n' +
    '      globalThis.__DIAG.nach = scored.map(s => s.m.idx); globalThis.__DIAG.netz = !!scored.__pNetz;'],
   ['  if (!root.kids.length) return null;',
-   '  if (!root.kids.length) return null;\n  if (globalThis.__DIAG) { globalThis.__DIAG.kids = root.kids.map(k => k.idx); globalThis.__DIAG.priors = root.kids.map(k => k.P); }'],
+   '  if (!root.kids.length) return null;\n  globalThis.__DIAG ||= {vor:null,nach:null,netz:null}; globalThis.__DIAG.root = root; globalThis.__DIAG.kids = root.kids.map(k => k.idx); globalThis.__DIAG.priors = root.kids.map(k => k.P);'],
 ];
 
 function ladeEngine(htmlPfad) {
@@ -54,6 +54,7 @@ function ladeEngine(htmlPfad) {
   globalThis.document = {getElementById: () => null};
   (0, eval)(ex('shared-go-logic') + '\n' + w
     + ';globalThis.__D={PARAMS,getAIMove,computeZobrist,removeDeadGroups,floodFill,BOARD_SIZE,setzeKrisenDauer,kandidatenProtokoll:typeof leseKandidatenOrakel==="function"?leseKandidatenOrakel:null,'
+    + 'priorProtokoll:typeof lesePriorOhneOrakel==="function"?lesePriorOhneOrakel:null,'
     + 'neuePartie(){_mctsSavedRoot=null;_hopelessStreak=0;_allDeadStreak=0;_lastMsPerSim=null;},'
     + 'wurzel:typeof leseWurzelWaechter==="function"?leseWurzelWaechter:null};');
   const E = globalThis.__D;
@@ -73,7 +74,8 @@ function setze(E, board, i, f) {
 function replay(E, p, opt = {}) {
   const bis = Math.min(opt.bis || 200, p.zuege.length);
   if (p.vorgabe >= 2) throw new Error('Partien mit Vorgabe werden nicht nachgespielt');
-  Math.random = mulberry32(p.seed);
+  const random = mulberry32(p.seed); let draws = 0;
+  Math.random = opt.zaehleZufall ? () => { draws++; return random(); } : random;
   E.neuePartie(); E.setzeKrisenDauer(null); if (E.wurzel) E.wurzel(true);
   const board = new Uint8Array(361), caps = {1: 0, 2: 0}, hist = new Set([E.computeZobrist(board)]);
   const wir = p.wirFarbe === 'S' ? 1 : 2;
@@ -88,7 +90,9 @@ function replay(E, p, opt = {}) {
       const r = E.getAIMove(board, f, Array.from(hist), {...caps}, mc, 'hard', 1, ko, last, extra);
       const gewaehlt = r.type === 'stone' ? r.y * 19 + r.x : r.type === 'resign' ? -2 : -1;
       const d = globalThis.__DIAG || null;
-      zuege.push({mc, gespielt: archiv, gewaehlt, gleich: gewaehlt === archiv, info: r.info || null, vor: d && d.vor, nach: d && d.nach, netz: d ? d.netz : null, kids: d && d.kids, priors: d && d.priors, prot: E.kandidatenProtokoll ? E.kandidatenProtokoll() : null});
+      zuege.push({mc, gespielt: archiv, gewaehlt, gleich: gewaehlt === archiv, info: r.info || null, vor: d && d.vor, nach: d && d.nach, netz: d ? d.netz : null, kids: d && d.kids, priors: d && d.priors, prot: E.kandidatenProtokoll ? E.kandidatenProtokoll() : null,
+        ...(opt.zaehleZufall ? {zufall: draws, statistik: d?.root ? d.root.kids.map(k => [k.idx, k.N, k.W, k.P]) : null,
+          prior: E.priorProtokoll ? E.priorProtokoll() : null} : {})});
       if (gewaehlt !== archiv) abweichung = {mc, gespielt: z, gewaehlt: gewaehlt < 0 ? 'pass' : zuGtp(gewaehlt)};
     }
     if (archiv < 0) ko = null;

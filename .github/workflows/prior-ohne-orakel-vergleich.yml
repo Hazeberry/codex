@@ -1,0 +1,79 @@
+name: Prior ohne Orakel – Engine-Vergleich
+# Nur nach eigenem Start-Go, keine Partie gegen ein externes Programm.
+on:
+  workflow_dispatch:
+    inputs:
+      neuer_stand:
+        description: 'Volle Commit-SHA der Implementierung (40 Zeichen)'
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: prior-ohne-orakel-vergleich
+  cancel-in-progress: false
+jobs:
+  dump:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        variante: [alt, neu, A]
+        nr: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Stand prüfen und in eigenem Prozess rekonstruieren
+        env:
+          NEU: ${{ inputs.neuer_stand }}
+          VARIANTE: ${{ matrix.variante }}
+          NR: ${{ matrix.nr }}
+        run: |
+          [[ "$NEU" =~ ^[0-9a-f]{40}$ ]]
+          sha="$NEU"
+          if [ "$VARIANTE" = alt ]; then sha=1bf2ff3cc5258038697b91a79224c70e25761d87; fi
+          [ "$(git rev-parse "$sha^{commit}")" = "$sha" ]
+          git show "$sha:index.html" > /tmp/prior-stand.html
+          mkdir -p ergebnisse
+          node auswertung/prior-ohne-orakel/vergleich.js --dump --html /tmp/prior-stand.html --variante "$VARIANTE" --nr "$NR" --sha "$sha" --aus "ergebnisse/$VARIANTE-$NR.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-engine-${{ matrix.variante }}-${{ matrix.nr }}
+          path: ergebnisse/
+          if-no-files-found: error
+          retention-days: 90
+  bericht:
+    needs: dump
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: prior-engine-*
+          merge-multiple: true
+          path: ergebnisse/
+      - name: Pflichtdaten, Zufall und Priors vergleichen
+        run: |
+          mkdir -p ergebnisse
+          status=0
+          node auswertung/prior-ohne-orakel/vergleich.js --vergleich ergebnisse || status=$?
+          cat ergebnisse/bericht.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-engine-pruefung
+          path: ergebnisse/
+          retention-days: 90

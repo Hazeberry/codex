@@ -2,6 +2,9 @@
 
 | Datei | Prüft |
 |---|---|
+| `prior-ohne-orakel-werkzeuge.js` | Gebaute Engine-Dumps, Quellenprüfung, vier Züge mit GTP-Attrappe, künstlicher Zeitwächter, Workflowbudget |
+| `prior-ohne-orakel-bericht.js` | Technische Probe ohne Effektausgabe; Pflichtverletzungen, Wiederholungsquellen, vorbereitete Hauptauswertung an gebauten Daten |
+| `prior-ohne-orakel.js` | A/H/R, Prior-Anhebung, Zufalls-Testvektoren, Arbeitsfelder und Suchzufall, Protokollprüfung; kurze Einzelstellung |
 | `diagnose-laufzeit-absturz.js` | Auswahl an synthetischen Archiven, Fehlererkennung, Diagnose-Instrumentierung, Zeit- und Absturzzuordnung, geprüfte Fortsetzung; keine Partiereproduktion |
 
 Regressionstests zum NaN-Bug in `mctsPUCT` ([#49](https://github.com/Hazeberry/Go-html-Game-MoE/pull/49)).

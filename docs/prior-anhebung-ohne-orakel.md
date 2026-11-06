@@ -4,8 +4,9 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 -->
 # Prior-Anhebung ohne Orakel – Vorabfestlegung (Entwurf)
 
-Stand: 05.11.2026. Zur Durchsicht durch Hazeberry. Planung, keine Umsetzung und keine
-Freigabe eines Laufs. Ziel-Repository: `Hazeberry/codex`.
+Vorabfestlegung vom 05.11.2026; Umsetzung mit Go in der Sitzung vom 06.11.2026.
+Konkretisierung in §10 zur Durchsicht vor dem Merge. Kein Messlauf gestartet.
+Ziel-Repository: `Hazeberry/codex`.
 
 ## 1. Grundlage und Frage
 
@@ -224,3 +225,82 @@ und Nummer geprüfte Datensätze übernehmen. Fehlende Datensätze werden ausdr�
 **Offen bleibt:** Budget und endgültiger Umfang des Hauptversuchs sowie seine Paketgrößen.
 Eine technische Probe oder ein Engine-Vergleich wird erst nach ausdrücklichem Start-Go
 für den konkret vorgelegten Workflow ausgeführt.
+
+## 10. Umsetzung und Konkretisierung vor dem ersten Lauf (06.11.2026)
+
+### Auswahlwert und unveränderte Suche
+
+`quickEval` addiert am Ende `Math.random()*5`. Die übrigen Summanden sind Vielfache
+von fünf; dieser Anteil löst bisher Gleichstände zufällig. Für die festgelegte
+Indexentscheidung wird **ausschließlich bei der zusätzlichen Auswahlbewertung der
+Rauschanteil auf null gesetzt**. Die Funktion selbst und ihre bisherigen Aufrufe
+bleiben unverändert. Das konkretisiert die Auswahlregel aus §2 vor der Messung.
+Ohne diese Konkretisierung wären Suchzufallsstrom und feste Indexentscheidung
+nicht zugleich durch den bisherigen Aufruf erfüllt.
+
+Die Auswahlbewertung sichert und restauriert `Math.random`, `_ffEpoch`, `_ffVisited`,
+`_rdgChecked`, `_groupQueue` und `_quickScratch` in `finally`, auch am Epochenüberlauf
+und bei Fehlern. Der Brettzustand wird nicht beschrieben. Kurze Funktionstests prüfen
+dies; ein Vergleich an Archivstellungen bleibt eine gesonderte Pflicht in Actions.
+
+Der Messpfad ist ausschließlich `extra.priorOhneOrakel = {arm, seed, gegner, nr}`.
+Ohne diesen Kontext ist er aus; es gibt keinen UI- oder PARAMS-Schalter. Die
+Zugnummer stammt aus dem wirklichen Engine-Aufruf. `lesePriorOhneOrakel()` liefert
+das letzte Protokoll. Die Besuche N und Wertsumme W werden nach der Suche erfasst.
+`neu` kennzeichnet einen Wurzelaufbau, `wieder` eine zunächst übernommene Wurzel;
+beide dürfen wahr sein, wenn die bestehende Frischwurzelregel danach neu aufbaut.
+Nur `neu` erlaubt die zusätzliche Auswahlbewertung und einen möglichen Eingriff.
+
+Protokollgründe: `keine-suche`, `pass-vor-suche`, `wurzel-uebernommen`, `vor-zug81`,
+`weniger-als-zwei`, `auswahl-schon-maximal`, `gelegenheit`, `fehler`.
+Bei übernommener Wurzel und vor dem Fenster bleiben Auswahlwerte null.
+Ungültige Zahlen werden nicht repariert; der unabhängige Bericht sperrt das Urteil.
+
+### Werkzeuge und konkrete Workflows
+
+- `gnugo-duell.js --prior-ohne-orakel A|H|R --partien 1 --von NR --seed SEED --roh DATEI`
+  protokolliert jeden KI-Zug und GTP-Prozess. Optional `--prior-protokoll DATEI`, sonst
+  `DATEI.prior.jsonl`. Die Seitenprotokolldatei muss neu sein. Orakeloptionen sind
+  zusammen mit diesem Messmodus verboten.
+- `auswertung/prior-ohne-orakel/regel.js` prüft die Zahlen unabhängig vom Enginecode,
+  einschließlich R-Seed, Ziehung und normalisierten Priors.
+- `prior-ohne-orakel-vergleich.yml`: nur manuell, Eingabe volle Implementierungs-SHA.
+  Zwei Archivpartien (Seed 222, Nummern 1/2) bis Zug 130, jeweils Ausgangsstand,
+  neuer Stand ausgeschaltet und neuer Stand A: sechs getrennte Prozesse/Jobs.
+  Vergleich von Zügen, Kindern, Priors, N/W und kumulierten Suchzufallsziehungen;
+  endliche Priors und Auswahlbewertung ab Zug 81 in beiden Farben sind Pflicht.
+  Fehlt die Abdeckung, ist das Ergebnis KEIN URTEIL. Keine Aussage über weitere Fälle.
+  Höchstsumme der Joblimits: 6 × 20 + 10 = 130 Minuten, zusätzlich zur Probe.
+- `prior-ohne-orakel-probe.yml`: nur manuell, Eingabe Run-ID des grünen Vergleichs.
+  Die Vorprüfung prüft dessen Status, Workflow, Ausgangsstand, Engine-Dateihash und
+  die Hashes von Vergleich und Replay gegen den aktuellen Checkout. Erst danach
+  können Partiejobs starten. Kein Vergleich wird automatisch ausgelöst.
+- `paket.py`: ein Prozess je Partie, externe Zeitgrenzen aus §9, Sicherung nach jeder
+  Partie und Prozessgruppenabbruch bei Zeitüberschreitung. Metadaten enthalten volle
+  Commit-SHA, SHA-256 der aufgeführten Quellen, Programmversionen/Binaryhashes und
+  Konfiguration. Ein technischer Fehler bleibt im Paket erhalten und macht es rot.
+- `bericht.js`: Pflichtprüfung aller 58 Datensätze, Wiederholungen, Kontrollen,
+  Prozessprotokolle und erster gemeinsamer Gelegenheit. Die Probe enthält ausschließlich
+  Technik, Abdeckung, Ausfälle und Zeiten; keine Endstand-Differenzen oder Siegquoten.
+  Bei verletzter Pflicht: KEIN URTEIL und Exitcode 1. Rohwerte bleiben zur Prüfung erhalten.
+
+Probe-Joblimits: Vorprüfung 20, Fuego-Bau 30, drei GNU-Go-Jobs je 45, drei Fuego-Jobs
+je 85, Kontrolle 20 und Bericht 15 Minuten; Summe **475 Minuten**. Zusätzliche
+Schrittlimits lassen innerhalb der Jobs Zeit für Uploads. Ein vorzeitig beendeter Job
+mit fehlenden Datensätzen erzeugt KEIN URTEIL. `fail-fast: false`, kein automatischer
+Neustart. Eine Wiederaufnahme ist im manuellen Probe-Workflow nicht angeboten;
+der Pakethelfer erlaubt sie nur unter den strengen Bedingungen aus §9 und nach Go.
+
+Der Hauptbericht ist anhand gebauter Testdaten vorbereitet. Bei den ergänzenden
+Siegquoten werden nur ausdrücklich entscheidbare Siege/Nichtsiege gewertet; am
+Zuglimit ohne Siegentscheidung wird keine Entscheidung aus dem Stellungs-Endstand
+erfunden. Nicht entscheidbare Fälle werden gezählt. Remis sind Nichtsiege und werden
+separat gezählt. Der primäre Endstand-Vergleich bleibt davon unberührt.
+Es gibt noch keinen Hauptlauf-Workflow: Umfang und Budget sind weiterhin offen.
+
+### Nächste Schritte
+
+Diese Konkretisierung vor dem Merge lesen; anschließend grüne CI und Merge.
+Danach eigenes Start-Go für den oben beschriebenen Engine-Vergleich und anschließend
+für die technische Probe. Erst deren gültiger Technikbericht erlaubt die endgültige
+Planung des Hauptversuchs. Die Eignung von H bleibt bis zu dessen Auswertung offen.
