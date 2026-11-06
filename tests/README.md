@@ -2,6 +2,7 @@
 
 | Datei | Prüft |
 |---|---|
+| `deckel-fortsetzungen.js` | Acht geprüfte Startstellungen; Python-Tests mit GTP-Attrappen für Paarung, SGF, Abbrüche, Farben und vollständigen Fortsetzungsbericht |
 | `gefangene-rollout.js` | Faktorplan, Herkunft des Gefangenenwerts, gekappte Gegenrechnung, archivgebundene Aufgaberegel und vier kurze Messkontrollen |
 | `death-transfer-diagnose.js` | Archivrekonstruktion, Farbpaarung, Messanker, Vorzeichen der Bewertungszerlegung, kurze Messkontrolle und fehlende Pflichtdaten |
 | `prior-ohne-orakel-werkzeuge.js` | Gebaute Engine-Dumps, Quellenprüfung, vier Züge mit GTP-Attrappe, künstlicher Zeitwächter, Workflowbudget |
