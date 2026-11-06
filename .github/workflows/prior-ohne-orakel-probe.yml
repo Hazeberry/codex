@@ -1,0 +1,191 @@
+name: Prior ohne Orakel – technische Probe
+# Nur nach eigenem Start-Go. 58 Partien; keine Effektauswertung.
+# Konfigurierte Höchstsumme: 20+30+3*45+3*85+20+15 = 475 Minuten (<8 h).
+on:
+  workflow_dispatch:
+    inputs:
+      engine_vergleich_lauf:
+        description: 'Erfolgreicher manueller Engine-Vergleich mit passendem index.html (Run-ID)'
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: prior-ohne-orakel-probe
+  cancel-in-progress: false
+jobs:
+  vorpruefung:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Vergleichslauf laden
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAUF: ${{ inputs.engine_vergleich_lauf }}
+        run: |
+          [[ "$LAUF" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$LAUF" > vergleich-lauf.json
+      - uses: actions/download-artifact@v7
+        with:
+          name: prior-engine-pruefung
+          path: vergleich/
+          run-id: ${{ inputs.engine_vergleich_lauf }}
+          github-token: ${{ github.token }}
+      - name: Quellen, Vergleich und kurze Funktionstests
+        run: |
+          mkdir -p ergebnisse
+          node auswertung/prior-ohne-orakel/vorpruefung.js vergleich-lauf.json vergleich/pruefung.json ergebnisse/enginevergleich.json
+          python3 auswertung/prior-ohne-orakel/paket.py --quellen > ergebnisse/quellen.json
+          node tests/prior-ohne-orakel.js
+          node tests/prior-ohne-orakel-bericht.js
+          node tests/prior-ohne-orakel-werkzeuge.js
+      - uses: actions/upload-artifact@v7
+        with:
+          name: prior-vorbereitung
+          path: ergebnisse/
+          retention-days: 90
+  fuego:
+    needs: vorpruefung
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fuego bauen
+        timeout-minutes: 26
+        run: |
+          sudo timeout 120s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 240s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y -qq build-essential autoconf automake libtool subversion libboost-filesystem-dev libboost-thread-dev libboost-program-options-dev libboost-system-dev libboost-date-time-dev libboost-test-dev
+          timeout 1100s bash auswertung/fuego/bauen.sh svn gnu++14 fuego-bin
+          sha256sum fuego-bin/fuego > fuego-bin/sha256.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-fuego-bin
+          path: fuego-bin/
+          if-no-files-found: error
+          retention-days: 90
+  gnugo:
+    needs: vorpruefung
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [A, H, R]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: GNU Go installieren
+        timeout-minutes: 6
+        run: |
+          sudo timeout 120s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 180s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y -qq gnugo
+      - name: Elf Partien, je ein Prozess
+        timeout-minutes: 30
+        run: python3 auswertung/prior-ohne-orakel/paket.py --art 'g-${{ matrix.arm }}' --aus ergebnisse
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-daten-g-${{ matrix.arm }}
+          path: ergebnisse/
+          if-no-files-found: error
+          retention-days: 90
+  fuego_partien:
+    needs: [vorpruefung, fuego]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [A, H, R]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v7
+        with:
+          name: prior-fuego-bin
+          path: fuego-bin/
+      - name: GNU Go und Laufzeitbibliotheken installieren
+        timeout-minutes: 6
+        run: |
+          chmod +x fuego-bin/fuego
+          sudo timeout 120s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 180s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y -qq gnugo libboost-filesystem-dev libboost-thread-dev libboost-program-options-dev libboost-system-dev
+      - name: Sieben Partien, je ein Prozess
+        timeout-minutes: 72
+        run: python3 auswertung/prior-ohne-orakel/paket.py --art 'f-${{ matrix.arm }}' --aus ergebnisse
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-daten-f-${{ matrix.arm }}
+          path: ergebnisse/
+          if-no-files-found: error
+          retention-days: 90
+  kontrolle:
+    needs: vorpruefung
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: GNU Go installieren
+        timeout-minutes: 6
+        run: |
+          sudo timeout 120s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 180s apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y -qq gnugo
+      - name: Vier bestehende Kontrollen
+        timeout-minutes: 10
+        run: python3 auswertung/prior-ohne-orakel/paket.py --art kontrolle --aus ergebnisse
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-daten-kontrolle
+          path: ergebnisse/
+          if-no-files-found: error
+          retention-days: 90
+  bericht:
+    needs: [vorpruefung, gnugo, fuego_partien, kontrolle]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: prior-*
+          path: artefakte/
+      - name: Auch unvollständige Daten ausdrücklich prüfen
+        run: |
+          mkdir -p ergebnisse
+          for dir in artefakte/prior-vorbereitung artefakte/prior-daten-*; do
+            [ -d "$dir" ] || continue
+            cp -r "$dir/." ergebnisse/
+          done
+          status=0
+          node auswertung/prior-ohne-orakel/bericht.js ergebnisse --bericht ergebnisse/bericht.md --json ergebnisse/pruefung.json || status=$?
+          cat ergebnisse/bericht.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prior-probe-gesamt-${{ github.run_attempt }}
+          path: ergebnisse/
+          retention-days: 90

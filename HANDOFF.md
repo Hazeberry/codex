@@ -1,22 +1,28 @@
-# Übergabe – Arbeit in Hazeberry/codex (Stand 05.11.2026)
+# Übergabe – Arbeit in Hazeberry/codex (Stand 06.11.2026)
 
 ## Aktueller Stand in diesem Repository
-- Ziel der weiteren Arbeit: `Hazeberry/codex`.
-- Vollständiger Import mit Historie durch PR #1 gemergt; Merge
-  `1bf2ff3cc5258038697b91a79224c70e25761d87`. Node- und Browser-CI waren grün.
-- Der importierte Dateibaum entspricht `14e2339bfa14f45cff164e113b217f26a8a6b8d4`
-  aus `Hazeberry/Go-html-Game-MoE`. Ergebnisse liegen unter `docs/daten/kandidaten-orakel/`.
-- Vorabfestlegung `docs/prior-anhebung-ohne-orakel.md` durch PR #2 gemergt:
-  Arme A/H/R, Auswahl durch quickEval, technische Probe vorgeschlagen mit Seed 236.
-  Neue Versuchsfunktionen, deren Bericht und Probe-Workflow sind noch nicht umgesetzt.
-- Hazeberry hat die Untersuchung der langen Fuego-Partien und des GNU-Go-Absturzes
-  ausdrücklich freigegeben. Diagnoseaufbau in PR #3, begrenzte Vorbereitung/Fortsetzung
-  in PR #4 und reine Ergebnissicherung in PR #5 gemergt. `main` vor diesem Ergebnis-PR:
-  `2cee4a498d6504d5d7423182ef87c5c7af634cec`.
+- Ziel der weiteren Arbeit: `Hazeberry/codex`. Vollständiger Import mit Historie durch
+  PR #1, Merge `1bf2ff3cc5258038697b91a79224c70e25761d87`.
+- Vorabfestlegung für die Prior-Anhebung ohne Orakel: `docs/prior-anhebung-ohne-orakel.md`.
+  Umsetzung A/H/R samt Tests und manuellen Workflows durch PR #7 gemergt; Stand
+  `6bfaa33d69822f13a049b5813d4b6c77b63b61a3`. Standard aus, keine UI-Aktivierung.
+- Hazeberry gab nach Durchsicht/Konkretisierung §10 Go für Merge, Engine-Vergleich und
+  technische Probe. Diese Freigaben sind ausgeführt; kein Hauptlauf-Go.
+- Engine-Vergleich 42164242839 **gültig, GLEICH**: 130 KI-Abfragen, Auswahlbewertung ab
+  Zug 81 an je 25 Stellen für Schwarz/Weiß. Ausgangsstand, neu aus und A stimmen bei
+  Zügen, Kindern, Priors, N/W und Suchzufallsverbrauch überein; keine weitergehende Abdeckung.
+- Technische Probe 42164396423 **gültig**, 58/58 Partien, 70/70 Pflichtprüfungen,
+  keine Ausfälle/Timeouts. 18 Wiederholungen identisch, vier Archivkontrollen passend;
+  H/R gegen beide Gegner in beiden Farben tatsächlich angehoben. Maximum 44,3 s.
+- **Keine Wirkungsauswertung** aus der Probe. Ob H hilft oder besser als R ist, bleibt
+  offen. Hauptumfang (Vorschlag 480 je Arm/Gegner), Budget und Pakete sind noch festzulegen;
+  Hauptlauf braucht eigenes Go. GNU-Go-geprägte Daten und GNU-Go-Wertung bleiben enthalten.
+- Ergebnisse §11/12, vollständige Rohartefakte unter
+  `docs/daten/prior-anhebung-ohne-orakel/`. Quellen-SHA und SHA-256 sind gesichert.
 - **Diagnose abgeschlossen, gültig:** Lauf 42130235314, Versuch 2, mit drei übernommenen
   Reproduktionen aus Lauf 42124976320. Alle sechs Pflichtreproduktionen bestanden.
   Bericht: `docs/diagnose-laufzeit-absturz.md`; Rohdaten und Actions-Bericht unter
-  `docs/daten/diagnose-laufzeit-absturz/lauf1/`. Spielcode unverändert.
+  `docs/daten/diagnose-laufzeit-absturz/lauf1/`. Die Diagnose selbst ändert keinen Spielcode.
 - In den beiden untersuchten langen Fuego-Partien dominiert die Wartezeit beim
   GNU-Go-Orakel: P 766,6 von 783,7 s, S 1160,6 von 1198,5 s. Zugfolgen und Endstände
   stimmen exakt mit dem Archiv überein. Die interne GNU-Go-Lesefunktion ist nicht ermittelt.
@@ -24,9 +30,10 @@
   (Weiß K8) bei `genmove B` ab. Erster Auslöser war bereits `mc=81`, mit tatsächlichem
   Eingriff in N und S. **Die Vermutung „vor dem ersten Eingriff“ ist damit widerlegt.**
   Eigenständiges GTP-Replay unter GDB reproduziert den SIGSEGV; Quellcodeursache offen.
-- Für die neue Prior-Regel gelten weiterhin die getrennten Freigaben für Umsetzung,
-  Engine-Vergleich, technische Probe und Hauptlauf. Dokumente mit Vorgaben vor dem
-  Merge von Hazeberry lesen lassen. Kein Versuch zur Spielstärke wurde neu gestartet.
+- Die Diagnoseergebnisse stehen in PR #6; dieser PR bleibt bis zur Durchsicht offen.
+  Die historischen Angaben darunter stammen aus der übernommenen Übergabe.
+- Node- und Browser-CI von PR #7 waren grün. Die Abmeldung der PR-Aktivität wurde
+  versucht; GitHub verweigerte `updateSubscription` mit FORBIDDEN (App-Berechtigung).
 
 ## Herkunft der folgenden Übergabe
 
@@ -70,7 +77,7 @@ beziehen sich auf `Hazeberry/codex`.
 Die Vorprüfung ist bestanden. Abdeckung: S und ZS nur 22 bzw. 16 Stellen ab Zug 81, für ZS nur 5 mit Fall d.
 Fall d1, e, c0 und d0 kamen nicht vor.
 
-## Offene Punkte (keine Aufgabe ohne Go)
+## Historische offene Punkte aus der übernommenen Übergabe (05.11.2026)
 - **GNU-Go-Verwandtschaft:** Hypothese, Ursache nicht nachgewiesen. Dass der Gewinn auch gegen Fuego auftrat,
   spricht gegen eine rein gegnerspezifische Ausnutzung. Er trennt aber nicht den Einfluss von (a) dem
   GNU-Go-Orakel, (b) den GNU-Go-geprägten Netz- und Musterdaten und (c) der GNU-Go-Wertung (Endstand-Zählung).
@@ -85,7 +92,8 @@ Fall d1, e, c0 und d0 kamen nicht vor.
   Die nächste Frage: Lässt sich die nützliche Anhebung mit einer rein engineinternen Regel finden? Eine solche
   Regel dürfte das Orakel nicht als Eingabe nutzen, sonst bliebe die Abhängigkeit bestehen. Das ist eine neue
   Fragestellung mit eigener Vorabfestlegung und eigenem Go. Der neue Entwurf steht in
-  `docs/prior-anhebung-ohne-orakel.md`; Umsetzung und Läufe stehen noch aus.
+  `docs/prior-anhebung-ohne-orakel.md`. Aktueller Stand: siehe oben und §11/12; nur die
+  Wirksamkeitsfrage und der Hauptlauf bleiben für diese konkrete Regel offen.
 
 ## Regeln aus den letzten Sitzungen
 - **Nur ein ausdrückliches „Go“ startet einen Lauf** oder merged einen PR. Eine Empfehlung ist kein Go. Diesen Fehler gab es einmal (Engine-Vergleich), er ist im Nachtrag vermerkt.
@@ -98,7 +106,8 @@ Fall d1, e, c0 und d0 kamen nicht vor.
 
 - In `Hazeberry/codex` nach Merge löschbar, nicht gelöscht: `claude/repository-import`
   (#1), `claude/prior-anhebung-ohne-orakel` (#2), `claude/diagnose-laufzeit-absturz` (#3),
-  `claude/diagnose-laufzeit-fortsetzen` (#4), `claude/diagnose-ergebnissicherung` (#5).
-- `claude/diagnose-laufzeit-ergebnisse` bleibt bis zum Abschluss dieses Ergebnis-PRs erhalten.
+  `claude/diagnose-laufzeit-fortsetzen` (#4), `claude/diagnose-ergebnissicherung` (#5),
+  `claude/prior-ohne-orakel-umsetzung` (#7) und `claude/prior-ohne-orakel-probe-ergebnisse` (#8).
+- `claude/diagnose-laufzeit-ergebnisse` bleibt bis zum Abschluss von PR #6 erhalten.
 - Die historische Liste löschbarer Branches aus der alten Übergabe gilt ausschließlich
   für `Hazeberry/Go-html-Game-MoE`; daraus folgt kein Löschauftrag in einem der Repositories.

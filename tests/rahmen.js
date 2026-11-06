@@ -59,6 +59,8 @@ function ladeKI({htmlPfad = STANDARD_HTML, mitNetz = true, speicher = null} = {}
                  'leseTransferWaechter', 'removeDeadGroups', 'bensonClassify',
                  '_bnDead', '_bnAlive', 'floodFill', 'computeZobrist', 'getCrisisWeight', 'evalTsumego', 'leseWurzelWaechter', 'quickEval',
                  '_mctsKidsOrakel', '_kandSoftmax', '_kandAnheben', '_kandMax', 'leseKandidatenOrakel',
+                 '_priorOptionen', '_priorSeed', '_priorMulberry', '_priorZieheIndex', '_priorArbeitsstand',
+                 '_priorQuickWerte', '_priorAnwenden', 'lesePriorOhneOrakel',
                  'musterWert', 'musterSchluessel', 'MUSTER_TABELLE', 'setzeLebensurteil', 'lsNach', 'lsOhneTote', 'countLiberties', 'toteSteineAmEnde', 'zaehlVorschau', 'passNachGegnerpassPruefung',
                  'PARAMS', 'BOARD_SIZE', 'NEIGHBORS', 'idx', 'xOf', 'yOf'];
   quelle += `

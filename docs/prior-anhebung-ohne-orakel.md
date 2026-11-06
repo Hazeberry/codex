@@ -4,8 +4,10 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 -->
 # Prior-Anhebung ohne Orakel – Vorabfestlegung (Entwurf)
 
-Stand: 05.11.2026. Zur Durchsicht durch Hazeberry. Planung, keine Umsetzung und keine
-Freigabe eines Laufs. Ziel-Repository: `Hazeberry/codex`.
+Vorabfestlegung vom 05.11.2026; Umsetzung mit Go in der Sitzung vom 06.11.2026.
+Konkretisierung in §10 mit anschließendem Go. Ergebnisse von Engine-Vergleich und
+technischer Probe in §11/12; Wirkung und Hauptlauf bleiben offen.
+Ziel-Repository: `Hazeberry/codex`.
 
 ## 1. Grundlage und Frage
 
@@ -224,3 +226,169 @@ und Nummer geprüfte Datensätze übernehmen. Fehlende Datensätze werden ausdr�
 **Offen bleibt:** Budget und endgültiger Umfang des Hauptversuchs sowie seine Paketgrößen.
 Eine technische Probe oder ein Engine-Vergleich wird erst nach ausdrücklichem Start-Go
 für den konkret vorgelegten Workflow ausgeführt.
+
+## 10. Umsetzung und Konkretisierung vor dem ersten Lauf (06.11.2026)
+
+### Auswahlwert und unveränderte Suche
+
+`quickEval` addiert am Ende `Math.random()*5`. Die übrigen Summanden sind Vielfache
+von fünf; dieser Anteil löst bisher Gleichstände zufällig. Für die festgelegte
+Indexentscheidung wird **ausschließlich bei der zusätzlichen Auswahlbewertung der
+Rauschanteil auf null gesetzt**. Die Funktion selbst und ihre bisherigen Aufrufe
+bleiben unverändert. Das konkretisiert die Auswahlregel aus §2 vor der Messung.
+Ohne diese Konkretisierung wären Suchzufallsstrom und feste Indexentscheidung
+nicht zugleich durch den bisherigen Aufruf erfüllt.
+
+Die Auswahlbewertung sichert und restauriert `Math.random`, `_ffEpoch`, `_ffVisited`,
+`_rdgChecked`, `_groupQueue` und `_quickScratch` in `finally`, auch am Epochenüberlauf
+und bei Fehlern. Der Brettzustand wird nicht beschrieben. Kurze Funktionstests prüfen
+dies; ein Vergleich an Archivstellungen bleibt eine gesonderte Pflicht in Actions.
+
+Der Messpfad ist ausschließlich `extra.priorOhneOrakel = {arm, seed, gegner, nr}`.
+Ohne diesen Kontext ist er aus; es gibt keinen UI- oder PARAMS-Schalter. Die
+Zugnummer stammt aus dem wirklichen Engine-Aufruf. `lesePriorOhneOrakel()` liefert
+das letzte Protokoll. Die Besuche N und Wertsumme W werden nach der Suche erfasst.
+`neu` kennzeichnet einen Wurzelaufbau, `wieder` eine zunächst übernommene Wurzel;
+beide dürfen wahr sein, wenn die bestehende Frischwurzelregel danach neu aufbaut.
+Nur `neu` erlaubt die zusätzliche Auswahlbewertung und einen möglichen Eingriff.
+
+Protokollgründe: `keine-suche`, `pass-vor-suche`, `wurzel-uebernommen`, `vor-zug81`,
+`weniger-als-zwei`, `auswahl-schon-maximal`, `gelegenheit`, `fehler`.
+Bei übernommener Wurzel und vor dem Fenster bleiben Auswahlwerte null.
+Ungültige Zahlen werden nicht repariert; der unabhängige Bericht sperrt das Urteil.
+
+### Werkzeuge und konkrete Workflows
+
+- `gnugo-duell.js --prior-ohne-orakel A|H|R --partien 1 --von NR --seed SEED --roh DATEI`
+  protokolliert jeden KI-Zug und GTP-Prozess. Optional `--prior-protokoll DATEI`, sonst
+  `DATEI.prior.jsonl`. Die Seitenprotokolldatei muss neu sein. Orakeloptionen sind
+  zusammen mit diesem Messmodus verboten.
+- `auswertung/prior-ohne-orakel/regel.js` prüft die Zahlen unabhängig vom Enginecode,
+  einschließlich R-Seed, Ziehung und normalisierten Priors.
+- `prior-ohne-orakel-vergleich.yml`: nur manuell, Eingabe volle Implementierungs-SHA.
+  Zwei Archivpartien (Seed 222, Nummern 1/2) bis Zug 130, jeweils Ausgangsstand,
+  neuer Stand ausgeschaltet und neuer Stand A: sechs getrennte Prozesse/Jobs.
+  Vergleich von Zügen, Kindern, Priors, N/W und kumulierten Suchzufallsziehungen;
+  endliche Priors und Auswahlbewertung ab Zug 81 in beiden Farben sind Pflicht.
+  Fehlt die Abdeckung, ist das Ergebnis KEIN URTEIL. Keine Aussage über weitere Fälle.
+  Höchstsumme der Joblimits: 6 × 20 + 10 = 130 Minuten, zusätzlich zur Probe.
+- `prior-ohne-orakel-probe.yml`: nur manuell, Eingabe Run-ID des grünen Vergleichs.
+  Die Vorprüfung prüft dessen Status, Workflow, Ausgangsstand, Engine-Dateihash und
+  die Hashes von Vergleich und Replay gegen den aktuellen Checkout. Erst danach
+  können Partiejobs starten. Kein Vergleich wird automatisch ausgelöst.
+- `paket.py`: ein Prozess je Partie, externe Zeitgrenzen aus §9, Sicherung nach jeder
+  Partie und Prozessgruppenabbruch bei Zeitüberschreitung. Metadaten enthalten volle
+  Commit-SHA, SHA-256 der aufgeführten Quellen, Programmversionen/Binaryhashes und
+  Konfiguration. Ein technischer Fehler bleibt im Paket erhalten und macht es rot.
+- `bericht.js`: Pflichtprüfung aller 58 Datensätze, Wiederholungen, Kontrollen,
+  Prozessprotokolle und erster gemeinsamer Gelegenheit. Die Probe enthält ausschließlich
+  Technik, Abdeckung, Ausfälle und Zeiten; keine Endstand-Differenzen oder Siegquoten.
+  Bei verletzter Pflicht: KEIN URTEIL und Exitcode 1. Rohwerte bleiben zur Prüfung erhalten.
+
+Probe-Joblimits: Vorprüfung 20, Fuego-Bau 30, drei GNU-Go-Jobs je 45, drei Fuego-Jobs
+je 85, Kontrolle 20 und Bericht 15 Minuten; Summe **475 Minuten**. Zusätzliche
+Schrittlimits lassen innerhalb der Jobs Zeit für Uploads. Ein vorzeitig beendeter Job
+mit fehlenden Datensätzen erzeugt KEIN URTEIL. `fail-fast: false`, kein automatischer
+Neustart. Eine Wiederaufnahme ist im manuellen Probe-Workflow nicht angeboten;
+der Pakethelfer erlaubt sie nur unter den strengen Bedingungen aus §9 und nach Go.
+
+Der Hauptbericht ist anhand gebauter Testdaten vorbereitet. Bei den ergänzenden
+Siegquoten werden nur ausdrücklich entscheidbare Siege/Nichtsiege gewertet; am
+Zuglimit ohne Siegentscheidung wird keine Entscheidung aus dem Stellungs-Endstand
+erfunden. Nicht entscheidbare Fälle werden gezählt. Remis sind Nichtsiege und werden
+separat gezählt. Der primäre Endstand-Vergleich bleibt davon unberührt.
+Es gibt noch keinen Hauptlauf-Workflow: Umfang und Budget sind weiterhin offen.
+
+### Nächste Schritte
+
+Diese Konkretisierung vor dem Merge lesen; anschließend grüne CI und Merge.
+Danach eigenes Start-Go für den oben beschriebenen Engine-Vergleich und anschließend
+für die technische Probe. Erst deren gültiger Technikbericht erlaubt die endgültige
+Planung des Hauptversuchs. Die Eignung von H bleibt bis zu dessen Auswertung offen.
+
+## 11. Ergebnisnachtrag: Engine-Vergleich (06.11.2026)
+
+Go in der Sitzung vom 06.11.2026 für die Konkretisierung in §10, Merge von PR #7,
+Engine-Vergleich und anschließende technische Probe. PR #7 wurde mit voller Kopf-SHA
+`268336ce42caaa4e03b5c18bfc826f4cae3df73d` und Methode `merge` gemergt;
+Implementierungs-/Merge-Stand `6bfaa33d69822f13a049b5813d4b6c77b63b61a3`.
+Vorher waren 50 Node-Testsuiten und alle fünf Browser-Suiten grün
+([CI 42162679006](https://github.com/Hazeberry/codex/actions/runs/42162679006)).
+
+**Engine-Vergleich gültig: GLEICH.**
+[Actions-Lauf 42164242839](https://github.com/Hazeberry/codex/actions/runs/42164242839),
+Ausgangsstand `1bf2ff3cc5258038697b91a79224c70e25761d87`, neuer Stand wie oben.
+Die sechs getrennten Replays (Seed 222, Nummern 1/2, bis Zug 130; alt, neu aus,
+neu A) stimmen in allen **130 KI-Abfragen** bei Zug, Kindern, Priors, N/W und
+kumuliertem Suchzufallsverbrauch überein. Keine Archivabweichung.
+Die zusätzliche Auswahlbewertung ab Zug 81 ist an **25 Stellen für Schwarz und
+25 für Weiß** abgedeckt. Alle Vorprüfungen bestanden; keine Aussage über weitere
+Partien, spätere Züge oder Zeitbudgets.
+
+Quellen und unverändertes ZIP mit den sechs Dumps:
+[`docs/daten/prior-anhebung-ohne-orakel/engine-vergleich-42164242839/`](daten/prior-anhebung-ohne-orakel/engine-vergleich-42164242839/).
+Artefakt `prior-engine-pruefung`, ID `13477644638`, ZIP-SHA-256
+`90b58898d5023556a01349ce47c9ca1604fcdec6ce6afbe68571ddc9a4884b47`.
+Die technische Probe verwendet diesen Vergleich als Pflichtnachweis.
+
+## 12. Ergebnisnachtrag: technische Probe (06.11.2026)
+
+**Gültig.** [Actions-Lauf 42164396423](https://github.com/Hazeberry/codex/actions/runs/42164396423),
+Versuchsseed 236, Implementierungsstand `6bfaa33d69822f13a049b5813d4b6c77b63b61a3`.
+Der Start war durch dasselbe ausdrückliche Go nach Durchsicht von §10 gedeckt;
+der Pflichtvergleich aus §11 war vorher bestanden.
+
+- **58/58 Partien** mit Status `ok`: 36 reguläre Probenpartien, 18 Wiederholungen und
+  vier Archivkontrollen mit Seed 222. Keine Abbrüche oder Zeitüberschreitungen.
+- **70/70 technische Pflichtprüfungen bestanden**. Alle 18 Wiederholungen stimmen
+  bei Zugfolge, Endstand und zeitunabhängigem Eingriffsprotokoll überein. Alle vier
+  Archivkontrollen sind bei Zugfolge und Endstand gleich.
+- Acht vollständige Dreiergruppen gegen GNU Go und vier gegen Fuego. In allen zwölf
+  Gruppen stimmt die erste Eingriffsgelegenheit einschließlich vorheriger Zugfolge,
+  Stellungshash, Auswahlwerten und Basispriors überein.
+- A hebt nie an. H und R heben gegen beide Gegner in beiden Farben tatsächlich an.
+  Priors, Normierung, Ausnahmen, Zufallsableitung, Quellen und Prozessprotokolle
+  erfüllen die festgelegten Prüfungen. Es gab keine Orakelabfrage zur Zugauswahl;
+  GNU Go blieb Gegner beziehungsweise Schiedsrichter. Alle Pakete verwendeten Node
+  v22.23.4 sowie dieselben GNU-Go- und Fuego-Binaries je Rolle.
+
+### Zeiten und tatsächliche Anhebungen
+
+Die Tabelle umfasst nur die **36 regulären Probenpartien**. Angegeben ist die gesamte
+Partieprozessdauer einschließlich Initialisierung, Gegner und Endwertung. S/W bezeichnet
+die KI-Farbe; die Eingriffszahlen sind Züge, keine Partien.
+
+| Gegner | Arm | Partien | Median s | Maximum s | Anhebungen S | Anhebungen W |
+|---|---|---:|---:|---:|---:|---:|
+| GNU Go | A | 8 | 24,5 | 27,3 | 0 | 0 |
+| GNU Go | H | 8 | 29,5 | 33,5 | 364 | 406 |
+| GNU Go | R | 8 | 31,4 | 34,3 | 371 | 416 |
+| Fuego | A | 4 | 41,1 | 44,3 | 0 | 0 |
+| Fuego | H | 4 | 28,4 | 34,3 | 221 | 215 |
+| Fuego | R | 4 | 38,9 | 43,8 | 260 | 236 |
+
+Über **alle 58** Partien: 1791,4 s summierte Partiezeit (29 min 51 s), Maximum 44,3 s.
+Summierte Joblaufzeiten einschließlich Vorprüfung, Bau und Bericht: **35 min 14 s**
+ohne Abrechnungsrundung. Wanduhr vom Run-Start bis Abschluss: **7 min 41 s**.
+Die konfigurierte Höchstsumme betrug 475 Minuten. Zeitstempel sind in `run.json` und
+`jobs.json` gesichert. Diese kleine Probe liefert keine sichere Laufzeitschranke für
+den Hauptlauf und keinen Nachweis, dass frühere Absturz- oder Laufzeitursachen behoben sind.
+
+### Daten und Grenze der Aussage
+
+Unverändertes Gesamtartefakt mit Rohzeilen, Einzelpartie- und GTP-Protokollen sowie
+Quellenmetadaten, daneben der lesbare Bericht und Prüfbericht:
+[`docs/daten/prior-anhebung-ohne-orakel/probe-42164396423/`](daten/prior-anhebung-ohne-orakel/probe-42164396423/).
+Artefakt `prior-probe-gesamt-1`, ID `13478352571`, ZIP-SHA-256
+`6b9e1bb92b980c9ac25168c2399d58d8c1b2236652e0b81c1c65efe255e25e07`.
+Die heruntergeladenen ZIP-Prüfsummen stimmen mit den von GitHub gemeldeten Digests überein.
+
+Der Bericht enthält **keine Endstand-Differenzen, Siegquoten oder Wirkungsauswertung**;
+`auswertung` ist null. Der Aufbau und die konkrete Auswahlregel funktionieren unter
+den geprüften Bedingungen technisch. Ob H den Endstand verbessert und besser als R
+ist, bleibt offen. Auch die Herkunft aus GNU-Go-geprägten Daten und die GNU-Go-Wertung
+sind durch diese Probe nicht getrennt untersucht. Vor einem Hauptlauf stehen weiterhin
+die endgültige Festlegung von Umfang, Budget und Paketen sowie dessen eigenes Start-Go.
+
+Die Abmeldung der PR-Aktivität nach Merge von PR #7 wurde versucht; GitHub verweigerte
+`updateSubscription` mit `FORBIDDEN: Resource not accessible by integration`.

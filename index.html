@@ -4523,7 +4523,112 @@ function _mctsKidsOrakelKern(list, K, o) {
   return kids;
 }
 function _mctsWurzelKinder(list) {
-  return _kandOrakel ? _mctsKidsOrakel(list, PARAMS.mctsRootChildren, _kandOrakel) : _mctsKids(list, PARAMS.mctsRootChildren);
+  const kids = _kandOrakel ? _mctsKidsOrakel(list, PARAMS.mctsRootChildren, _kandOrakel) : _mctsKids(list, PARAMS.mctsRootChildren);
+  if (_priorKontext) {
+    const k = _priorKontext;
+    const werte = k.mc >= 80 && kids.length >= 2 ? _priorQuickWerte(k.board, k.color, kids) : null;
+    Object.assign(_priorProt, _priorAnwenden(kids, werte, k));
+    _priorProt.neu = true;
+  }
+  return kids;
+}
+
+/* Messpfad für docs/prior-anhebung-ohne-orakel.md. Ausschließlich über extra;
+   kein PARAMS-Schalter und keine Oberfläche. Bei fehlendem Kontext keine Bewertung,
+   kein zusätzlicher Zufall und keine Änderung eines Kindes. */
+let _priorKontext = null, _priorProt = null;
+function lesePriorOhneOrakel() { return _priorProt; }
+function _priorOptionen(o, mc) {
+  if (!o || !['A', 'H', 'R'].includes(o.arm) || !['g', 'f'].includes(o.gegner)
+      || !Number.isSafeInteger(o.seed) || o.seed < 0 || !Number.isSafeInteger(o.nr) || o.nr < 1
+      || !Number.isSafeInteger(mc) || mc < 0) throw new Error('priorOhneOrakel: ungültiger Messkontext');
+  return {arm: o.arm, seed: o.seed, gegner: o.gegner, nr: o.nr, mc};
+}
+function _priorSeed(o) {
+  const s = `prior-ohne-orakel-v1|${o.seed}|${o.gegner}|${o.nr}|${o.mc}`;
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0;
+  return h;
+}
+function _priorMulberry(seed) {
+  let s = seed >>> 0;
+  return () => { s |= 0; s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function _priorZieheIndex(n, zufall) {
+  if (!Number.isInteger(n) || n < 1) throw new Error('priorOhneOrakel: leere Zufallsauswahl');
+  const grenze = Math.floor(4294967296 / n) * n;
+  let u, verworfen = 0;
+  do { u = Math.floor(zufall() * 4294967296); if (u >= grenze) verworfen++; } while (u >= grenze);
+  return {index: u % n, verworfen};
+}
+function _priorArbeitsstand() {
+  return {epoch: _ffEpoch, besucht: _ffVisited.slice(), geprueft: _rdgChecked.slice(),
+          queue: _groupQueue.slice(), scratch: _quickScratch.slice()};
+}
+function _priorQuickWerte(board, color, kids) {
+  const alt = _priorArbeitsstand(), zufall = Math.random;
+  try {
+    /* quickEval hat nur für Gleichstände Math.random()*5. Die Messregel nutzt
+       den unveränderten Heuristikwert mit Rauschanteil null und Brettindex-Tie-Break.
+       Der Suchstrom und auch die Arbeitsfelder bei Epochenüberlauf bleiben erhalten. */
+    Math.random = () => 0;
+    return kids.map(k => quickEval(board, k.idx, color));
+  } finally {
+    Math.random = zufall;
+    _ffEpoch = alt.epoch; _ffVisited.set(alt.besucht); _rdgChecked.set(alt.geprueft);
+    _groupQueue.set(alt.queue); _quickScratch.set(alt.scratch);
+  }
+}
+function _priorAnwenden(kids, werte, o) {
+  const p = {grund: 'vor-zug81', gelegenheit: false, angehoben: false,
+    auswahl: null, ziel: null, rSeed: null, verworfen: 0, fehler: [],
+    kinder: kids.map((k, i) => ({idx: k.idx, pVor: k.P, pNach: k.P,
+                               wert: werte ? werte[i] : null, n: null, w: null}))};
+  const P = kids.map(k => k.P), summe = P.reduce((s, v) => s + v, 0);
+  if (P.some(v => !Number.isFinite(v) || v < 0) || (kids.length && Math.abs(summe - 1) > 1e-9))
+    p.fehler.push('ungültige Basispriors');
+  if (new Set(kids.map(k => k.idx)).size !== kids.length
+      || kids.some(k => !Number.isInteger(k.idx) || k.idx < 0 || k.idx >= BOARD_SIZE)) p.fehler.push('ungültige Kinder');
+  p.summe = summe;
+  if (p.fehler.length) { p.grund = 'fehler'; return p; }
+  if (o.mc < 80) return p;
+  if (kids.length < 2) { p.grund = 'weniger-als-zwei'; return p; }
+  if (!Array.isArray(werte) || werte.length !== kids.length || werte.some(v => !Number.isFinite(v))) {
+    p.grund = 'fehler'; p.fehler.push('nicht endliche Auswahlwerte'); return p;
+  }
+  let c = 0;
+  for (let i = 1; i < kids.length; i++)
+    if (werte[i] > werte[c] || (werte[i] === werte[c] && kids[i].idx < kids[c].idx)) c = i;
+  p.auswahl = kids[c].idx;
+  if (!_kandMax(P, c).ok) { p.grund = 'auswahl-schon-maximal'; return p; }
+  p.grund = 'gelegenheit'; p.gelegenheit = true;
+  if (o.arm === 'A') return p;
+  if (o.arm === 'R') {
+    const max = Math.max(...P);
+    const moeglich = kids.map((k, i) => i).filter(i => P[i] < max).sort((i, j) => kids[i].idx - kids[j].idx);
+    p.rSeed = _priorSeed(o);
+    const z = _priorZieheIndex(moeglich.length, _priorMulberry(p.rSeed));
+    p.verworfen = z.verworfen; c = moeglich[z.index];
+  }
+  const Q = _kandAnheben(P, c);
+  for (let i = 0; i < kids.length; i++) { kids[i].P = Q[i]; p.kinder[i].pNach = Q[i]; }
+  p.ziel = kids[c].idx; p.angehoben = true; p.summe = Q.reduce((s, v) => s + v, 0);
+  if (Q.some(v => !Number.isFinite(v) || v < 0) || Math.abs(p.summe - 1) > 1e-9) p.fehler.push('ungültige Ergebnispriors');
+  return p;
+}
+function _priorBesuche(root) {
+  if (!_priorKontext) return;
+  if (!_priorProt.neu) {
+    _priorProt.grund = 'wurzel-uebernommen';
+    _priorProt.kinder = root.kids.map(k => ({idx: k.idx, pVor: k.P, pNach: k.P, wert: null, n: null, w: null}));
+    _priorProt.summe = root.kids.reduce((s, k) => s + k.P, 0);
+  }
+  for (const k of _priorProt.kinder || []) {
+    const kind = root.kids.find(x => x.idx === k.idx);
+    if (kind) { k.n = kind.N; k.w = kind.W; }
+  }
 }
 function _kandBesuche(root, bm) {
   const p = _kandProt, N = i => { const k = root.kids.find(k => k.idx === i); return k ? k.N : null; };
@@ -4582,6 +4687,7 @@ function _tryReuseSubtree(savedBoard, aiColor, savedNode, currentBoard) {
 }
 
 function mctsPUCT(board, aiColor, captures, rootScored, koPoint) {
+  if (_priorKontext) _priorProt.suche = true;
   const _simStart = Date.now();
   _zeit.simStart = _simStart;
   _mctsNonFinite = 0;
@@ -4644,6 +4750,7 @@ function mctsPUCT(board, aiColor, captures, rootScored, koPoint) {
   _wurzelSuchen++;
   if (root) {
     _wurzelWieder++;
+    if (_priorKontext) _priorProt.wieder = true;
     if (PARAMS.wurzelFrisch >= 1) root = _frischeWurzel(root, rootScored);
   }
   if (!root) root = {N: 0, W: 0, kids: _mctsWurzelKinder(rootScored)};
@@ -4756,6 +4863,7 @@ function mctsPUCT(board, aiColor, captures, rootScored, koPoint) {
   let bm = root.kids[0], bn = -1;
   for (const k of root.kids) if (k.N > bn) { bn = k.N; bm = k; }
   if (_kandProt) _kandBesuche(root, bm);
+  if (_priorKontext) _priorBesuche(root);
 
   /* Feedback für den nächsten Zug: tatsächliche ms/Sim messen, unabhängig
      davon was die Kosten verursacht hat (Randkampf, große Gruppen, egal). */
@@ -5232,17 +5340,33 @@ function getAIMove(board, aiColor, histHashes, captures, mc, diff, reqId, koPoin
   const vp = diff === 'hard' ? passNachGegnerpassPruefung(board, aiColor, captures, extra) : null;
   _kandProt = null;
   _kandOrakel = (diff === 'hard' && extra && extra.kandidatenOrakel) ? extra.kandidatenOrakel : null;   /* Messmittel, docs/kandidaten-orakel.md */
-  if (vp && vp.pass) {
-    r = {type: 'pass', requestId: reqId,
-         info: `Pass — Gegner hat gepasst, Vorsprung ${vp.mit.toFixed(1)}/${vp.nur.toFixed(1)} (Versuchsregel)`};
-  } else {
-    r = _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove);
-  }
-  if (vp) r.versuch = vp;
-  _kandOrakel = null;
-  _zeit.tEnde = Date.now();
-  endspielNetzMerke(aiColor, r && r.type === 'stone' ? r.y * 19 + r.x : -1, mc);
-  return r;
+  _priorKontext = null; _priorProt = null;
+  try {
+    if (diff === 'hard' && extra && extra.priorOhneOrakel) {
+      if (_kandOrakel) throw new Error('priorOhneOrakel und kandidatenOrakel schließen sich aus');
+      const o = _priorOptionen(extra.priorOhneOrakel, mc);
+      _priorKontext = {...o, board, color: aiColor};
+      _priorProt = {...o, version: 1, farbe: aiColor === 1 ? 'S' : 'W', hash: computeZobrist(board),
+        fenster: mc >= 80, suche: false, neu: false, wieder: false, grund: 'keine-suche',
+        gelegenheit: false, angehoben: false, auswahl: null, ziel: null, rSeed: null,
+        verworfen: 0, kinder: null, summe: null, fehler: [], gespielt: null};
+    }
+    if (vp && vp.pass) {
+      r = {type: 'pass', requestId: reqId,
+           info: `Pass — Gegner hat gepasst, Vorsprung ${vp.mit.toFixed(1)}/${vp.nur.toFixed(1)} (Versuchsregel)`};
+    } else {
+      r = _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove);
+    }
+    if (vp) r.versuch = vp;
+    if (_priorProt) {
+      _priorProt.gespielt = r.type === 'stone' ? r.y * 19 + r.x : r.type === 'resign' ? -2 : -1;
+      if (!_priorProt.suche && r.type === 'pass') _priorProt.grund = 'pass-vor-suche';
+    }
+    _kandOrakel = null;
+    _zeit.tEnde = Date.now();
+    endspielNetzMerke(aiColor, r && r.type === 'stone' ? r.y * 19 + r.x : -1, mc);
+    return r;
+  } finally { _priorKontext = null; _kandOrakel = null; }
 }
 
 function _getAIMoveKern(board, aiColor, histHashes, captures, mc, diff, reqId, koPoint, lastMove) {
