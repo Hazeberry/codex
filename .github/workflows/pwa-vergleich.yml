@@ -15,6 +15,11 @@ name: Vergleich mit der PWA
 # Keine Eingaben: Seeds und Bedingungen stehen in auswertung/pwa-spielen.sh.
 on:
   workflow_dispatch:
+    inputs:
+      einzelpartie:
+        description: Genau eine Partie, Engine Weiß gegen PWA Schwarz, 120 Simulationen
+        type: boolean
+        default: false
 
 concurrency:
   group: pwa-vergleich
@@ -30,6 +35,7 @@ permissions:
 # auf dem sie vorab festgelegt und bisher gespielt wurden.
 jobs:
   m1:
+    if: ${{ !inputs.einzelpartie }}
     name: M1 (120 Sim.), Partien ab ${{ matrix.von }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -66,6 +72,7 @@ jobs:
           retention-days: 90
 
   m2:
+    if: ${{ !inputs.einzelpartie }}
     name: M2 (1,8 s je Zug), Partien ab ${{ matrix.von }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -102,6 +109,7 @@ jobs:
           retention-days: 90
 
   k1:
+    if: ${{ !inputs.einzelpartie }}
     name: K1 (N gegen N), Partien ab ${{ matrix.von }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -138,6 +146,7 @@ jobs:
           retention-days: 90
 
   kontrolle:
+    if: ${{ !inputs.einzelpartie }}
     name: Kontrolle (M1, Partien 1 bis 20, noch einmal)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -172,7 +181,7 @@ jobs:
     needs: [m1, m2, k1, kontrolle]
     # Auch wenn ein Teil scheitert: Der Bericht nennt die Paare, die da sind,
     # und fehlende-teile.txt die, die fehlen.
-    if: always()
+    if: ${{ always() && !inputs.einzelpartie }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # Nur dieser Job schreibt ins Repo, und nur auf einen neuen Branch.
@@ -216,3 +225,41 @@ jobs:
           git push origin "$zweig"
           echo "Ergebnisse auf Branch \`$zweig\` unter \`$ziel\`" >> "$GITHUB_STEP_SUMMARY"
           cat ergebnisse/bericht.md >> "$GITHUB_STEP_SUMMARY"
+
+  einzelpartie:
+    name: Eine Partie gegen die PWA
+    if: inputs.einzelpartie
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: GNU Go installieren
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+      - name: Herkunft sichern
+        run: |
+          mkdir -p einzelpartie
+          git rev-parse HEAD > einzelpartie/quellen-sha.txt
+          sha256sum index.html vergleich/pwa-index.html > einzelpartie/sha256.txt
+          /usr/games/gnugo --version > einzelpartie/gnugo-version.txt
+      - name: Genau eine Partie spielen
+        timeout-minutes: 15
+        env:
+          SEED: '613'
+        run: bash auswertung/pwa-spielen.sh M1 1 1 einzelpartie/partie.jsonl
+      - name: Gültigkeit prüfen und SGF schreiben
+        run: |
+          python3 auswertung/pwa-einzelpartie.py einzelpartie
+          cat einzelpartie/bericht.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: pwa-einzelpartie
+          path: einzelpartie/
+          retention-days: 90
+          if-no-files-found: error
