@@ -1,0 +1,46 @@
+name: Einzelfall Aufgabe 113
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/aufgabe-113-untersuchung]
+    paths: [auswertung/diagnose/aufgabe-113.start]
+permissions:
+  contents: read
+concurrency:
+  group: aufgabe-113
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {modus: diagnose, seed: 611}
+          - {modus: '120', seed: 611}
+          - {modus: '120', seed: 612}
+          - {modus: '3000', seed: 611}
+          - {modus: '3000', seed: 612}
+          - {modus: gnu10, seed: 611}
+          - {modus: gnu10, seed: 612}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: GNU Go installieren
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+      - name: Untersuchung
+        timeout-minutes: 35
+        run: python3 auswertung/diagnose/aufgabe-113.py '${{ matrix.modus }}' ergebnisse '${{ matrix.seed }}'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: aufgabe-113-${{ matrix.modus }}-${{ matrix.seed }}
+          path: ergebnisse/
+          if-no-files-found: error
+          retention-days: 90
