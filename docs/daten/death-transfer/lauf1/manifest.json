@@ -1,0 +1,13 @@
+{
+  "runId": 42256206462,
+  "artifactId": 13522557547,
+  "quellenSha": "8ad41af0c0e67da49b6caf8653c3bd5695d44960",
+  "inputSha256": "f2c3bb2d849554be54a5e66df1ac693b93655eb3c835c76fd6588320917826ce",
+  "engineSha256": "a14ac4d4058072ec552ca524832095f628412224b96ff7159806e35499fcb4b6",
+  "githubDigestGeprueft": true,
+  "dateien": {
+    "bericht.json": "d2f43d5498ff71b84d92e95c0ff07e273844c7eb87d71670c087dc735ad70c97",
+    "death-transfer-gesamt.zip": "d7b8b03e85958e93353d7c2d5d67f2cae8ccb8e64d026bbf252bacbadb15615a",
+    "actions-bericht.txt": "6f4752dea757f329e07f77e3805546b2db62957c1db9b02d12229246df07a407"
+  }
+}
