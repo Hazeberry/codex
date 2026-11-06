@@ -2,6 +2,7 @@
 
 | Datei | Prüft |
 |---|---|
+| `gefangene-rollout.js` | Faktorplan, Herkunft des Gefangenenwerts, gekappte Gegenrechnung, archivgebundene Aufgaberegel und vier kurze Messkontrollen |
 | `death-transfer-diagnose.js` | Archivrekonstruktion, Farbpaarung, Messanker, Vorzeichen der Bewertungszerlegung, kurze Messkontrolle und fehlende Pflichtdaten |
 | `prior-ohne-orakel-werkzeuge.js` | Gebaute Engine-Dumps, Quellenprüfung, vier Züge mit GTP-Attrappe, künstlicher Zeitwächter, Workflowbudget |
 | `prior-ohne-orakel-bericht.js` | Technische Probe ohne Effektausgabe; Pflichtverletzungen, Wiederholungsquellen, vorbereitete Hauptauswertung an gebauten Daten |

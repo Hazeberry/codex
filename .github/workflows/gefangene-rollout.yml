@@ -1,0 +1,78 @@
+name: Gefangenenwert Rollouts und Aufgabe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gefangene-rollout
+  cancel-in-progress: false
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: node tests/gefangene-rollout.js
+      - id: plan
+        run: |
+          node auswertung/diagnose/death-transfer.js validate
+          echo "matrix=$(node auswertung/diagnose/gefangene-rollout.js plan)" >> "$GITHUB_OUTPUT"
+  diagnose:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Vier Arme und Messkontrolle
+        timeout-minutes: 27
+        run: node auswertung/diagnose/gefangene-rollout.js run '${{ matrix.id }}' 'ergebnisse/${{ matrix.id }}'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: gefangene-rollout-${{ matrix.id }}
+          path: ergebnisse/
+          retention-days: 90
+          if-no-files-found: error
+  bericht:
+    needs: [plan, diagnose]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: gefangene-rollout-*
+          path: roh/
+          merge-multiple: true
+      - name: Vollständigkeit und Quellen prüfen
+        run: |
+          node auswertung/diagnose/gefangene-rollout.js report roh | tee bericht.txt
+          cat bericht.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: gefangene-rollout-gesamt
+          path: |
+            roh/
+            bericht.txt
+          retention-days: 90
+          if-no-files-found: error
