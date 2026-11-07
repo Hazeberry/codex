@@ -62,25 +62,25 @@
     "id": "TRAIN-1",
     "status": "reproduziert",
     "evidence": {
-      "w0": -0.01420834381133318,
+      "w0": 0.01545386016368866,
       "first": {
         "calls": [
           1
         ],
         "trained": true,
-        "w": 0.9857916831970215
+        "w": 1.015453815460205
       },
       "undone": {
         "gameOver": false,
         "trained": true,
-        "w": 0.9857916831970215
+        "w": 1.015453815460205
       },
       "last": {
         "calls": [
           1
         ],
         "trained": true,
-        "w": 0.9857916831970215
+        "w": 1.015453815460205
       },
       "scope": "Original showFinalScore/pass/undo; Training durch aufrufzählende Gewichtsänderungs-Attrappe ersetzt; KI-Aufgabe nur statisch geprüft"
     }
