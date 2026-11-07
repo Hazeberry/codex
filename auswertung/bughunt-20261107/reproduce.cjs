@@ -5,7 +5,7 @@ const fs=require('fs'),vm=require('vm'),cp=require('child_process'),assert=requi
 const path=require('path'),os=require('os'),crypto=require('crypto');
 const root=path.resolve(__dirname,'../..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'codex-bughunt-'));
 const html=fs.readFileSync(root+'/index.html','utf8');
-for(const [f,h] of [['index.html','7bf3158212700948deaef4616b9c95f83521b5fe2ac840ad601996de60b8bf0a'],['gtp-ki.js','51a82869e50a0cdd653ba611579f0dd4d5fdd8ab311b86efdf66f5379c5a241b']])assert.equal(crypto.createHash('sha256').update(fs.readFileSync(root+'/'+f)).digest('hex'),h,'Quellenstand weicht ab: '+f);
+for(const [f,h] of [['index.html','a14ac4d4058072ec552ca524832095f628412224b96ff7159806e35499fcb4b6'],['gtp-ki.js','ab118527fe072a9e0d77a83b6a22c3c689110881dcf649bdc352b810b4b0fb94']])assert.equal(crypto.createHash('sha256').update(fs.readFileSync(root+'/'+f)).digest('hex'),h,'Quellenstand weicht ab: '+f);
 const ex=id=>html.match(new RegExp('<script id="'+id+'">([\\s\\S]*?)</script>'))[1];
 const cut=(a,b)=>html.slice(html.indexOf(a),html.indexOf(b,html.indexOf(a)));
 const out=[];
