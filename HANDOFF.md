@@ -1,5 +1,63 @@
 # Übergabe – Arbeit in Hazeberry/codex (Stand 06.11.2026)
 
+## Bughunts: offene Prüfaufträge (07.11.2026)
+
+Quelle: von Hazeberry übermittelte Review-Berichte. Terra führte den ersten Bughunt in
+`index.html` durch, Astra den zweiten. Die Autorenzuordnung des separaten GTP-Reviews
+ist nicht festgehalten. Die Reviews bezogen sich laut Bericht auf den jeweiligen
+Default-Branch; Repository und genauer Commit wurden in den übermittelten Texten
+nicht genannt. Vor Untersuchung daher Befund am gewählten Quellenstand erneut prüfen.
+Die folgenden Punkte sind keine in dieser Übergabe unabhängig bestätigten Fehler
+und kein Nachweis einer allgemeinen Spielstärke-Regression.
+
+### GTP-Adapter: gtp-ki.js
+
+| ID | Priorität laut Review | Befund / Prüfauftrag | Reproduktion und erwartetes Verhalten |
+|---|---|---|---|
+| GTP-1 | P1 | `play` prüft besetzte Punkte, soll aber Suizid sowie Ko-/Superko-Rückschläge annehmen und so den Brettzustand verfälschen. | Suizid und Ko/Superko gemäß den implementierten Regeln einzeln prüfen. Bei Ablehnung müssen Brett, Gefangene, Ko, Historie und Zugzustand unverändert bleiben. |
+| GTP-2 | P2 | `genmove` ruft `getAIMove` ohne den Kontext `extra.gegnerPasste` auf; die eingeschaltete Versuchs-Passregel könne deshalb nicht auslösen. | Gegnerpass einspielen und eine passende Auslösestellung mit Schalter an/aus vergleichen. Komi und Wertungsmodus des GTP-Aufbaus explizit prüfen. Betroffene Messungen erst nach Prüfung ihrer tatsächlichen Aufrufpfade benennen. |
+| GTP-3 | P2 | Optionale GTP-Befehlsnummern werden als Befehlsname gelesen. | `17 protocol_version` sowie nummerierten ungültigen Befehl prüfen; Erfolgs- und Fehlerantwort müssen dieselbe Nummer tragen. Unnummerierte Befehle weiter unterstützen. |
+
+Prüfstand: gezielter statischer Review, keine Testsuite und keine lokale Ausführung
+laut übermitteltem Bericht. Frühere Läufe mit unnummerierten Befehlen sind durch
+GTP-3 allein nicht widerlegt. GTP-2 betrifft nur Aufrufpfade, die diese Passregel
+über den Adapter tatsächlich aktivieren sollen.
+
+### Erster index.html-Bughunt: Terra
+
+| ID | Priorität laut Review | Befund / Prüfauftrag | Reproduktion und erwartetes Verhalten |
+|---|---|---|---|
+| UI-1 | P1 | Abschalten der KI invalidiere eine laufende Anfrage nicht; `applyAIResult` prüfe nicht `aiEnabled`. | KI während der Suche abschalten, Stellung unverändert lassen und Antwort abwarten. Kein nachträglicher KI-Zug; Such-/Wartezustand muss beendet werden. |
+| TRAIN-1 | P2 | `showFinalScore` trainiert bei Spielende; Undo revidiere weder Gewichte noch `_trained`. | Letzten Pass bzw. KI-Aufgabe zurücknehmen und Partie mit anderem Ergebnis abschließen. Prüfen, welches Ergebnis tatsächlich trainiert wird. Eine Strategie gegen Training auf verworfenen Ergebnissen erst nach Befund festlegen. |
+| UI-2 | P2 | Wechsel des Wertungsmodus nach Spielende aktualisiere das angezeigte Ergebnis nicht, während der SGF-Export neu zählt. | Fertige Partie zwischen Fläche/Territory umschalten und Anzeige mit SGF-Ergebnis vergleichen. |
+| UI-3 | P2 | Nach einem Pass können Markierungen der Zählvorschau im Canvas-Cache bleiben, obwohl die Vorschau deaktiviert wurde. | Zählvorschau öffnen, passen, Canvas und Vorschauzustand unmittelbar prüfen; kein veraltetes Overlay. |
+
+Prüfstand: statischer Review; laut Bericht noch nicht im Browser reproduziert.
+
+### Zweiter index.html-Bughunt: Astra
+
+| ID | Priorität laut Review | Befund / Prüfauftrag | Reproduktion und erwartetes Verhalten |
+|---|---|---|---|
+| TRAIN-2 | P2 | Wechsel der KI-Farbe behalte Trainingsbeispiele ohne Farbangabe; ein gemeinsamer Reward orientiere sich an der letzten KI-Farbe. | Zunächst KI Weiß, später KI Schwarz, anschließend Schwarzsieg. Frühere Weiß-Beispiele dürfen nicht als Schwarz-Siegzüge belohnt werden. Farbzuordnung bzw. Verwerfen des Puffers untersuchen. |
+| NET-1 | P2 | `PolicyNet.reset()` rufe `localStorage.removeItem()` ungeschützt vor der Gewichtsinitialisierung auf. Bei gesperrtem Speicher bleibe das Netz unverändert; auch der Reset zur Divergenzbehandlung sei betroffen. | Speicherzugriff gezielt werfen lassen. Der Reset im Arbeitsspeicher muss trotzdem vollständig erfolgen. |
+
+Prüfstand: TRAIN-2 laut Bericht durch Code-Nachverfolgung gestützt. NET-1 wurde laut
+Review an der extrahierten Methode mit werfendem Speicherzugriff geprüft; keine
+vollständige Browser-Reproduktion beider Befunde berichtet.
+
+### Einordnung und Untersuchung
+
+- Zuerst Quellenstand und Reproduktion je ID dokumentieren; danach gezielte Korrektur
+  mit einem Test, der den ursprünglichen Fehler erkennt.
+- TRAIN-1/TRAIN-2 könnten gespeicherte Gewichte beeinflussen, falls die entsprechenden
+  Bedienabläufe vorkamen. Das ist eine Hypothese zur beobachteten Fehlbewertung,
+  keine nachgewiesene Ursache. Gespeicherte Gewichte vor einem Reset sichern, falls
+  sie für die Untersuchung gebraucht werden.
+- Den konkreten Q-/Aufgabefall und die bisherigen Ursachenmessungen unten getrennt
+  halten. Weder ein knapper PWA-Sieg noch diese Reviews belegen allein eine Regression.
+- Dieser Eintrag dokumentiert Prüfaufträge; er erteilt kein Go für Messläufe,
+  Engine-Vergleiche, Spieländerungen oder Merges. Die bestehenden Freigaberegeln gelten.
+
 ## Aktueller Stand in diesem Repository
 - **H/R-Hauptlauf jetzt konkret vorbereitet:** §13 in `docs/prior-anhebung-ohne-orakel.md`.
   Aktueller Default-Ausgangspunkt `6a6fe6960c029551ed8405e62d3b633b36a93645`.
