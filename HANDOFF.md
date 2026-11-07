@@ -70,7 +70,8 @@ vollständige Browser-Reproduktion beider Befunde berichtet.
   Trainingsoperationen sind Attrappen. Details und Grenzen stehen pro ID im Bericht.
 - Neun gezielte Prüfungen erfolgreich, ohne Suche/Partien/GNU Go. Keine volle Testsuite
   und kein vollständiger Browsertest: Playwright vorhanden, Chromium-Datei fehlt.
-  Browser-Ende-zu-Ende, echte Workerzustellung und Overlay-Pixelprüfung bleiben offen.
+  Der spätere von Hazeberry übermittelte Browserbericht ist im Nachtrag von
+  docs/bughunt-verifikation.md eingeordnet; Rohartefakte hier nicht unabhängig geprüft.
 - **Trainingshypothese eingegrenzt:** netMaxBlend ist im geprüften Default 0;
   die lokalen PolicyNet-Gewichte steuern damit die Zugwahl nicht. TRAIN-1/TRAIN-2
   erklären unter dieser Einstellung keine direkte Verschlechterung der Zugwahl.
@@ -92,7 +93,9 @@ vollständige Browser-Reproduktion beider Befunde berichtet.
   fehlende Voraussetzung/Testfehler, Exit 0 = in diesen Abläufen nicht reproduziert.
   Fehlender Browser wird nie als grün übersprungen.
 - Hier nur Syntax, Statuslogik und Fehlerweg bei fehlendem Browser geprüft.
-  Vollständige Browserausführung weiterhin offen. Playwright/Chromium-Installation
+  Hazeberry meldete danach alle sieben Browserfälle auf 7e300914 reproduziert, ohne
+  Testfehler (Playwright 1.56.1/Chromium 154 laut Bericht). Rohartefakte hier nicht
+  unabhängig geprüft; Nachtrag in docs/bughunt-verifikation.md. Playwright/Chromium-Installation
   steht in der Anleitung; optional manueller Workflow `bughunt-browser.yml`.
 - Kein Actions-Lauf gestartet, keine Spielkorrektur. Normale CI unverändert.
 
