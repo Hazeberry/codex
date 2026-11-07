@@ -82,6 +82,20 @@ vollständige Browser-Reproduktion beider Befunde berichtet.
 - Spiel und Adapter unverändert. Weitere Korrekturen und Messungen brauchen die
   bestehenden Freigaben; dieser Befund liefert selbst kein Go.
 
+## Gezielte Browserdiagnose vorbereitet (07.11.2026)
+
+- Startanleitung und Fälle: [`docs/bughunt-browser.md`](docs/bughunt-browser.md).
+- `node auswertung/bughunt-20261107/browser.cjs --aus /tmp/codex-bughunt-browser`
+  prüft sieben Szenarien für sechs index.html-Befunde im echten Chromium.
+  UI-1 nutzt einen echten Worker mit kontrollierter Antwort; keine Suchpartien.
+- JSON, Markdown und Screenshots; Exit 1 = reproduzierter Defekt, Exit 2 =
+  fehlende Voraussetzung/Testfehler, Exit 0 = in diesen Abläufen nicht reproduziert.
+  Fehlender Browser wird nie als grün übersprungen.
+- Hier nur Syntax, Statuslogik und Fehlerweg bei fehlendem Browser geprüft.
+  Vollständige Browserausführung weiterhin offen. Playwright/Chromium-Installation
+  steht in der Anleitung; optional manueller Workflow `bughunt-browser.yml`.
+- Kein Actions-Lauf gestartet, keine Spielkorrektur. Normale CI unverändert.
+
 ## Aktueller Stand in diesem Repository
 - **H/R-Hauptlauf jetzt konkret vorbereitet:** §13 in `docs/prior-anhebung-ohne-orakel.md`.
   Aktueller Default-Ausgangspunkt `6a6fe6960c029551ed8405e62d3b633b36a93645`.
