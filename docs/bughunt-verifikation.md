@@ -21,8 +21,8 @@ Auch die lokale Suche fand keinen verfügbaren Chromium/Chrome-Browser.
 Browserinteraktion, echte Workerzustellung und Pixelvergleich bleiben offen.
 
 Quellen-SHA-256:
-- index.html: `7bf3158212700948deaef4616b9c95f83521b5fe2ac840ad601996de60b8bf0a`
-- gtp-ki.js: `51a82869e50a0cdd653ba611579f0dd4d5fdd8ab311b86efdf66f5379c5a241b`
+- index.html: `a14ac4d4058072ec552ca524832095f628412224b96ff7159806e35499fcb4b6`
+- gtp-ki.js: `ab118527fe072a9e0d77a83b6a22c3c689110881dcf649bdc352b810b4b0fb94`
 
 Das Skript ist eine **Defektreproduktion**, keine Regressionstestsuite für einen reparierten Stand.
 Es verweigert abweichende Quelldateien. Aus dem Repository-Stamm:
@@ -85,3 +85,27 @@ Hazeberry die jeweilige Änderung freigibt. Für UI-1/UI-2/UI-3 und die Training
 zusätzlich kurze Browser-Reproduktionen mit echter Oberfläche bzw. Workerzustellung.
 TRAIN-1 braucht eine bewusste Strategie für Undo bereits trainierter Partien.
 Aus dieser Untersuchung folgt kein Go für Spieländerungen oder Messläufe.
+
+## Quellenkorrektur und nachgereichte Browserausführung (07.11.2026)
+
+Die ursprünglich angegebenen SHA-256 gehörten zu lokalen Prüfkopien mit jeweils
+einem zusätzlichen LF am Dateiende. Bytevergleich gegen die Branch-Dateien bestätigt:
+Die Dateien unterschieden sich ausschließlich durch diesen abschließenden Zeilenumbruch.
+Die SHA-256 oben und die Wächter im Reproduktionsskript sind auf die exakten Repository-
+Dateien korrigiert. Die neun kurzen Node-Prüfungen wurden mit diesen exakten Dateien
+wiederholt; alle Befunde blieben gleich. Der gespeicherte Node-Ergebnisbericht wurde ersetzt.
+
+Hazeberry hat anschließend den Bericht einer Codex-Browserausführung übermittelt:
+Branch claude/bughunt-verifikation, Commit 7e300914, Playwright 1.56.1 und Chromium 154
+(Versionen laut übermitteltem Bericht). Alle sieben Fälle reproduziert, keine Testfehler,
+Exit 1. Der Bericht nennt insbesondere den Steinzug nach KI-Abschaltung, erhaltene
+Trainingsgewichte/Zähler/Speicher nach Undo in beiden Endpfaden, veraltete Anzeige
+Schwarz +353,5 gegenüber Territory/SGF Weiß +5,5, acht verbliebene Vorschau-Markierungen,
+positives Signal für das frühere Weiß-Beispiel und abgebrochenen Reset bei Storage-Fehler.
+
+Das ist ein **nachgereichter Ausführungsbericht**, keine hier selbst ausgeführte oder
+anhand der Rohartefakte unabhängig geprüfte Browsermessung. ZIP und Screenshots wurden
+in dieser Sitzung nicht bereitgestellt. Die ursprüngliche lokale Browsergrenze oben
+beschreibt den damaligen Prüfstand. GTP wurde in dieser Browserausführung nicht erneut geprüft.
+Quelle des Browserberichts: Nachricht von Hazeberry in dieser Sitzung. Kein Spielstärkenachweis,
+keine Spielkorrektur und keine Änderung am Default.
