@@ -1,0 +1,48 @@
+name: Bughunt Browserdiagnose
+
+# Nur nach eigenem Go starten. Kurze Bedien-/Trainingsprüfung, keine Spielstärkemessung.
+# Exit 1 bedeutet reproduzierter Defekt; Exit 2 bedeutet unvollständige Prüfung.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bughunt-browser-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Playwright und Chromium
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Sieben gezielte Browserfälle
+        timeout-minutes: 5
+        run: node auswertung/bughunt-20261107/browser.cjs --aus bughunt-browser-ergebnis
+      - name: Bericht in Run-Übersicht
+        if: always()
+        run: |
+          if [ -f bughunt-browser-ergebnis/bericht.md ]; then
+            cat bughunt-browser-ergebnis/bericht.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Browserdiagnose nicht ausgeführt oder vor Berichtserstellung abgebrochen. Kein Urteil." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: bughunt-browser
+          path: bughunt-browser-ergebnis/
+          if-no-files-found: warn
+          retention-days: 90
