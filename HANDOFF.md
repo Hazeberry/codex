@@ -99,6 +99,29 @@ vollständige Browser-Reproduktion beider Befunde berichtet.
   steht in der Anleitung; optional manueller Workflow `bughunt-browser.yml`.
 - Kein Actions-Lauf gestartet, keine Spielkorrektur. Normale CI unverändert.
 
+## Querverweis zum ursprünglichen Repo (08.11.2026)
+
+Die Passregel-Arbeit (Stufen A bis C, Zähldiagnose und Vorsprung-Untersuchung) sowie
+Claudes unabhängige Wiederholung desselben Bughunt-Testskripts werden in
+[`Hazeberry/Go-html-Game-MoE`](https://github.com/Hazeberry/Go-html-Game-MoE) dokumentiert.
+Maßgeblich sind dort die Berichte und Daten; hier genügt der Verweis:
+
+- Passregel: [Vergleich](https://github.com/Hazeberry/Go-html-Game-MoE/blob/main/docs/passregel-vergleich.md),
+  [Zähldiagnose](https://github.com/Hazeberry/Go-html-Game-MoE/blob/main/docs/passregel-zaehldiagnose.md),
+  [Vorsprung-Untersuchung](https://github.com/Hazeberry/Go-html-Game-MoE/blob/main/docs/passregel-vorsprung.md).
+- Bughunt-Wiederholung: [Bericht](https://github.com/Hazeberry/Go-html-Game-MoE/blob/main/docs/bughunt-wiederholung.md)
+  und [Rohdaten/Screenshots](https://github.com/Hazeberry/Go-html-Game-MoE/tree/main/docs/daten/bughunt-wiederholung/lauf1/),
+  dort durch [PR #286](https://github.com/Hazeberry/Go-html-Game-MoE/pull/286) übernommen.
+- Die dortige Übergabe-Übersicht wird in [PR #287](https://github.com/Hazeberry/Go-html-Game-MoE/pull/287)
+  vorbereitet (bei dieser Lektüre noch offen, Kopf `d60b40c45440d66a4dbd78a2b694dc9e50fbb2d8`).
+  Nach dessen Merge ist sie im dortigen `HANDOFF.md` zu finden.
+
+In `Hazeberry/codex` liegen Bughunt-Verifikation und Testaufbau aus
+[PR #20](https://github.com/Hazeberry/codex/pull/20) (gemergt, `9c2dc2ab0fdd60c0e538114134810c15ae874aa1`).
+Ergebnisse werden hier nicht aus dem anderen Repo abgeschrieben.
+Beide Repos können unterschiedliche Quellenstände haben; Befunde sind an ihrem
+jeweils dokumentierten Commit zu lesen. Dieser Querverweis erteilt keine Freigabe.
+
 ## Aktueller Stand in diesem Repository
 - **H/R-Hauptlauf jetzt konkret vorbereitet:** §13 in `docs/prior-anhebung-ohne-orakel.md`.
   Aktueller Default-Ausgangspunkt `6a6fe6960c029551ed8405e62d3b633b36a93645`.
