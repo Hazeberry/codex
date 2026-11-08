@@ -58,6 +58,47 @@ vollständige Browser-Reproduktion beider Befunde berichtet.
 - Dieser Eintrag dokumentiert Prüfaufträge; er erteilt kein Go für Messläufe,
   Engine-Vergleiche, Spieländerungen oder Merges. Die bestehenden Freigaberegeln gelten.
 
+## Bughunt-Verifikation am Stand 17117ae (07.11.2026)
+
+- Untersuchung der neun Prüfaufträge abgeschlossen auf Quellencommit
+  `17117ae822dfa0d836964311cf2f6aa41d489f2e`; Bericht:
+  [`docs/bughunt-verifikation.md`](docs/bughunt-verifikation.md).
+- GTP-1 und GTP-3 im unveränderten Adapterprozess reproduziert. GTP-2:
+  fehlendes extra im instrumentierten Adapteraufruf und Guard im Engine-Code bestätigt.
+- UI-1, TRAIN-1, UI-2, UI-3, TRAIN-2 und NET-1 im Funktionstest mit aus index.html
+  ausgeschnittenem Code nachvollzogen; DOM/Canvas/Workerzustellung bzw. ausgewählte
+  Trainingsoperationen sind Attrappen. Details und Grenzen stehen pro ID im Bericht.
+- Neun gezielte Prüfungen erfolgreich, ohne Suche/Partien/GNU Go. Keine volle Testsuite
+  und kein vollständiger Browsertest: Playwright vorhanden, Chromium-Datei fehlt.
+  Der spätere von Hazeberry übermittelte Browserbericht ist im Nachtrag von
+  docs/bughunt-verifikation.md eingeordnet; Rohartefakte hier nicht unabhängig geprüft.
+- **Trainingshypothese eingegrenzt:** netMaxBlend ist im geprüften Default 0;
+  die lokalen PolicyNet-Gewichte steuern damit die Zugwahl nicht. TRAIN-1/TRAIN-2
+  erklären unter dieser Einstellung keine direkte Verschlechterung der Zugwahl.
+  Tatsächliche Browserparameter wurden nicht gelesen; Endspiel-Netz ist gesondert.
+- Reproduktionsskript mit Quellhash-Prüfung:
+  `auswertung/bughunt-20261107/reproduce.cjs`. Es erwartet die Defekte dieses Stands,
+  ist keine Testsuite für einen reparierten Stand. Ergebnisse:
+  `docs/daten/bughunt-20261107/results.json`.
+- Spiel und Adapter unverändert. Weitere Korrekturen und Messungen brauchen die
+  bestehenden Freigaben; dieser Befund liefert selbst kein Go.
+
+## Gezielte Browserdiagnose vorbereitet (07.11.2026)
+
+- Startanleitung und Fälle: [`docs/bughunt-browser.md`](docs/bughunt-browser.md).
+- `node auswertung/bughunt-20261107/browser.cjs --aus /tmp/codex-bughunt-browser`
+  prüft sieben Szenarien für sechs index.html-Befunde im echten Chromium.
+  UI-1 nutzt einen echten Worker mit kontrollierter Antwort; keine Suchpartien.
+- JSON, Markdown und Screenshots; Exit 1 = reproduzierter Defekt, Exit 2 =
+  fehlende Voraussetzung/Testfehler, Exit 0 = in diesen Abläufen nicht reproduziert.
+  Fehlender Browser wird nie als grün übersprungen.
+- Hier nur Syntax, Statuslogik und Fehlerweg bei fehlendem Browser geprüft.
+  Hazeberry meldete danach alle sieben Browserfälle auf 7e300914 reproduziert, ohne
+  Testfehler (Playwright 1.56.1/Chromium 154 laut Bericht). Rohartefakte hier nicht
+  unabhängig geprüft; Nachtrag in docs/bughunt-verifikation.md. Playwright/Chromium-Installation
+  steht in der Anleitung; optional manueller Workflow `bughunt-browser.yml`.
+- Kein Actions-Lauf gestartet, keine Spielkorrektur. Normale CI unverändert.
+
 ## Aktueller Stand in diesem Repository
 - **H/R-Hauptlauf jetzt konkret vorbereitet:** §13 in `docs/prior-anhebung-ohne-orakel.md`.
   Aktueller Default-Ausgangspunkt `6a6fe6960c029551ed8405e62d3b633b36a93645`.
