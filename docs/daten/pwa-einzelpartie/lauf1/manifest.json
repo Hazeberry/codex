@@ -1,0 +1,15 @@
+{
+  "spielLauf": 42242456834,
+  "spielQuellenSha": "90b0e3e52cd28c48ff512d8d15220cef30094da6",
+  "originalDigest": "sha256:eebaecfe3d3506210b32d5887560ea9f00bb5c09e732b1ed2b6ed9414e1a621c",
+  "exportLokalGeprueft": true,
+  "dateien": {
+    "gnugo-version.txt": "73fdf5a564ee9866f35a549ab2631a62a8b391500776816d6c09e6e3ae58d628",
+    "quellen-sha.txt": "13d0f5a643def8fb42e0326dce5f8507c293a2f4fd0837ec3e65a01611b01a35",
+    "sha256.txt": "c6043bf93e6f0256a1ab7845472fd16a8934c2dca12e64102526e7b5ad4c8ab1",
+    "partie.jsonl": "7a4fc724691873f3ca295c45a82a21a445305afd874a7c1013a2ae23827e9c7a",
+    "original-artefakt.zip": "eebaecfe3d3506210b32d5887560ea9f00bb5c09e732b1ed2b6ed9414e1a621c",
+    "bericht.md": "abac8934689b8d2818cf27aaeddd49adf724488f70e04e296ed0cf00954d8710",
+    "partie.sgf": "b7ff8b2f6ff887d2fddd2e963446af9ee6fcc5e7a2be4a591d1d5be0168ecc3d"
+  }
+}
