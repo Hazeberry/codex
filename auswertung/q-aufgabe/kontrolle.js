@@ -9,7 +9,7 @@ const {instrumentiere} = require('./beobachter');
 const html = fs.readFileSync(STANDARD_HTML, 'utf8');
 function kontrolle(messen, farbe) {
   const worker = schneide(html, 'worker-ai');
-  const ctx = vm.createContext({});
+  const ctx = vm.createContext({Buffer});
   vm.runInContext(schneide(html, 'shared-go-logic') + '\n' + (messen ? instrumentiere(worker) : worker), ctx);
   vm.runInContext('let zustand=719; Math.random=()=>((zustand=Math.imul(zustand,1664525)+1013904223>>>0)/4294967296)', ctx);
   Object.assign(ctx.PARAMS, {mctsFixedSims:120, adaptiveBudgetEnabled:0});
