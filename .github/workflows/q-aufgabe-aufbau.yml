@@ -1,0 +1,29 @@
+name: Q-Aufgabe – synthetischer Testaufbau
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/q-aufgabe-aufbau.yml'
+      - 'auswertung/q-aufgabe-trockenlauf.js'
+      - 'docs/q-aufgabe-validierung.md'
+      - 'index.html'
+      - 'tests/rahmen.js'
+      - 'tests/resign-criterion.js'
+      - 'auswertung/kandidaten-orakel/haupt-bericht.js'
+      - 'auswertung/messung-zusatz.js'
+permissions:
+  contents: read
+jobs:
+  trockenlauf:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+          package-manager-cache: false
+      - name: Gebietskriterium an künstlichen Brettern und Testfälle zur Auswertung
+        run: |
+          node tests/resign-criterion.js
+          node auswertung/q-aufgabe-trockenlauf.js

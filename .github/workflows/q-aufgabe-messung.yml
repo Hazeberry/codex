@@ -1,0 +1,133 @@
+name: Q-Aufgabe – unabhängige Messung
+on:
+  workflow_call:
+permissions:
+  actions: read
+  contents: read
+concurrency:
+  group: q-aufgabe-messung
+  cancel-in-progress: false
+jobs:
+  vorbereitung:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+          package-manager-cache: false
+      - name: Referenz, Suchbeobachter und Entscheidungsweg
+        run: |
+          node auswertung/q-aufgabe/kontrolle.js
+          node auswertung/q-aufgabe-trockenlauf.js
+      - name: Gegner einmalig bereitstellen und Stellungsrekonstruktion prüfen
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update -qq
+          sudo apt-get -o Acquire::Retries=3 install -y gnugo
+          mkdir -p basis
+          cp /usr/games/gnugo basis/
+          /usr/games/gnugo --version | tee basis/version.txt
+          python3 auswertung/q-aufgabe/messung.py kontrolle
+      - name: Frühere Seeds und Verläufe erfassen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 auswertung/q-aufgabe/archiv.py
+          mv archiv.json basis/
+          (cd basis && sha256sum gnugo archiv.json > sha256.txt)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: q-basis
+          path: basis/
+          if-no-files-found: error
+  partien:
+    needs: vorbereitung
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        paket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v7
+        with:
+          name: q-basis
+          path: basis/
+      - name: Identische GNU-Go-Binärdatei einsetzen
+        run: |
+          (cd basis && sha256sum -c sha256.txt)
+          sudo install -D -m 755 basis/gnugo /usr/games/gnugo
+          cp basis/archiv.json .
+      - run: python3 auswertung/q-aufgabe/messung.py spielen ${{ matrix.paket }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: q-roh-${{ matrix.paket }}
+          path: roh/
+          if-no-files-found: error
+  urteile:
+    needs: partien
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        paket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: q-roh-${{ matrix.paket }}
+          path: roh/
+      - uses: actions/download-artifact@v7
+        with:
+          name: q-basis
+          path: basis/
+      - name: Identische GNU-Go-Binärdatei einsetzen
+        run: |
+          (cd basis && sha256sum -c sha256.txt)
+          sudo install -D -m 755 basis/gnugo /usr/games/gnugo
+          cp basis/archiv.json .
+      - run: python3 auswertung/q-aufgabe/messung.py bewerten ${{ matrix.paket }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: q-bewertet-${{ matrix.paket }}
+          path: bewertet/
+          if-no-files-found: error
+  bericht:
+    needs: [vorbereitung, partien, urteile]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Pflichtjobs prüfen
+        env:
+          VOR: ${{ needs.vorbereitung.result }}
+          SPIEL: ${{ needs.partien.result }}
+          WERT: ${{ needs.urteile.result }}
+        run: |
+          if [[ "$VOR/$SPIEL/$WERT" != success/success/success ]]; then
+            echo "Kein Urteil. Vorprüfung $VOR, Partien $SPIEL, Fortsetzungen $WERT." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: q-bewertet-*
+          merge-multiple: true
+          path: bewertet/
+      - run: node auswertung/q-aufgabe/bericht.js
+      - uses: actions/upload-artifact@v7
+        with:
+          name: q-bericht
+          path: bericht.json
+          if-no-files-found: error

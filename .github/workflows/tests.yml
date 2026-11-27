@@ -22,12 +22,17 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      q_messung:
+        description: '400 Q-Prüfpartien und externe Fortsetzungen starten'
+        type: boolean
+        default: false
 
 # Ein überholter Lauf auf demselben Branch wird abgebrochen: bei mehreren
 # Pushes hintereinander zählt nur der letzte Stand.
 concurrency:
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  group: tests-${{ github.ref }}-${{ inputs.q_messung || false }}
+  cancel-in-progress: ${{ !inputs.q_messung }}
 
 permissions:
   contents: read
@@ -38,6 +43,13 @@ permissions:
 # anderen Paketständen von GNU Go. Die Messungen sollen auf dem Stand laufen,
 # auf dem sie vorab festgelegt und bisher gespielt wurden.
 jobs:
+  q_messung:
+    if: github.event_name == 'workflow_dispatch' && inputs.q_messung
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/q-aufgabe-messung.yml
+
   node:
     name: Node (alle Suiten außer Browser)
     runs-on: ubuntu-24.04

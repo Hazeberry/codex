@@ -128,6 +128,7 @@ for (let i = 0; i < a.length; i++) {
     case '--partien': opt.partien = +v; i++; break;
     case '--seed': opt.seed = +v; i++; break;
     case '--stufe': opt.stufe = +v; i++; break;
+    case '--q-spur': opt.qSpur = v; i++; break;
     case '--roh': opt.roh = v; i++; break;
     case '--gnugo': opt.gnugo = v; i++; break;
     case '--maxzuege': opt.maxZuege = +v; i++; break;
@@ -210,9 +211,12 @@ const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const ex = id => new RegExp(`<script id="${id}">([\\s\\S]*?)</script>`).exec(html)[1];
 globalThis.localStorage = {getItem: () => null, setItem() {}, removeItem() {}};
 globalThis.document = {getElementById: () => null};
-(0, eval)(ex('shared-go-logic') + '\n' + ex('worker-ai')
+const workerQuelle = ex('worker-ai');
+const messQuelle = opt.qSpur ? require('./auswertung/q-aufgabe/beobachter').instrumentiere(workerQuelle) : workerQuelle;
+(0, eval)(ex('shared-go-logic') + '\n' + messQuelle
   + ';globalThis.__D={PARAMS,getAIMove,computeZobrist,removeDeadGroups,floodFill,'
   + 'bensonClassify,_bnDead,BOARD_SIZE,NEIGHBORS,setzeKrisenDauer,setzeLebensurteil,'
+  + (opt.qSpur ? 'serie(){return _hopelessStreak;},' : '')
   + 'neuePartie(){_mctsSavedRoot=null;_hopelessStreak=0;_allDeadStreak=0;_lastMsPerSim=null;},'
   + 'baumVerwerfen(){_mctsSavedRoot=null;},'
   + 'kandidatenProtokoll:typeof leseKandidatenOrakel==="function"?leseKandidatenOrakel:null,'
@@ -478,7 +482,15 @@ async function partieSpielen(nr) {
           extra = {kandidatenOrakel: {arm: opt.kandidatenOrakel, g: gi}};
         }
         const priorT0 = priorTeil ? performance.now() : 0;
+        const vorher = opt.qSpur ? E.serie() : null;
+        if (opt.qSpur) globalThis.__qSuchwert = null;
         const r = E.getAIMove(board, f, Array.from(hist), {...caps}, mc, 'hard', 1, ko, last, extra);
+        if (opt.qSpur) {
+          const eintrag = {nr, seed, f, mc, vorher, nachher: E.serie(), suche: globalThis.__qSuchwert,
+            typ: r.type, info: r.info, ko, zug: r.type === 'stone' ? zuGtp(r.y * 19 + r.x) : r.type};
+          if (r.type === 'resign') eintrag.brett = Array.from(board);
+          fs.appendFileSync(opt.qSpur, JSON.stringify(eintrag) + '\n');
+        }
         if (priorTeil) {
           const prot = E.priorProtokoll && E.priorProtokoll();
           if (!prot) throw new Error('Pflichtprotokoll priorOhneOrakel fehlt');
