@@ -1,0 +1,51 @@
+{
+  "erstlauf": {
+    "pakete": 133,
+    "gepruefteSiege": 2660,
+    "dreiergruppenOhneGelegenheit": {
+      "g": 0,
+      "f": 0
+    },
+    "vollstaendigeDreiergruppen": {
+      "g": 400,
+      "f": 360
+    },
+    "abweichungen": []
+  },
+  "container": {
+    "pakete": 144,
+    "gepruefteSiege": 2880,
+    "dreiergruppenOhneGelegenheit": {
+      "g": 0,
+      "f": 0
+    },
+    "vollstaendigeDreiergruppen": {
+      "g": 480,
+      "f": 480
+    },
+    "abweichungen": []
+  },
+  "offiziellesUrteilGueltig": true,
+  "vierHauptvergleiche": [
+    {
+      "gegner": "g",
+      "vergleich": "H-A",
+      "abweichendeFelder": []
+    },
+    {
+      "gegner": "g",
+      "vergleich": "H-R",
+      "abweichendeFelder": []
+    },
+    {
+      "gegner": "f",
+      "vergleich": "H-A",
+      "abweichendeFelder": []
+    },
+    {
+      "gegner": "f",
+      "vergleich": "H-R",
+      "abweichendeFelder": []
+    }
+  ]
+}

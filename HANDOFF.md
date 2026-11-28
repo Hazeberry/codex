@@ -123,28 +123,26 @@ Beide Repos können unterschiedliche Quellenstände haben; Befunde sind an ihrem
 jeweils dokumentierten Commit zu lesen. Dieser Querverweis erteilt keine Freigabe.
 
 ## Aktueller Stand in diesem Repository
-- **H/R-Hauptlauf jetzt konkret vorbereitet:** §13 in `docs/prior-anhebung-ohne-orakel.md`.
-  Aktueller Default-Ausgangspunkt `6a6fe6960c029551ed8405e62d3b633b36a93645`.
-  480 je Arm/Gegner = 2880 regulär +18 Wiederholungen +4 Archivkontrollen.
-  Hauptlauf nicht gestartet; neue Budget-/Paketplanung vor Merge zur Durchsicht.
-  Nach Go zuerst neuer passender Engine-Vergleich, dann bedingt Hauptlauf.
-  Planungswert 25–30 Runnerstunden/3–5 h Wanduhr; feste Jobobergrenzen §13.
+- **H/R-Hauptlauf abgeschlossen (28.11.2026).** Der vollständige Containerlauf am Messstand
+  `0ab23b9f304eaafea27c83aede9f41150649804f` bestand 78/78 Prüfungen. Bei 120 Simulationen
+  verlor H gegenüber A im Mittel 27,58 Punkte gegen GNU Go und 22,41 gegen Fuego.
+  Gegenüber R ist kein Vorteil von H nachgewiesen. Alle 2.660 verfügbaren Hauptpartien des
+  unvollständigen Actions-Erstlaufs stimmen in Zugfolge und Endstand überein.
+  [Hauptvergleiche, Grenzen und Daten](docs/prior-anhebung-ohne-orakel.md#14-ergebnis-des-hr-containerlaufs).
 - Ziel der weiteren Arbeit: `Hazeberry/codex`. Vollständiger Import mit Historie durch
   PR #1, Merge `1bf2ff3cc5258038697b91a79224c70e25761d87`.
 - Vorabfestlegung für die Prior-Anhebung ohne Orakel: `docs/prior-anhebung-ohne-orakel.md`.
   Umsetzung A/H/R samt Tests und manuellen Workflows durch PR #7 gemergt; Stand
   `6bfaa33d69822f13a049b5813d4b6c77b63b61a3`. Standard aus, keine UI-Aktivierung.
 - Hazeberry gab nach Durchsicht/Konkretisierung §10 Go für Merge, Engine-Vergleich und
-  technische Probe. Diese Freigaben sind ausgeführt; kein Hauptlauf-Go.
+  technische Probe. Der spätere Hauptlauf ist in §14 dokumentiert.
 - Engine-Vergleich 42164242839 **gültig, GLEICH**: 130 KI-Abfragen, Auswahlbewertung ab
   Zug 81 an je 25 Stellen für Schwarz/Weiß. Ausgangsstand, neu aus und A stimmen bei
   Zügen, Kindern, Priors, N/W und Suchzufallsverbrauch überein; keine weitergehende Abdeckung.
 - Technische Probe 42164396423 **gültig**, 58/58 Partien, 70/70 Pflichtprüfungen,
   keine Ausfälle/Timeouts. 18 Wiederholungen identisch, vier Archivkontrollen passend;
   H/R gegen beide Gegner in beiden Farben tatsächlich angehoben. Maximum 44,3 s.
-- **Keine Wirkungsauswertung** aus der Probe. Ob H hilft oder besser als R ist, bleibt
-  offen. Hauptumfang, Budget und Pakete sind jetzt in §13 konkretisiert, vor Merge
-  zur Durchsicht; Hauptlauf braucht eigenes Go. GNU-Go-geprägte Daten und GNU-Go-Wertung bleiben enthalten.
+- Die technische Probe prüfte die Ausführung. Die Wirkungsauswertung in §14 verwendet die Hauptpartien. GNU-Go-geprägte Daten und GNU-Go-Wertung bleiben enthalten.
 - Ergebnisse §11/12, vollständige Rohartefakte unter
   `docs/daten/prior-anhebung-ohne-orakel/`. Quellen-SHA und SHA-256 sind gesichert.
 - **Diagnose abgeschlossen, gültig:** Lauf 42130235314, Versuch 2, mit drei übernommenen
@@ -281,9 +279,7 @@ Fall d1, e, c0 und d0 kamen nicht vor.
   er anheben soll. N − A zeigt keinen nachgewiesenen Gewinn; das ist **kein** Beleg für Wirkungslosigkeit.
   Die nächste Frage: Lässt sich die nützliche Anhebung mit einer rein engineinternen Regel finden? Eine solche
   Regel dürfte das Orakel nicht als Eingabe nutzen, sonst bliebe die Abhängigkeit bestehen. Das ist eine neue
-  Fragestellung mit eigener Vorabfestlegung und eigenem Go. Der neue Entwurf steht in
-  `docs/prior-anhebung-ohne-orakel.md`. Aktueller Stand: siehe oben und §11/12; nur die
-  Wirksamkeitsfrage und der Hauptlauf bleiben für diese konkrete Regel offen.
+  Fragestellung mit eigener Vorabfestlegung und eigenem Go. Der spätere Test der quickEval-Regel ist in [§14](docs/prior-anhebung-ohne-orakel.md#14-ergebnis-des-hr-containerlaufs) ausgewertet.
 
 ## Regeln aus den letzten Sitzungen
 - **Nur ein ausdrückliches „Go“ startet einen Lauf** oder merged einen PR. Eine Empfehlung ist kein Go. Diesen Fehler gab es einmal (Engine-Vergleich), er ist im Nachtrag vermerkt.
