@@ -1,0 +1,484 @@
+{
+  "alterLauf": 42279288660,
+  "alteRegulaerePakete": 133,
+  "neuerLaufGueltig": true,
+  "uebereinstimmung": {
+    "f-A": {
+      "gemeinsam": 400,
+      "statusgleich": 400,
+      "beide_regulaer": 400,
+      "zuege_gleich": 400,
+      "endstand_gleich": 400,
+      "siegentscheidung_gleich": 400
+    },
+    "wiederholung-f-A": {
+      "gemeinsam": 3,
+      "statusgleich": 3,
+      "beide_regulaer": 3,
+      "zuege_gleich": 3,
+      "endstand_gleich": 3,
+      "siegentscheidung_gleich": 3
+    },
+    "f-H": {
+      "gemeinsam": 460,
+      "statusgleich": 460,
+      "beide_regulaer": 460,
+      "zuege_gleich": 460,
+      "endstand_gleich": 460,
+      "siegentscheidung_gleich": 460
+    },
+    "wiederholung-f-H": {
+      "gemeinsam": 3,
+      "statusgleich": 3,
+      "beide_regulaer": 3,
+      "zuege_gleich": 3,
+      "endstand_gleich": 3,
+      "siegentscheidung_gleich": 3
+    },
+    "f-R": {
+      "gemeinsam": 460,
+      "statusgleich": 460,
+      "beide_regulaer": 460,
+      "zuege_gleich": 460,
+      "endstand_gleich": 460,
+      "siegentscheidung_gleich": 460
+    },
+    "wiederholung-f-R": {
+      "gemeinsam": 3,
+      "statusgleich": 3,
+      "beide_regulaer": 3,
+      "zuege_gleich": 3,
+      "endstand_gleich": 3,
+      "siegentscheidung_gleich": 3
+    },
+    "g-A": {
+      "gemeinsam": 460,
+      "statusgleich": 460,
+      "beide_regulaer": 460,
+      "zuege_gleich": 460,
+      "endstand_gleich": 460,
+      "siegentscheidung_gleich": 460
+    },
+    "wiederholung-g-A": {
+      "gemeinsam": 3,
+      "statusgleich": 3,
+      "beide_regulaer": 3,
+      "zuege_gleich": 3,
+      "endstand_gleich": 3,
+      "siegentscheidung_gleich": 3
+    },
+    "g-H": {
+      "gemeinsam": 460,
+      "statusgleich": 460,
+      "beide_regulaer": 460,
+      "zuege_gleich": 460,
+      "endstand_gleich": 460,
+      "siegentscheidung_gleich": 460
+    },
+    "wiederholung-g-H": {
+      "gemeinsam": 3,
+      "statusgleich": 3,
+      "beide_regulaer": 3,
+      "zuege_gleich": 3,
+      "endstand_gleich": 3,
+      "siegentscheidung_gleich": 3
+    },
+    "g-R": {
+      "gemeinsam": 420,
+      "statusgleich": 420,
+      "beide_regulaer": 420,
+      "zuege_gleich": 420,
+      "endstand_gleich": 420,
+      "siegentscheidung_gleich": 420
+    },
+    "wiederholung-g-R": {
+      "gemeinsam": 3,
+      "statusgleich": 3,
+      "beide_regulaer": 3,
+      "zuege_gleich": 3,
+      "endstand_gleich": 3,
+      "siegentscheidung_gleich": 3
+    },
+    "kontrolle": {
+      "gemeinsam": 4,
+      "statusgleich": 4,
+      "beide_regulaer": 4,
+      "zuege_gleich": 4,
+      "endstand_gleich": 4,
+      "siegentscheidung_gleich": 4
+    }
+  },
+  "diskrepanzen": [],
+  "deskriptiv_auf_gemeinsamen_Dreiergruppen_alt_neu": {
+    "g": {
+      "vollstaendige_gemeinsame_Dreiergruppen": 400,
+      "H-A": [
+        -27.625,
+        -27.625
+      ],
+      "H-R": [
+        5.0475,
+        5.0475
+      ]
+    },
+    "f": {
+      "vollstaendige_gemeinsame_Dreiergruppen": 360,
+      "H-A": [
+        -22.13888888888889,
+        -22.13888888888889
+      ],
+      "H-R": [
+        2.3,
+        2.3
+      ]
+    }
+  },
+  "neue_Hauptauswertung": {
+    "g": {
+      "haupt": [
+        {
+          "a": "H",
+          "b": "A",
+          "n": 480,
+          "mittel": -27.579166666666666,
+          "sd": 49.45057192816145,
+          "t": -12.218852977047472,
+          "p": 4.467168970488763e-30,
+          "lo": -33.238111116713384,
+          "hi": -21.920222216619948,
+          "q": 2.507175473288399,
+          "siege": {
+            "n": 480,
+            "nichtPruefbar": 0,
+            "nurA": 0,
+            "nurB": 8,
+            "p": 0.007812500000000002
+          },
+          "urteil": "H schlechter als A"
+        },
+        {
+          "a": "H",
+          "b": "R",
+          "n": 480,
+          "mittel": 5.247916666666667,
+          "sd": 52.69274188958787,
+          "t": 2.182010072099617,
+          "p": 0.029594008498653412,
+          "lo": -0.7820499777436671,
+          "hi": 11.277883311077002,
+          "q": 2.507175473288399,
+          "siege": {
+            "n": 480,
+            "nichtPruefbar": 0,
+            "nurA": 1,
+            "nurB": 0,
+            "p": 1
+          },
+          "urteil": "kein nachgewiesener Unterschied"
+        }
+      ],
+      "ergaenzend": {
+        "a": "R",
+        "b": "A",
+        "n": 480,
+        "mittel": -32.827083333333334,
+        "sd": 48.73075120045749,
+        "t": -14.758757947158218,
+        "p": 6.682258742143626e-41,
+        "lo": -37.19756516041984,
+        "hi": -28.456601506246827,
+        "q": 1.96492885899875,
+        "siege": {
+          "n": 480,
+          "nichtPruefbar": 0,
+          "nurA": 0,
+          "nurB": 9,
+          "p": 0.00390625
+        }
+      },
+      "siege": {
+        "A": {
+          "k": 9,
+          "n": 480,
+          "remis": 0,
+          "ci": [
+            0.008608652853948625,
+            0.03529397347599866
+          ],
+          "nichtPruefbar": 0
+        },
+        "H": {
+          "k": 1,
+          "n": 480,
+          "remis": 0,
+          "ci": [
+            5.2744042284697535e-05,
+            0.011552464158796905
+          ],
+          "nichtPruefbar": 0
+        },
+        "R": {
+          "k": 0,
+          "n": 480,
+          "remis": 0,
+          "ci": [
+            0,
+            0.007655710149586492
+          ],
+          "nichtPruefbar": 0
+        }
+      },
+      "farben": {
+        "S": [
+          {
+            "a": "H",
+            "b": "A",
+            "n": 240,
+            "mittel": -26.441666666666666,
+            "sd": 47.73449860471183,
+            "t": -8.581477768857024,
+            "p": 1.2050836804593586e-15,
+            "lo": -32.51153977335036,
+            "hi": -20.371793559982976,
+            "q": 1.96993940591702
+          },
+          {
+            "a": "H",
+            "b": "R",
+            "n": 240,
+            "mittel": 8.325,
+            "sd": 51.5988165184899,
+            "t": 2.4994826263600793,
+            "p": 0.013109334613026881,
+            "lo": 1.7637439299221525,
+            "hi": 14.886256070077845,
+            "q": 1.96993940591702
+          },
+          {
+            "a": "R",
+            "b": "A",
+            "n": 240,
+            "mittel": -34.766666666666666,
+            "sd": 46.13401132997975,
+            "t": -11.674746428619619,
+            "p": 3.232028858071592e-25,
+            "lo": -40.63302334497152,
+            "hi": -28.900309988361816,
+            "q": 1.96993940591702
+          }
+        ],
+        "W": [
+          {
+            "a": "H",
+            "b": "A",
+            "n": 240,
+            "mittel": -28.716666666666665,
+            "sd": 51.18367668228686,
+            "t": -8.69176885818203,
+            "p": 5.776256349956441e-16,
+            "lo": -35.22513395293118,
+            "hi": -22.20819938040215,
+            "q": 1.96993940591702
+          },
+          {
+            "a": "H",
+            "b": "R",
+            "n": 240,
+            "mittel": 2.1708333333333334,
+            "sd": 53.69556193660317,
+            "t": 0.626316294618058,
+            "p": 0.5317052232262801,
+            "lo": -4.657042875155516,
+            "hi": 8.998709541822183,
+            "q": 1.96993940591702
+          },
+          {
+            "a": "R",
+            "b": "A",
+            "n": 240,
+            "mittel": -30.8875,
+            "sd": 51.21919269997157,
+            "t": -9.342339603571922,
+            "p": 6.893231206636116e-18,
+            "lo": -37.40048346904432,
+            "hi": -24.374516530955685,
+            "q": 1.96993940591702
+          }
+        ]
+      }
+    },
+    "f": {
+      "haupt": [
+        {
+          "a": "H",
+          "b": "A",
+          "n": 480,
+          "mittel": -22.4125,
+          "sd": 59.34317458242219,
+          "t": -8.274469241974602,
+          "p": 1.2898492677394301e-15,
+          "lo": -29.203518088510858,
+          "hi": -15.621481911489145,
+          "q": 2.507175473288399,
+          "siege": {
+            "n": 479,
+            "nichtPruefbar": 1,
+            "nurA": 31,
+            "nurB": 44,
+            "p": 0.16542794172425418
+          },
+          "urteil": "H schlechter als A"
+        },
+        {
+          "a": "H",
+          "b": "R",
+          "n": 480,
+          "mittel": 2.002083333333333,
+          "sd": 55.13939439295892,
+          "t": 0.795501086469554,
+          "p": 0.42671609946716804,
+          "lo": -4.307869367158583,
+          "hi": 8.31203603382525,
+          "q": 2.507175473288399,
+          "siege": {
+            "n": 480,
+            "nichtPruefbar": 0,
+            "nurA": 43,
+            "nurB": 16,
+            "p": 0.0005843646280443553
+          },
+          "urteil": "kein nachgewiesener Unterschied"
+        }
+      ],
+      "ergaenzend": {
+        "a": "R",
+        "b": "A",
+        "n": 480,
+        "mittel": -24.414583333333333,
+        "sd": 52.81702171371489,
+        "t": -10.12735484877516,
+        "p": 5.670241502705652e-22,
+        "lo": -29.15154773207745,
+        "hi": -19.677618934589216,
+        "q": 1.96492885899875,
+        "siege": {
+          "n": 479,
+          "nichtPruefbar": 1,
+          "nurA": 18,
+          "nurB": 58,
+          "p": 4.713242239575154e-06
+        }
+      },
+      "siege": {
+        "A": {
+          "k": 64,
+          "n": 479,
+          "remis": 0,
+          "ci": [
+            0.10443976394936083,
+            0.16739438955737845
+          ],
+          "nichtPruefbar": 1
+        },
+        "H": {
+          "k": 51,
+          "n": 480,
+          "remis": 0,
+          "ci": [
+            0.08013881260322167,
+            0.13732705599845269
+          ],
+          "nichtPruefbar": 0
+        },
+        "R": {
+          "k": 24,
+          "n": 480,
+          "remis": 0,
+          "ci": [
+            0.03229510583717479,
+            0.07348508599035058
+          ],
+          "nichtPruefbar": 0
+        }
+      },
+      "farben": {
+        "S": [
+          {
+            "a": "H",
+            "b": "A",
+            "n": 240,
+            "mittel": -25.333333333333332,
+            "sd": 59.93013133276172,
+            "t": -6.54866431439204,
+            "p": 3.5204217068833556e-10,
+            "lo": -32.95399141270498,
+            "hi": -17.71267525396168,
+            "q": 1.96993940591702
+          },
+          {
+            "a": "H",
+            "b": "R",
+            "n": 240,
+            "mittel": -4.058333333333334,
+            "sd": 58.810709159599085,
+            "t": -1.0690472968590596,
+            "p": 0.2861268842085518,
+            "lo": -11.536646761718442,
+            "hi": 3.419980095051775,
+            "q": 1.96993940591702
+          },
+          {
+            "a": "R",
+            "b": "A",
+            "n": 240,
+            "mittel": -21.275,
+            "sd": 53.49007063842566,
+            "t": -6.16172083581963,
+            "p": 3.0307211108617003e-09,
+            "lo": -28.07674613190013,
+            "hi": -14.473253868099869,
+            "q": 1.96993940591702
+          }
+        ],
+        "W": [
+          {
+            "a": "H",
+            "b": "A",
+            "n": 240,
+            "mittel": -19.491666666666667,
+            "sd": 58.72993232743842,
+            "t": -5.141562225472352,
+            "p": 5.670064805654185e-07,
+            "lo": -26.959708590468992,
+            "hi": -12.02362474286434,
+            "q": 1.96993940591702
+          },
+          {
+            "a": "H",
+            "b": "R",
+            "n": 240,
+            "mittel": 8.0625,
+            "sd": 50.605954240608,
+            "t": 2.4681623889815336,
+            "p": 0.01428207299613707,
+            "lo": 1.627495345885725,
+            "hi": 14.497504654114275,
+            "q": 1.96993940591702
+          },
+          {
+            "a": "R",
+            "b": "A",
+            "n": 240,
+            "mittel": -27.554166666666667,
+            "sd": 52.0573105422534,
+            "t": -8.199949440876674,
+            "p": 1.4777808812746927e-14,
+            "lo": -34.173724397509055,
+            "hi": -20.93460893582428,
+            "q": 1.96993940591702
+          }
+        ]
+      }
+    }
+  }
+}

@@ -36,3 +36,9 @@ node auswertung/prior-ohne-orakel/bericht.js /tmp/prior-probe-daten
 Diese Prüfung wurde nach dem Download ausgeführt; ihr JSON-Prüfbericht stimmt
 bytegleich mit dem in Actions erzeugten Bericht überein. Die Unterlagen begründen
 keine Aussage über die Wirkung von H und keine Laufzeitgarantie für den Hauptlauf.
+
+## H/R-Containerlauf vom 28. November 2026
+
+Der [Datenordner](hr-container-20261128/) enthält den Hauptbericht, den Erstlaufvergleich, die unabhängige Nachkontrolle, den vorab gespeicherten Vergleichsplan sowie Laufbeleg und Paketprüfsummen. Die früheren Abschnitte dieser Seite betreffen die technische Probe.
+
+Die komprimierten JSONL-Dateien `container.jsonl.gz` (2.902 Zeilen) und `actions.jsonl.gz` (2.682 Zeilen) enthalten je Partie Paket, Reihe, Nummer, Seed, KI-Farbe, Status, Zugliste, Endstand und Siegkennzeichen. Für die Hauptvergleiche nur die Reihen g-A/H/R und f-A/H/R verwenden und je Gegner nach Nummer paaren. Wiederholungen und Archivkontrollen haben eigene Reihennamen. Die Einzelzugdiagnosen und GTP-Protokolle liegen in den Originalpaketen auf dem Messrechner. `paket-hashes.json` identifiziert die 145 Container-ZIPs einschließlich Kontrollpaket.

@@ -1,0 +1,26 @@
+{
+  "quelle": "0ab23b9f304eaafea27c83aede9f41150649804f",
+  "referenzRun": 42279288660,
+  "container": "194e4d80d99467e5a25a912dd1ccf264551368a1ed5e42e32e7028725bc3b203",
+  "image": "sha256:5c9a19e1da8539681879ef06f6dfff0ac02fa1ec12e792a1eb0dd8e379b1856d",
+  "urspruenglichesFuegoArtefakt": 13533978011,
+  "dateien": {
+    "driver/game.py": "4babdc3c0963126138c4ffbfd749fceb8f0a88cdab643821788be9ba4b4b4a43",
+    "driver/run.py": "2351d8c5257834329ee0ff80a9d75fed3d5c910dee12bb0edcf0fc2be976be0a",
+    "driver/finish.py": "2b4bda780dd35268bca84b89439547bf94ef3a3c9047b6e46079bea526a5c4ee",
+    "driver/download.py": "4569d7bb243175b3c47912a6e9411f67cebd2b8fdc9e30708469bb25054269bf",
+    "driver/compare.py": "4cdb2163dc2f704396a666eaecab9d52ea49fa8cdf8681d384dd6812b757813f",
+    "driver/zip-reader.cjs": "674169dd941d8fe236216f545a47c2df7c9a04034736b3c8def80b226f2f27b6",
+    "start-container.sh": "8c1541e48625a101edf45536e2fcea13caaca60193f7b432450edcbefc32f897",
+    "vergleichsplan.md": "75735240c86e3e33c49eb8763b4de431c13e7d5a2522f09979618bb7534a326f",
+    "deps/build/Dockerfile": "4182cd7021bb723de4a9ee3e6ddeaf083a1293e283a8deb04ab301a9f6cee607"
+  },
+  "kontrolle": {
+    "gueltig": true,
+    "partien": 4
+  },
+  "archivdaten": {
+    "quelle": "/workspace/hr-artifacts.tsv",
+    "quelleSHA256": "792aa69894b729cc05811b2f6f384e1c7348bae049edddda7284fb5faf1b20c2"
+  }
+}

@@ -6,8 +6,7 @@ SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 Vorabfestlegung vom 05.11.2026; Umsetzung mit Go in der Sitzung vom 06.11.2026.
 Konkretisierung in §10 mit anschließendem Go. Ergebnisse von Engine-Vergleich und
-technischer Probe in §11/12; der Hauptlauf ist in §13 konkret vorbereitet,
-Wirkung und Start bleiben offen.
+technischer Probe in §11/12. §13 enthält den Hauptlaufplan, §14 das Ergebnis.
 Ziel-Repository: `Hazeberry/codex`.
 
 ## 1. Grundlage und Frage
@@ -544,3 +543,20 @@ fehlende Pakete, belegte/unbelegte Timeouts, Default-/Quellen-/Probesperren und
 frühe Archivkontrollen. Die bisherigen Berichts- und Werkzeugtests bestehen weiter.
 Alle kurzen Prüfungen sind in Testsammlung und README eingetragen. Keine reale
 H/R-Partie oder umfangreiche Archiv-Reproduktion wurde zur Vorbereitung lokal gerechnet.
+
+## 14. Ergebnis des H/R-Containerlaufs
+
+Der Containerlauf endete am 28. November 2026 um 05:11 Uhr MEZ. Alle 144 Hauptpakete, 18 Wiederholungen und vier Archivkontrollen sind vollständig. 78/78 Prüfungen bestanden. Primärer Endpunkt war der von GNU Go gewertete Endstand in Punkten aus Sicht der KI. A behielt die ursprünglichen Priors, H hob den von quickEval bestimmten vorhandenen Zug an, R wählte den anzuhebenden Zug zufällig unter den zulässigen Kandidaten.
+
+| Gegner | Vergleich | Vollständige Paare | Mittlere Differenz in Punkten | 98,75-%-Intervall |
+|---|---|---:|---:|---:|
+| GNU Go 1 | H − A | 480 | −27,58 | [−33,24 bis −21,92] |
+| GNU Go 1 | H − R | 480 | +5,25 | [−0,78 bis +11,28] |
+| Fuego 100 | H − A | 480 | −22,41 | [−29,20 bis −15,62] |
+| Fuego 100 | H − R | 480 | +2,00 | [−4,31 bis +8,31] |
+
+H verschlechterte den Endstand gegenüber A bei beiden Gegnern. Die Intervalle für H − R schließen null ein. Die vier Vergleiche gelten für 120 Simulationen, ausgeschaltete Aufgabe und die konkrete Auswahl- und Anhebungsregel. [Hauptbericht](daten/prior-anhebung-ohne-orakel/hr-container-20261128/bericht.md)
+
+Im ersten Actions-Lauf scheiterte bei elf Paketen die Installation der Gegnerbibliotheken. Damit fehlten 220 Hauptpartien. Der Erstlauf blieb unter der Mindestzahl vollständiger Dreiergruppen. Im Container wurden dieselben Seeds gespielt. Alle 2.660 vergleichbaren Hauptpartien, 18/18 Wiederholungen und 4/4 Kontrollen stimmten in Zugfolge, Endstand und Siegentscheidung überein. Das belegt die Reproduzierbarkeit der vorhandenen Daten. [Actions-Erstlauf](https://github.com/Hazeberry/codex/actions/runs/42279288660) · [Direkter Vergleich](daten/prior-anhebung-ohne-orakel/hr-container-20261128/vergleich.md)
+
+Die unabhängige Nachrechnung reproduzierte Mittelwert, Standardabweichung, Intervall und p-Wert aller vier Hauptvergleiche. In beiden Läufen waren alle geprüften Siegkennzeichen mit dem Partieende vereinbar. Jede vollständige Dreiergruppe enthielt eine Eingriffsgelegenheit. Eine Fuego-A-Partie ohne binäre Siegentscheidung ging mit ihrem numerischen Endstand in den primären Vergleich ein. [Nachkontrolle](daten/prior-anhebung-ohne-orakel/hr-container-20261128/nachkontrolle.json)
